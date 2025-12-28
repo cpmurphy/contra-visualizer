@@ -107,6 +107,29 @@ export class Set {
         }
     }
 
+    /**
+     * Rotate each minor set to the right by the given number of places.
+     * @param {number} numberOfPlaces - The number of places to rotate
+     */
+    rotateRight(numberOfPlaces) {
+        const startIndex = this.dancers[0].active ? 0 : 2;
+        for (let i = startIndex; i < this.dancers.length; i += 4) {
+            if (this.dancers.length - i < 4) {
+                break;
+            }
+            for (let j = 0; j < numberOfPlaces; j++) {
+                const originalFirst = this.dancers[i];
+                const originalSecond = this.dancers[i + 1];
+                const originalThird = this.dancers[i + 2];
+                const originalFourth = this.dancers[i + 3];
+                this.dancers[i] = originalSecond;
+                this.dancers[i + 1] = originalFourth;
+                this.dancers[i + 2] = originalFirst;
+                this.dancers[i + 3] = originalThird;
+            }
+        }
+    }
+
     balance() {
     }
 
