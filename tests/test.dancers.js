@@ -15,33 +15,33 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createImproperFormation, progress } from '../dancers.js';
+import { Set } from '../dancers.js';
 
 
-function internallyProgress(dancers) {
-    for (let i = 0; i < dancers.length; i+= 2) {
-        if (dancers.length - i < 3) {
+function internallyProgress(set) {
+    for (let i = 0; i < set.dancers.length; i+= 2) {
+        if (set.dancers.length - i < 3) {
             break;
         }
-        const temp1 = dancers[i];
-        const temp2 = dancers[i + 1];
-        dancers[i] = dancers[i + 2];
-        dancers[i + 1] = dancers[i + 3];
-        dancers[i + 2] = temp1;
-        dancers[i + 3] = temp2;
+        const temp1 = set.dancers[i];
+        const temp2 = set.dancers[i + 1];
+        set.dancers[i] = set.dancers[i + 2];
+        set.dancers[i + 1] = set.dancers[i + 3];
+        set.dancers[i + 2] = temp1;
+        set.dancers[i + 3] = temp2;
     }
 }
 
-test('createImproperFormation with even number of couples should make all active', () => {
-    const dancers = createImproperFormation(4);
-    dancers.forEach((dancer) => {
+test('creating Set with even number of couples should make all active', () => {
+    const set = new Set(4);
+    set.dancers.forEach((dancer) => {
         assert(dancer.active, "all dancers should be active");
     });
 });
 
-test('createImproperFormation with odd number of couples should make all but last couple active', () => {
-    const dancers = createImproperFormation(5);
-    dancers.forEach((dancer, index) => {
+test('creating Set with odd number of couples should make all but last couple active', () => {
+    const set = new Set(5);
+    set.dancers.forEach((dancer, index) => {
         if (index < 8) {
             assert(dancer.active, "first eight dancers should be active");
         } else {
@@ -50,21 +50,21 @@ test('createImproperFormation with odd number of couples should make all but las
     });
 });
 
-test('createImproperFormation with odd number of couples should order dancers as expected', () => {
-    const dancers = createImproperFormation(3);
-    assert.strictEqual(dancers[0].id, 'd2');
-    assert.strictEqual(dancers[1].id, 'd1');
-    assert.strictEqual(dancers[2].id, 'd3');
-    assert.strictEqual(dancers[3].id, 'd4');
+test('creating Set with odd number of couples should order dancers as expected', () => {
+    const set = new Set(3);
+    assert.strictEqual(set.dancers[0].id, 'd2');
+    assert.strictEqual(set.dancers[1].id, 'd1');
+    assert.strictEqual(set.dancers[2].id, 'd3');
+    assert.strictEqual(set.dancers[3].id, 'd4');
     // the last couple are out of the dance, so lark comes first
-    assert.strictEqual(dancers[4].id, 'd5');
-    assert.strictEqual(dancers[5].id, 'd6');
+    assert.strictEqual(set.dancers[4].id, 'd5');
+    assert.strictEqual(set.dancers[5].id, 'd6');
 });
 
-test('createImproperFormation should alternate couple numbers', () => {
-    const dancers = createImproperFormation(5);
+test('creating Set should alternate couple numbers', () => {
+    const set = new Set(5);
     for (let i = 0; i < 8; i++) {
-        const dancer = dancers[i];
+        const dancer = set.dancers[i];
         if (Math.trunc(i / 2) % 2 === 0) {
             assert.strictEqual(dancer.couple.coupleNumber, 1);
         } else {
@@ -72,57 +72,55 @@ test('createImproperFormation should alternate couple numbers', () => {
         };
     }
     // because there is an uneven number of couples, the last couple are twos
-    assert.strictEqual(dancers[8].couple.coupleNumber, 2);
-    assert.strictEqual(dancers[9].couple.coupleNumber, 2);
+    assert.strictEqual(set.dancers[8].couple.coupleNumber, 2);
+    assert.strictEqual(set.dancers[9].couple.coupleNumber, 2);
 });
 
-test('createImproperFormation (even number) should have minor sets arranged R1, L1, L2, R2', () => {
-    const dancers = createImproperFormation(6);
+test('creating Set (even number) should have minor sets arranged R1, L1, L2, R2', () => {
+    const set = new Set(6);
     const expectedRoles = ['R1', 'L1', 'L2', 'R2'];
-    dancers.forEach((dancer, index) => {
+    set.dancers.forEach((dancer, index) => {
         assert.strictEqual(dancer.getLabel(), expectedRoles[index % 4]);
     });
 });
 
-test('createImproperFormation (odd number) should rotate bottom couple', () => {
-    const dancers = createImproperFormation(5);
-    const expectedRoles = ['R1', 'L1', 'L2', 'R2'];
-    assert.strictEqual(dancers[8].getLabel(), 'L2');
-    assert.strictEqual(dancers[9].getLabel(), 'R2');
+test('creating Set (odd number) should rotate bottom couple', () => {
+    const set = new Set(5);
+    assert.strictEqual(set.dancers[8].getLabel(), 'L2');
+    assert.strictEqual(set.dancers[9].getLabel(), 'R2');
 });
 
-test('progress (even number of couples) should put top couple out', () => {
-    const dancers = createImproperFormation(6);
-    internallyProgress(dancers);
-    progress(dancers);
-    assert(!dancers[0].active);
-    assert(!dancers[1].active);
+test('progressing Set (even number of couples) should put top couple out', () => {
+    const set = new Set(6);
+    set.progress();
+    assert(!set.dancers[0].active);
+    assert(!set.dancers[1].active);
 });
 
-test('progress (even number of couples, all active) should rotate top couple', () => {
-    const dancers = createImproperFormation(6);
-    internallyProgress(dancers);
-    assert.strictEqual(dancers[0].getLabel(), "L2");
-    assert.strictEqual(dancers[1].getLabel(), "R2");
-    progress(dancers);
-    assert.strictEqual(dancers[0].getLabel(), "R1");
-    assert.strictEqual(dancers[1].getLabel(), "L1");
+test('progressing Set (even number of couples, all active) should rotate top couple', () => {
+    const set = new Set(6);
+    internallyProgress(set);
+    assert.strictEqual(set.dancers[0].getLabel(), "L2");
+    assert.strictEqual(set.dancers[1].getLabel(), "R2");
+    set.progress();
+    assert.strictEqual(set.dancers[0].getLabel(), "R1");
+    assert.strictEqual(set.dancers[1].getLabel(), "L1");
 });
 
-test('progress (even number of couples, all active) should put bottom couple out', () => {
-    const dancers = createImproperFormation(6);
-    internallyProgress(dancers);
-    progress(dancers);
-    assert(!dancers[10].active);
-    assert(!dancers[11].active);
+test('progressing Set (even number of couples, all active) should put bottom couple out', () => {
+    const set = new Set(6);
+    internallyProgress(set);
+    set.progress();
+    assert(!set.dancers[10].active);
+    assert(!set.dancers[11].active);
 });
 
-test('progress (even number of couples, all active) should rotate bottom couple', () => {
-    const dancers = createImproperFormation(6);
-    internallyProgress(dancers);
-    assert.strictEqual(dancers[10].getLabel(), "R1");
-    assert.strictEqual(dancers[11].getLabel(), "L1");
-    progress(dancers);
-    assert.strictEqual(dancers[10].getLabel(), "L2");
-    assert.strictEqual(dancers[11].getLabel(), "R2");
+test('progressing Set (even number of couples, all active) should rotate bottom couple', () => {
+    const set = new Set(6);
+    internallyProgress(set);
+    assert.strictEqual(set.dancers[10].getLabel(), "R1");
+    assert.strictEqual(set.dancers[11].getLabel(), "L1");
+    set.progress();
+    assert.strictEqual(set.dancers[10].getLabel(), "L2");
+    assert.strictEqual(set.dancers[11].getLabel(), "R2");
 });

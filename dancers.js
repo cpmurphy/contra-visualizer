@@ -46,94 +46,86 @@ export class Couple {
     }
 }
 
-/**
- * Create an array of dancers representing the entire set
- * @param {number} coupleCount
- * @returns {{lineup: Array<Dancer>}}
- */
-export function createImproperFormation(coupleCount = 6) {
-    const lineup = [];
-    let dancerNumber = 1;
+export class Set {
+    constructor(coupleCount = 6) {
+        this.dancers = [];
+        let dancerNumber = 1;
 
-    for (let i = 0; i < coupleCount; i++) {
-        const color = COLOR_PALETTE[(i) % COLOR_PALETTE.length];
-        const coupleNumber = (i % 2) + 1;
-        const couple = new Couple(coupleNumber, color);
-        const active = i < coupleCount - 1 || i % 2 === 1;
-        const lark = new Dancer('d' + dancerNumber, 'lark', couple, active);
-        dancerNumber++;
-        const robin = new Dancer('d' + dancerNumber, 'robin', couple, active);
-        dancerNumber++;
+        for (let i = 0; i < coupleCount; i++) {
+            const color = COLOR_PALETTE[(i) % COLOR_PALETTE.length];
+            const coupleNumber = (i % 2) + 1;
+            const couple = new Couple(coupleNumber, color);
+            const active = i < coupleCount - 1 || i % 2 === 1;
+            const lark = new Dancer('d' + dancerNumber, 'lark', couple, active);
+            dancerNumber++;
+            const robin = new Dancer('d' + dancerNumber, 'robin', couple, active);
+            dancerNumber++;
 
             lark.setPartner(robin);
             robin.setPartner(lark);
-        
-        if (i % 2 == 0) {
-            lineup.push(robin);
-            lineup.push(lark);
-        } else {
-            lineup.push(lark);
-            lineup.push(robin);
+            
+            if (i % 2 == 0) {
+                this.dancers.push(robin);
+                this.dancers.push(lark);
+            } else {
+                this.dancers.push(lark);
+                this.dancers.push(robin);
+            }
+        }
+        if (coupleCount % 2 != 0) {
+            // rotate the last couple and make them a "2"
+            const secondLast = coupleCount * 2 - 2;
+            const robin = this.dancers[secondLast];
+            const last = coupleCount * 2 - 1;
+            const lark = this.dancers[last];
+            lark.couple.coupleNumber = 2;
+            this.dancers[secondLast] = lark; // on left, facing up
+            this.dancers[last] = robin;      // on right, facing up
         }
     }
-    if (coupleCount % 2 != 0) {
-        // rotate the last couple and make them a "2"
-        const secondLast = coupleCount * 2 - 2;
-        const robin = lineup[secondLast];
-        const last = coupleCount * 2 - 1;
-        const lark = lineup[last];
-        lark.couple.coupleNumber = 2;
-        lineup[secondLast] = lark; // on left, facing up
-        lineup[last] = robin;      // on right, facing up
+
+    progress() {
+        this.progressFirstCouple();
+        this.progressLastCouple();
     }
-    return lineup;
-}
 
-/**
- * Rotate the lineup of dancers making couples active/inactive as appropriate
- * @param {{lineup: Array<Dancer>}}
- */
-export function progress(lineup) {
-    progressFirstCouple(lineup);
-    progressLastCouple(lineup);
-}
-
-function progressFirstCouple(lineup) {
-    if (lineup[0].active) {
-        // inactivate the first couple
-        const lark = lineup[0];
-        const robin = lineup[1];
-        lark.inactivate();
-        robin.inactivate();
-        // rotate the couple, make them a "1"
-        lineup[0] = robin;
-        lineup[1] = lark;
-        lark.couple.coupleNumber = 1;
-    } else {
-        // activate the first couple
-        const robin = lineup[0];
-        const lark = lineup[1];
-        lark.activate();
-        robin.activate();
+    progressFirstCouple() {
+        if (this.dancers[0].active) {
+            // inactivate the first couple
+            const lark = this.dancers[0];
+            const robin = this.dancers[1];
+            lark.inactivate();
+            robin.inactivate();
+            // rotate the couple, make them a "1"
+            this.dancers[0] = robin;
+            this.dancers[1] = lark;
+            lark.couple.coupleNumber = 1;
+        } else {
+            // activate the first couple
+            const robin = this.dancers[0];
+            const lark = this.dancers[1];
+            lark.activate();
+            robin.activate();
+        }
     }
-}
 
-function progressLastCouple(lineup) {
-    if (lineup[lineup.length - 2].active) {
-        // inactivate the last couple
-        const lark = lineup[lineup.length - 2];
-        const robin = lineup[lineup.length - 1];
-        lark.inactivate();
-        robin.inactivate();
-        // rotate the couple, make them a "2"
-        lineup[lineup.length - 2] = robin;
-        lineup[lineup.length - 1] = lark;
-        lark.couple.coupleNumber = 2;
-    } else {
-        // activate the last couple
-        const lark = lineup[lineup.length - 2];
-        const robin = lineup[lineup.length - 1];
-        lark.activate();
-        robin.activate();
+    progressLastCouple() {
+        if (this.dancers[this.dancers.length - 2].active) {
+            // inactivate the last couple
+            const lark = this.dancers[this.dancers.length - 2];
+            const robin = this.dancers[this.dancers.length - 1];
+            lark.inactivate();
+            robin.inactivate();
+            // rotate the couple, make them a "2"
+            this.dancers[this.dancers.length - 2] = robin;
+            this.dancers[this.dancers.length - 1] = lark;
+            lark.couple.coupleNumber = 2;
+        } else {
+            // activate the last couple
+            const lark = this.dancers[this.dancers.length - 2];
+            const robin = this.dancers[this.dancers.length - 1];
+            lark.activate();
+            robin.activate();
+        }
     }
 }
