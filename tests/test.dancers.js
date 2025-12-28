@@ -154,6 +154,14 @@ test('rotating left by four places should return active dancers to their origina
     assert.strictEqual(set.dancers[3].getLabel(), "R2");
 });
 
+test('a balance should return active dancers to their original positions', () => {
+    const set = new Set(2);
+    set.balance();
+    assert.strictEqual(set.dancers[0].getLabel(), "R1");
+    assert.strictEqual(set.dancers[1].getLabel(), "L1");
+    assert.strictEqual(set.dancers[2].getLabel(), "L2");
+    assert.strictEqual(set.dancers[3].getLabel(), "R2");
+});
 
 test('progressing Set (even number of couples) should put top couple out', () => {
     const set = new Set(6);

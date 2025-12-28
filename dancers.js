@@ -63,7 +63,7 @@ export class Set {
 
             lark.setPartner(robin);
             robin.setPartner(lark);
-            
+
             if (i % 2 == 0) {
                 this.dancers.push(robin);
                 this.dancers.push(lark);
@@ -105,6 +105,9 @@ export class Set {
                 this.dancers[i + 3] = originalSecond;
             }
         }
+    }
+
+    balance() {
     }
 
     progress() {
