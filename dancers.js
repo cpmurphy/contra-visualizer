@@ -118,6 +118,9 @@ export class Set {
         }
     }
 
+    longLines() {
+    }
+
     swingNeighbor() {
         const startIndex = this.dancers[0].active ? 0 : 2;
         for (let i = startIndex; i < this.dancers.length; i += 4) {

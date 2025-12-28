@@ -200,6 +200,15 @@ test('after progressing when top couple is inactive, a neighbor swing should mov
     assert.strictEqual(set.dancers[9].getLabel(), "L1");
 });
 
+test('long lines should return active dancers to their original positions', () => {
+    const set = new Set(2);
+    set.longLines();
+    assert.strictEqual(set.dancers[0].getLabel(), "R1");
+    assert.strictEqual(set.dancers[1].getLabel(), "L1");
+    assert.strictEqual(set.dancers[2].getLabel(), "L2");
+    assert.strictEqual(set.dancers[3].getLabel(), "R2");
+});
+
 test('progressing Set (even number of couples) should put top couple out', () => {
     const set = new Set(6);
     set.progress();
