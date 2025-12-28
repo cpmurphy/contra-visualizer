@@ -110,6 +110,31 @@ export class Set {
     balance() {
     }
 
+    swing(kind) {
+        if (kind === 'neighbor') {
+            this.swingNeighbor();
+        } else {
+            throw new Error('Invalid swing kind: ' + kind);
+        }
+    }
+
+    swingNeighbor() {
+        const startIndex = this.dancers[0].active ? 0 : 2;
+        for (let i = startIndex; i < this.dancers.length; i += 4) {
+            if (this.dancers.length - i < 4) {
+                break;
+            }
+            const leftLark = this.dancers[i].role === 'lark' ? this.dancers[i] : this.dancers[i + 2];
+            const leftRobin = this.dancers[i].role === 'robin' ? this.dancers[i] : this.dancers[i + 2];
+            const rightLark = this.dancers[i + 1].role === 'lark' ? this.dancers[i + 1] : this.dancers[i + 3];
+            const rightRobin = this.dancers[i + 1].role === 'robin' ? this.dancers[i + 1] : this.dancers[i + 3];
+            this.dancers[i] = leftLark;
+            this.dancers[i + 1] = rightRobin;
+            this.dancers[i + 2] = leftRobin;
+            this.dancers[i + 3] = rightLark;
+        }
+    }
+
     progress() {
         this.progressFirstCouple();
         this.progressLastCouple();
