@@ -90,6 +90,71 @@ test('creating Set (odd number) should rotate bottom couple', () => {
     assert.strictEqual(set.dancers[9].getLabel(), 'R2');
 });
 
+test('rotating left by one place should skip inactive dancers', () => {
+    const set = new Set(6);
+    internallyProgress(set);
+    set.progress();
+    // now top and bottom couples are inactive
+    set.rotateLeft(1);
+    assert.strictEqual(set.dancers[0].getLabel(), "R1");
+    assert.strictEqual(set.dancers[1].getLabel(), "L1");
+    assert.strictEqual(set.dancers[10].getLabel(), "L2");
+    assert.strictEqual(set.dancers[11].getLabel(), "R2");
+});
+
+test('rotating left by one place should rotate a minor set with active dancers', () => {
+    const set = new Set(2);
+    set.rotateLeft(1);
+    assert.strictEqual(set.dancers[0].getLabel(), "L2");
+    assert.strictEqual(set.dancers[1].getLabel(), "R1");
+    assert.strictEqual(set.dancers[2].getLabel(), "R2");
+    assert.strictEqual(set.dancers[3].getLabel(), "L1");
+});
+
+test('after progressing when top couple is inactive, rotating left by one place should rotate the minor sets with active dancers', () => {
+    const set = new Set(6);
+    internallyProgress(set);
+    set.progress();
+    // now top and bottom couples are inactive
+    set.rotateLeft(1);
+    assert.strictEqual(set.dancers[2].getLabel(), "L2");
+    assert.strictEqual(set.dancers[3].getLabel(), "R1");
+    assert.strictEqual(set.dancers[4].getLabel(), "R2");
+    assert.strictEqual(set.dancers[5].getLabel(), "L1");
+    assert.strictEqual(set.dancers[6].getLabel(), "L2");
+    assert.strictEqual(set.dancers[7].getLabel(), "R1");
+    assert.strictEqual(set.dancers[8].getLabel(), "R2");
+    assert.strictEqual(set.dancers[9].getLabel(), "L1");
+});
+
+test('rotating left by two places should rotate a minor set with active dancers', () => {
+    const set = new Set(2);
+    set.rotateLeft(2);
+    assert.strictEqual(set.dancers[0].getLabel(), "R2");
+    assert.strictEqual(set.dancers[1].getLabel(), "L2");
+    assert.strictEqual(set.dancers[2].getLabel(), "L1");
+    assert.strictEqual(set.dancers[3].getLabel(), "R1");
+});
+
+test('rotating left by three places should rotate a minor set with active dancers', () => {
+    const set = new Set(2);
+    set.rotateLeft(3);
+    assert.strictEqual(set.dancers[0].getLabel(), "L1");
+    assert.strictEqual(set.dancers[1].getLabel(), "R2");
+    assert.strictEqual(set.dancers[2].getLabel(), "R1");
+    assert.strictEqual(set.dancers[3].getLabel(), "L2");
+});
+
+test('rotating left by four places should return active dancers to their original positions', () => {
+    const set = new Set(2);
+    set.rotateLeft(4);
+    assert.strictEqual(set.dancers[0].getLabel(), "R1");
+    assert.strictEqual(set.dancers[1].getLabel(), "L1");
+    assert.strictEqual(set.dancers[2].getLabel(), "L2");
+    assert.strictEqual(set.dancers[3].getLabel(), "R2");
+});
+
+
 test('progressing Set (even number of couples) should put top couple out', () => {
     const set = new Set(6);
     set.progress();
