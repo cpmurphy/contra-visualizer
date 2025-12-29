@@ -161,6 +161,21 @@ export class Set {
         }
     }
 
+    chainRobins() {
+        const startIndex = this.dancers[0].active ? 0 : 2;
+        for (let i = startIndex; i < this.dancers.length; i += 4) {
+            if (this.dancers.length - i < 4) {
+                break;
+            }
+            const leftRobinIndex = this.dancers[i].role === 'robin' ? i : i + 2;
+            const rightRobinIndex = this.dancers[i + 1].role === 'robin' ? i + 1 : i + 3;
+            const leftRobin = this.dancers[leftRobinIndex];
+            const rightRobin = this.dancers[rightRobinIndex];
+            this.dancers[leftRobinIndex] = rightRobin;
+            this.dancers[rightRobinIndex] = leftRobin;
+        }
+    }
+
     progress() {
         this.progressFirstCouple();
         this.progressLastCouple();
