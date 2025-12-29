@@ -281,10 +281,12 @@ test('rotating right by two places should rotate a minor set with active dancers
         'd4', 'd3',
         'd1', 'd2',
     ]);
-    assert.strictEqual(set.dancers[0].getLabel(), "R2");
-    assert.strictEqual(set.dancers[1].getLabel(), "L2");
-    assert.strictEqual(set.dancers[2].getLabel(), "L1");
-    assert.strictEqual(set.dancers[3].getLabel(), "R1");
+    assert.deepStrictEqual(set.dancers.map((dancer) => {
+        return dancer.getLabel();
+    }), [
+        "R2", "L2",
+        "L1", "R1",
+    ]);
 });
 
 test('rotating right by three places should rotate a minor set with active dancers', () => {
@@ -296,10 +298,12 @@ test('rotating right by three places should rotate a minor set with active dance
         'd3', 'd2',
         'd4', 'd1',
     ]);
-    assert.strictEqual(set.dancers[0].getLabel(), "L2");
-    assert.strictEqual(set.dancers[1].getLabel(), "R1");
-    assert.strictEqual(set.dancers[2].getLabel(), "R2");
-    assert.strictEqual(set.dancers[3].getLabel(), "L1");
+    assert.deepStrictEqual(set.dancers.map((dancer) => {
+        return dancer.getLabel();
+    }), [
+        "L2", "R1",
+        "R2", "L1",
+    ]);
 });
 
 test('rotating right by four places should return active dancers to their original positions', () => {
@@ -311,28 +315,46 @@ test('rotating right by four places should return active dancers to their origin
         'd2', 'd1',
         'd3', 'd4',
     ]);
-    assert.strictEqual(set.dancers[0].getLabel(), "R1");
-    assert.strictEqual(set.dancers[1].getLabel(), "L1");
-    assert.strictEqual(set.dancers[2].getLabel(), "L2");
-    assert.strictEqual(set.dancers[3].getLabel(), "R2");
+    assert.deepStrictEqual(set.dancers.map((dancer) => {
+        return dancer.getLabel();
+    }), [
+        "R1", "L1",
+        "L2", "R2",
+    ]);
 });
 
 test('a balance should return active dancers to their original positions', () => {
     const set = new Set(2);
     set.balance();
-    assert.strictEqual(set.dancers[0].getLabel(), "R1");
-    assert.strictEqual(set.dancers[1].getLabel(), "L1");
-    assert.strictEqual(set.dancers[2].getLabel(), "L2");
-    assert.strictEqual(set.dancers[3].getLabel(), "R2");
+    assert.deepStrictEqual(set.dancers.map((dancer) => {
+        return dancer.id;
+    }), [
+        'd2', 'd1',
+        'd3', 'd4',
+    ]);
+    assert.deepStrictEqual(set.dancers.map((dancer) => {
+        return dancer.getLabel();
+    }), [
+        "R1", "L1",
+        "L2", "R2",
+    ]);
 });
 
 test('a neighbor swing should move active dancers to the correct positions', () => {
     const set = new Set(2);
     set.swing('neighbor');
-    assert.strictEqual(set.dancers[0].getLabel(), "L2");
-    assert.strictEqual(set.dancers[1].getLabel(), "R2");
-    assert.strictEqual(set.dancers[2].getLabel(), "R1");
-    assert.strictEqual(set.dancers[3].getLabel(), "L1");
+    assert.deepStrictEqual(set.dancers.map((dancer) => {
+        return dancer.id;
+    }), [
+        'd3', 'd4',
+        'd2', 'd1',
+    ]);
+    assert.deepStrictEqual(set.dancers.map((dancer) => {
+        return dancer.getLabel();
+    }), [
+        "L2", "R2",
+        "R1", "L1",
+    ]);
 });
 
 test('a neighbor swing should skip inactive dancers', () => {
