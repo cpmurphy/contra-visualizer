@@ -379,6 +379,34 @@ test('a neighbor swing should skip inactive dancers', () => {
     assert.strictEqual(set.dancers[11].getLabel(), "R2");
 });
 
+test('star right should move dancers the same as circle right', () => {
+    for (let i = 1; i <= 4; i++) {
+        const circleSet = new Set(4);
+        const starSet = new Set(4);
+        circleSet.circleRight(i);
+        starSet.starRight(i);
+        assert.deepStrictEqual(circleSet.dancers.map((dancer) => {
+            return dancer.id;
+        }), starSet.dancers.map((dancer) => {
+            return dancer.id;
+        }));
+    }
+});
+
+test('star left should move dancers the same as circle left', () => {
+    for (let i = 1; i <= 4; i++) {
+        const circleSet = new Set(4);
+        const starSet = new Set(4);
+        circleSet.circleLeft(i);
+        starSet.starLeft(i);
+        assert.deepStrictEqual(circleSet.dancers.map((dancer) => {
+            return dancer.id;
+        }), starSet.dancers.map((dancer) => {
+            return dancer.id;
+        }));
+    }
+});
+
 test('after progressing when top couple is inactive, a neighbor swing should move active dancers to the correct positions', () => {
     const set = new Set(6);
     internallyProgress(set);

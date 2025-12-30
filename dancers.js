@@ -108,6 +108,14 @@ export class Set {
     }
 
     /**
+     * In terms of the result, a star left is the same as a circle left.
+     * @param {number} numberOfPlaces - The number of places to rotate
+     */
+    starLeft(numberOfPlaces) {
+        this.circleLeft(numberOfPlaces);
+    }
+
+    /**
      * Rotate each minor set to the right by the given number of places.
      * @param {number} numberOfPlaces - The number of places to rotate
      */
@@ -128,6 +136,14 @@ export class Set {
                 this.dancers[i + 3] = originalThird;
             }
         }
+    }
+
+    /**
+     * In terms of the result, a star right is the same as a circle right.
+     * @param {number} numberOfPlaces - The number of places to rotate
+     */
+    starRight(numberOfPlaces) {
+        this.circleRight(numberOfPlaces);
     }
 
     balance() {
