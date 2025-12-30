@@ -106,12 +106,12 @@ test('internally progressing a set (testing the helper function)', () => {
     ]);
 });
 
-test('rotating left by one place should skip inactive dancers', () => {
+test('circling left by one place should skip inactive dancers', () => {
     const set = new Set(6);
     internallyProgress(set);
     set.progress();
     // now top and bottom couples are inactive
-    set.rotateLeft(1);
+    set.circleLeft(1);
     assert.strictEqual(set.dancers[0].id, "d4");
     assert.strictEqual(set.dancers[1].id, "d3");
     assert.strictEqual(set.dancers[10].id, "d9");
@@ -123,9 +123,9 @@ test('rotating left by one place should skip inactive dancers', () => {
     assert.strictEqual(set.dancers[11].getLabel(), "R2");
 });
 
-test('rotating left by one place should rotate a minor set with active dancers', () => {
+test('circling left by one place should rotate a minor set with active dancers', () => {
     const set = new Set(2);
-    set.rotateLeft(1);
+    set.circleLeft(1);
     assert.deepStrictEqual(set.dancers.map((dancer) => {
         return dancer.id;
     }), [
@@ -139,12 +139,12 @@ test('rotating left by one place should rotate a minor set with active dancers',
     assert.strictEqual(set.dancers[3].getLabel(), "L1");
 });
 
-test('after progressing when top couple is inactive, rotating left by one place should rotate the minor sets with active dancers', () => {
+test('after progressing when top couple is inactive, circling left by one place should rotate the minor sets with active dancers', () => {
     const set = new Set(6);
     internallyProgress(set);
     set.progress();
     // now top and bottom couples are inactive
-    set.rotateLeft(1);
+    set.circleLeft(1);
     assert.deepStrictEqual(set.dancers.map((dancer) => {
         return dancer.id;
     }), [
@@ -165,9 +165,9 @@ test('after progressing when top couple is inactive, rotating left by one place 
     assert.strictEqual(set.dancers[9].getLabel(), "L1");
 });
 
-test('rotating left by two places should rotate a minor set with active dancers', () => {
+test('circling left by two places should rotate a minor set with active dancers', () => {
     const set = new Set(2);
-    set.rotateLeft(2);
+    set.circleLeft(2);
     assert.deepStrictEqual(set.dancers.map((dancer) => {
         return dancer.id;
     }), [
@@ -180,9 +180,9 @@ test('rotating left by two places should rotate a minor set with active dancers'
     assert.strictEqual(set.dancers[3].getLabel(), "R1");
 });
 
-test('rotating left by three places should rotate a minor set with active dancers', () => {
+test('circling left by three places should rotate a minor set with active dancers', () => {
     const set = new Set(2);
-    set.rotateLeft(3);
+    set.circleLeft(3);
     assert.deepStrictEqual(set.dancers.map((dancer) => {
         return dancer.id;
     }), [
@@ -195,9 +195,9 @@ test('rotating left by three places should rotate a minor set with active dancer
     assert.strictEqual(set.dancers[3].getLabel(), "L2");
 });
 
-test('rotating left by four places should return active dancers to their original positions', () => {
+test('circling left by four places should return active dancers to their original positions', () => {
     const set = new Set(2);
-    set.rotateLeft(4);
+    set.circleLeft(4);
     assert.deepStrictEqual(set.dancers.map((dancer) => {
         return dancer.id;
     }), [
@@ -210,12 +210,12 @@ test('rotating left by four places should return active dancers to their origina
     assert.strictEqual(set.dancers[3].getLabel(), "R2");
 });
 
-test('rotating right by one place should skip inactive dancers', () => {
+test('circling right by one place should skip inactive dancers', () => {
     const set = new Set(6);
     internallyProgress(set);
     set.progress();
     // now top and bottom couples are inactive
-    set.rotateRight(1);
+    set.circleRight(1);
     assert.deepStrictEqual(set.dancers.map((dancer) => {
         return dancer.id;
     }), [
@@ -231,9 +231,9 @@ test('rotating right by one place should skip inactive dancers', () => {
     assert.strictEqual(set.dancers[10].getLabel(), "L2");
     assert.strictEqual(set.dancers[11].getLabel(), "R2");
 });
-test('rotating right by one place should rotate a minor set with active dancers', () => {
+test('circling right by one place should rotate a minor set with active dancers', () => {
     const set = new Set(2);
-    set.rotateRight(1);
+    set.circleRight(1);
     assert.deepStrictEqual(set.dancers.map((dancer) => {
         return dancer.id;
     }), [
@@ -246,12 +246,12 @@ test('rotating right by one place should rotate a minor set with active dancers'
     assert.strictEqual(set.dancers[3].getLabel(), "L2");
 });
 
-test('after progressing when top couple is inactive, rotating right by one place should rotate the minor sets with active dancers', () => {
+test('after progressing when top couple is inactive, circling right by one place should rotate the minor sets with active dancers', () => {
     const set = new Set(6);
     internallyProgress(set);
     set.progress();
     // now top and bottom couples are inactive
-    set.rotateRight(1);
+    set.circleRight(1);
     assert.deepStrictEqual(set.dancers.map((dancer) => {
         return dancer.id;
     }), [
@@ -272,9 +272,9 @@ test('after progressing when top couple is inactive, rotating right by one place
     assert.strictEqual(set.dancers[9].getLabel(), "L2");
 });
 
-test('rotating right by two places should rotate a minor set with active dancers', () => {
+test('circling right by two places should rotate a minor set with active dancers', () => {
     const set = new Set(2);
-    set.rotateRight(2);
+    set.circleRight(2);
     assert.deepStrictEqual(set.dancers.map((dancer) => {
         return dancer.id;
     }), [
@@ -289,9 +289,9 @@ test('rotating right by two places should rotate a minor set with active dancers
     ]);
 });
 
-test('rotating right by three places should rotate a minor set with active dancers', () => {
+test('circling right by three places should rotate a minor set with active dancers', () => {
     const set = new Set(2);
-    set.rotateRight(3);
+    set.circleRight(3);
     assert.deepStrictEqual(set.dancers.map((dancer) => {
         return dancer.id;
     }), [
@@ -306,9 +306,9 @@ test('rotating right by three places should rotate a minor set with active dance
     ]);
 });
 
-test('rotating right by four places should return active dancers to their original positions', () => {
+test('circling right by four places should return active dancers to their original positions', () => {
     const set = new Set(2);
-    set.rotateRight(4);
+    set.circleRight(4);
     assert.deepStrictEqual(set.dancers.map((dancer) => {
         return dancer.id;
     }), [

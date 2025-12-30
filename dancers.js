@@ -88,7 +88,7 @@ export class Set {
      * Rotate each minor set to the left by the given number of places.
      * @param {number} numberOfPlaces - The number of places to rotate
      */
-    rotateLeft(numberOfPlaces) {
+    circleLeft(numberOfPlaces) {
         const startIndex = this.dancers[0].active ? 0 : 2;
         for (let i = startIndex; i < this.dancers.length; i += 4) {
             if (this.dancers.length - i < 4) {
@@ -111,7 +111,7 @@ export class Set {
      * Rotate each minor set to the right by the given number of places.
      * @param {number} numberOfPlaces - The number of places to rotate
      */
-    rotateRight(numberOfPlaces) {
+    circleRight(numberOfPlaces) {
         const startIndex = this.dancers[0].active ? 0 : 2;
         for (let i = startIndex; i < this.dancers.length; i += 4) {
             if (this.dancers.length - i < 4) {
