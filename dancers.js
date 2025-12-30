@@ -192,6 +192,30 @@ export class Set {
         }
     }
 
+    doSiDo(numberOfTimes) {
+        if (Number.isInteger(numberOfTimes)) {
+            // returns dancers to original positions
+        } else if (Number.isFinite(numberOfTimes)) {
+            // swaps the dancers vertically
+            const startIndex = this.dancers[0].active ? 0 : 2;
+            for (let i = startIndex; i < this.dancers.length; i += 4) {
+                if (this.dancers.length - i < 4) {
+                    break;
+                }
+                const topLeft = this.dancers[i];
+                const topRight = this.dancers[i + 1];
+                const bottomLeft = this.dancers[i + 2];
+                const bottomRight = this.dancers[i + 3];
+                this.dancers[i] = bottomLeft;
+                this.dancers[i + 1] = bottomRight;
+                this.dancers[i + 2] = topLeft;
+                this.dancers[i + 3] = topRight;
+            }
+        } else {
+            throw new Error('Unsupported number of times: ' + numberOfTimes);
+        }
+    }
+
     progress() {
         this.progressFirstCouple();
         this.progressLastCouple();

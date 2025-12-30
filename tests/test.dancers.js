@@ -483,6 +483,46 @@ test('chaining the robins should skip inactive dancers', () => {
     ]);
 });
 
+test('do-si-do once should return dancers to original positions', () => {
+    const set = new Set(2);
+    set.doSiDo(1);
+    assert.deepStrictEqual(set.dancers.map((dancer) => {
+        return dancer.id;
+    }), [
+        'd2', 'd1',
+        'd3', 'd4',
+    ]);
+});
+
+test('do-si-do once and a half should swap the neighbors', () => {
+    const set = new Set(2);
+    set.doSiDo(1.5);
+    assert.deepStrictEqual(set.dancers.map((dancer) => {
+        return dancer.id;
+    }), [
+        'd3', 'd4',
+        'd2', 'd1',
+    ]);
+});
+
+test('do-si-do once and a half should skip inactive dancers', () => {
+    const set = new Set(6);
+    internallyProgress(set);
+    set.progress();
+    set.doSiDo(1.5);
+    assert.deepStrictEqual(set.dancers.map((dancer) => {
+        return dancer.id;
+    }), [
+        'd4', 'd3',
+        'd7', 'd8',
+        'd2', 'd1',
+        'd11', 'd12',
+        'd6', 'd5',
+        'd9', 'd10',
+    ]);
+});
+
+
 test('progressing the set (even number of couples) should put top couple out', () => {
     const set = new Set(6);
     set.progress();
