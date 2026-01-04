@@ -192,6 +192,21 @@ export class Set {
         }
     }
 
+    chainLarks() {
+        const startIndex = this.dancers[0].active ? 0 : 2;
+        for (let i = startIndex; i < this.dancers.length; i += 4) {
+            if (this.dancers.length - i < 4) {
+                break;
+            }
+            const leftLarkIndex = this.dancers[i].role === 'lark' ? i : i + 2;
+            const rightLarkIndex = this.dancers[i + 1].role === 'lark' ? i + 1 : i + 3;
+            const leftLark = this.dancers[leftLarkIndex];
+            const rightLark = this.dancers[rightLarkIndex];
+            this.dancers[leftLarkIndex] = rightLark;
+            this.dancers[rightLarkIndex] = leftLark;
+        }
+    }
+
     doSiDo(numberOfTimes) {
         if (Number.isInteger(numberOfTimes)) {
             // returns dancers to original positions

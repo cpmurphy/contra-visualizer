@@ -483,6 +483,52 @@ test('chaining the robins should skip inactive dancers', () => {
     ]);
 });
 
+test('chaining the larks should swap the larks but not the robins', () => {
+    const set = new Set(2);
+    set.chainLarks();
+    assert.deepStrictEqual(set.dancers.map((dancer) => {
+        return dancer.id;
+    }), [
+        'd2', 'd3',
+        'd1', 'd4',
+    ]);
+    assert.deepStrictEqual(set.dancers.map((dancer) => {
+        return dancer.getLabel();
+    }), [
+        "R1", "L2",
+        "L1", "R2",
+    ]);
+});
+
+test('chaining the larks should skip inactive dancers', () => {
+    const set = new Set(6);
+    internallyProgress(set);
+    set.progress();
+    // now top and bottom couples are inactive
+    set.chainLarks();
+    assert.deepStrictEqual(set.dancers.map((dancer) => {
+        return dancer.id;
+    }), [
+        'd4',  'd3',
+        'd2',  'd7',
+        'd1',  'd8',
+        'd6', 'd11',
+        'd5', 'd12',
+        'd9',  'd10'
+    ]);
+    assert.deepStrictEqual(set.dancers.map((dancer) => {
+        return dancer.getLabel();
+    }), [
+        'R1', 'L1',
+        'R1', 'L2',
+        'L1', 'R2',
+        'R1', 'L2',
+        'L1', 'R2',
+        'L2', 'R2'
+    ]);
+});
+
+
 test('do-si-do once should return dancers to original positions', () => {
     const set = new Set(2);
     set.doSiDo(1);
