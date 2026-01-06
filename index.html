@@ -386,10 +386,13 @@
                 svg.removeChild(svg.firstChild);
             }
 
+            // Draw stage area
+            drawStage(svg);
+
             if (!state.dance) {
                 const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
                 text.setAttribute('x', '400');
-                text.setAttribute('y', '300');
+                text.setAttribute('y', '450');
                 text.setAttribute('text-anchor', 'middle');
                 text.setAttribute('font-size', '18');
                 text.setAttribute('fill', '#999');
@@ -402,12 +405,80 @@
             // For now, just show a placeholder
             const placeholder = document.createElementNS('http://www.w3.org/2000/svg', 'text');
             placeholder.setAttribute('x', '400');
-            placeholder.setAttribute('y', '300');
+            placeholder.setAttribute('y', '450');
             placeholder.setAttribute('text-anchor', 'middle');
             placeholder.setAttribute('font-size', '16');
             placeholder.setAttribute('fill', '#666');
-            placeholder.textContent = 'Visualization will appear here';
+            placeholder.textContent = 'Dancers will appear here';
             svg.appendChild(placeholder);
+        }
+
+        // Draw stage with caller and musicians
+        function drawStage(svg) {
+            // Stage background
+            const stageRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            stageRect.setAttribute('x', '0');
+            stageRect.setAttribute('y', '0');
+            stageRect.setAttribute('width', '800');
+            stageRect.setAttribute('height', '100');
+            stageRect.setAttribute('fill', '#e8e8e8');
+            stageRect.setAttribute('stroke', '#999');
+            stageRect.setAttribute('stroke-width', '1');
+            svg.appendChild(stageRect);
+
+            const circleRadius = 12;
+
+            // Caller (left side)
+            const callerX = 150;
+            const callerY = 50;
+
+            const caller = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            caller.setAttribute('cx', callerX);
+            caller.setAttribute('cy', callerY);
+            caller.setAttribute('r', circleRadius);
+            caller.setAttribute('fill', '#4a4a4a');
+            caller.setAttribute('stroke', '#333');
+            caller.setAttribute('stroke-width', '2');
+            svg.appendChild(caller);
+
+            // Caller label below
+            const callerLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            callerLabel.setAttribute('x', callerX);
+            callerLabel.setAttribute('y', callerY + circleRadius + 14);
+            callerLabel.setAttribute('text-anchor', 'middle');
+            callerLabel.setAttribute('font-size', '11');
+            callerLabel.setAttribute('fill', '#333');
+            callerLabel.textContent = 'Caller';
+            svg.appendChild(callerLabel);
+
+            // Musicians in a regular crescent (to the right of caller)
+            const baseX = 300;
+            const spacing = 60;
+            const musicians = [
+                { cx: baseX, cy: 50, label: 'Musician' },
+                { cx: baseX + spacing, cy: 50, label: 'Musician' },
+                { cx: baseX + spacing * 2, cy: 50, label: 'Musician' }
+            ];
+
+            musicians.forEach((musician) => {
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', musician.cx);
+                circle.setAttribute('cy', musician.cy);
+                circle.setAttribute('r', circleRadius);
+                circle.setAttribute('fill', '#666');
+                circle.setAttribute('stroke', '#444');
+                circle.setAttribute('stroke-width', '1.5');
+                svg.appendChild(circle);
+
+                const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                label.setAttribute('x', musician.cx);
+                label.setAttribute('y', musician.cy + circleRadius + 14);
+                label.setAttribute('text-anchor', 'middle');
+                label.setAttribute('font-size', '11');
+                label.setAttribute('fill', '#333');
+                label.textContent = musician.label;
+                svg.appendChild(label);
+            });
         }
 
         // Control button handlers
