@@ -1,0 +1,77 @@
+[
+    {
+        "title": "Simplicity Swing",
+        "author": "Becky Hill",
+        "formation": "improper",
+        "references": [
+            "https://www.ibiblio.org/contradance/thecallersbox/dance.php?id=10732"
+        ],
+        "parts": [
+            {
+                "name": "A1",
+                "beats": 16,
+                "moves": [
+                    {
+                        "type": "balance",
+                        "beats": 4,
+                        "who": "neighbor"
+                    },
+                    {
+                        "type": "swing",
+                        "beats": 12,
+                        "who": "neighbor"
+                    }
+                ]
+            },
+            {
+                "name": "A2",
+                "beats": 16,
+                "moves": [
+                    {
+                        "type": "circle left 3/4",
+                        "beats": 6,
+                        "who": "all"
+                    },
+                    {
+                        "type": "swing",
+                        "beats": 10,
+                        "who": "partner"
+                    }
+                ]
+            },
+            {
+                "name": "B1",
+                "beats": 16,
+                "moves": [
+                    {
+                        "type": "Long lines, forward and back",
+                        "beats": 8,
+                        "who": "all"
+                    },
+                    {
+                        "type": "chain to neighbor",
+                        "beats": 8,
+                        "who": "robins"
+                    }
+                ]
+            },
+            {
+                "name": "B2",
+                "beats": 16,
+                "moves": [
+                    {
+                        "type": "star left 4 places",
+                        "beats": 8,
+                        "who": "all"
+                    },
+                    {
+                        "progression": true,
+                        "type": "do-si-do",
+                        "beats": 8,
+                        "who": "new neighbor"
+                    }
+                ]
+            }
+        ]
+    }
+]
