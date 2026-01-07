@@ -71,6 +71,94 @@ function loadDance(dance) {
     updateControls();
 }
 
+// Execute a single move on the dancer set
+function executeMove(dancerSet, move) {
+    if (!dancerSet) return;
+
+    const type = move.type.toLowerCase();
+
+    // Parse circle left/right with fractions or places
+    if (type.includes('circle left')) {
+        const match = type.match(/circle left (\d+)/);
+        if (match) {
+            const places = parseInt(match[1]);
+            dancerSet.circleLeft(places);
+        } else {
+            const placeMatch = type.match(/circle left (\d+)/);
+            if (placeMatch) {
+                dancerSet.circleLeft(parseInt(placeMatch[1]));
+            }
+        }
+    } else if (type.includes('circle right')) {
+        const match = type.match(/circle right (\d+)/);
+        if (match) {
+            const places = parseInt(match[1]);
+            dancerSet.circleRight(places);
+        } else {
+            const placeMatch = type.match(/circle right (\d+)/);
+            if (placeMatch) {
+                dancerSet.circleRight(parseInt(placeMatch[1]));
+            }
+        }
+    } else if (type.includes('star left')) {
+        const match = type.match(/star left (\d+)/);
+        if (match) {
+            dancerSet.starLeft(parseInt(match[1]));
+        }
+    } else if (type.includes('star right')) {
+        const match = type.match(/star right (\d+)/);
+        if (match) {
+            dancerSet.starRight(parseInt(match[1]));
+        }
+    } else if (type === 'balance') {
+        dancerSet.balance();
+    } else if (type === 'swing') {
+        if (move.who === 'neighbor') {
+            dancerSet.swing('neighbor');
+        }
+    } else if (type.includes('long lines')) {
+        dancerSet.longLines();
+    } else if (type.includes('chain')) {
+        if (move.who === 'robins' || move.who === 'robin') {
+            dancerSet.chainRobins();
+        } else if (move.who === 'larks' || move.who === 'lark') {
+            dancerSet.chainLarks();
+        }
+    } else if (type === 'do-si-do' || type === 'dosido') {
+        // do-si-do once (1.0) swaps positions, do-si-do twice (2.0) returns to original
+        dancerSet.doSiDo(1.5);
+    }
+
+    // Handle progression
+    if (move.progression) {
+        dancerSet.progress();
+    }
+}
+
+// Reset dancer set and replay all moves up to current position
+function replayMovesToCurrent() {
+    if (!state.dance || !state.dancerSet) return;
+
+    // Create fresh dancer set
+    state.dancerSet = new Set(6);
+
+    // Replay all moves up to (but not including) the current move
+    for (let partIdx = 0; partIdx < state.dance.parts.length; partIdx++) {
+        const part = state.dance.parts[partIdx];
+        if (!part.moves) continue;
+
+        for (let moveIdx = 0; moveIdx < part.moves.length; moveIdx++) {
+            // Stop before we reach the current move
+            if (partIdx === state.currentPartIndex && moveIdx === state.currentMoveIndex) {
+                return;
+            }
+
+            const move = part.moves[moveIdx];
+            executeMove(state.dancerSet, move);
+        }
+    }
+}
+
 // Update dance information display
 function updateDanceInfo() {
     if (!state.dance) return;
@@ -117,6 +205,7 @@ function updateMoveList() {
                 moveItem.addEventListener('click', () => {
                     state.currentPartIndex = partIndex;
                     state.currentMoveIndex = moveIndex;
+                    replayMovesToCurrent();
                     updateMoveList();
                     updateVisualization();
                 });
@@ -346,6 +435,7 @@ function goToNextMove() {
         state.currentMoveIndex = 0;
     }
 
+    replayMovesToCurrent();
     updateMoveList();
     updateVisualization();
 }
@@ -366,6 +456,7 @@ function goToPreviousMove() {
         state.currentMoveIndex = lastPart.moves.length - 1;
     }
 
+    replayMovesToCurrent();
     updateMoveList();
     updateVisualization();
 }
