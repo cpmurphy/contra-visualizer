@@ -251,11 +251,21 @@ function drawDancers(svg, dancerSet) {
     const dancers = dancerSet.dancers;
 
     // Layout parameters
-    const startX = 300;
-    const startY = 150;
-    const horizontalSpacing = 100;
-    const verticalSpacing = 80;
+    const svgHeight = 900;
+    const stageHeight = 100;
+    const danceFloorHeight = svgHeight - stageHeight;
+
+    const numRows = Math.ceil(dancers.length / 2);
     const dancerRadius = 20;
+    const verticalSpacing = 120;
+    const horizontalSpacing = 100;
+
+    // Calculate total height needed for dancers
+    const totalDancerHeight = (numRows - 1) * verticalSpacing + 2 * dancerRadius;
+
+    // Center dancers vertically in the dance floor
+    const startY = stageHeight + (danceFloorHeight - totalDancerHeight) / 2 + dancerRadius;
+    const startX = 300;
 
     // Draw dancers in reading order: left to right, top to bottom
     // The Set stores 12 dancers in a 2-column layout (6 rows)
