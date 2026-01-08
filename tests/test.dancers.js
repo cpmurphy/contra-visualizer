@@ -379,6 +379,39 @@ test('a neighbor swing should skip inactive dancers', () => {
     assert.strictEqual(set.dancers[11].getLabel(), "R2");
 });
 
+test('after progressing when top couple is inactive, a neighbor swing should move active dancers to the correct positions', () => {
+    const set = new Set(6);
+    internallyProgress(set);
+    set.progress();
+    // now top and bottom couples are inactive
+    set.swing('neighbor');
+    assert.strictEqual(set.dancers[2].getLabel(), "L2");
+    assert.strictEqual(set.dancers[3].getLabel(), "R2");
+    assert.strictEqual(set.dancers[4].getLabel(), "R1");
+    assert.strictEqual(set.dancers[5].getLabel(), "L1");
+    assert.strictEqual(set.dancers[6].getLabel(), "L2");
+    assert.strictEqual(set.dancers[7].getLabel(), "R2");
+    assert.strictEqual(set.dancers[8].getLabel(), "R1");
+    assert.strictEqual(set.dancers[9].getLabel(), "L1");
+});
+
+test('a partner swing should move active dancers to the correct positions', () => {
+    const set = new Set(2);
+    set.swing('partner');
+    assert.deepStrictEqual(set.dancers.map((dancer) => {
+        return dancer.id;
+    }), [
+        'd3', 'd2',
+        'd4', 'd1',
+    ]);
+    assert.deepStrictEqual(set.dancers.map((dancer) => {
+        return dancer.getLabel();
+    }), [
+        "L2", "R1",
+        "R2", "L1",
+    ]);
+});
+
 test('star right should move dancers the same as circle right', () => {
     for (let i = 1; i <= 4; i++) {
         const circleSet = new Set(4);
@@ -405,22 +438,6 @@ test('star left should move dancers the same as circle left', () => {
             return dancer.id;
         }));
     }
-});
-
-test('after progressing when top couple is inactive, a neighbor swing should move active dancers to the correct positions', () => {
-    const set = new Set(6);
-    internallyProgress(set);
-    set.progress();
-    // now top and bottom couples are inactive
-    set.swing('neighbor');
-    assert.strictEqual(set.dancers[2].getLabel(), "L2");
-    assert.strictEqual(set.dancers[3].getLabel(), "R2");
-    assert.strictEqual(set.dancers[4].getLabel(), "R1");
-    assert.strictEqual(set.dancers[5].getLabel(), "L1");
-    assert.strictEqual(set.dancers[6].getLabel(), "L2");
-    assert.strictEqual(set.dancers[7].getLabel(), "R2");
-    assert.strictEqual(set.dancers[8].getLabel(), "R1");
-    assert.strictEqual(set.dancers[9].getLabel(), "L1");
 });
 
 test('long lines should return active dancers to their original positions', () => {

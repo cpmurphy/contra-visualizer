@@ -152,6 +152,8 @@ export class Set {
     swing(kind) {
         if (kind === 'neighbor') {
             this.swingNeighbor();
+        } else if (kind === 'partner') {
+            this.swingPartner();
         } else {
             throw new Error('Invalid swing kind: ' + kind);
         }
@@ -174,6 +176,33 @@ export class Set {
             this.dancers[i + 1] = rightRobin;
             this.dancers[i + 2] = leftRobin;
             this.dancers[i + 3] = rightLark;
+        }
+    }
+
+    swingPartner() {
+        const startIndex = this.dancers[0].active ? 0 : 2;
+        for (let i = startIndex; i < this.dancers.length; i += 4) {
+            if (this.dancers.length - i < 4) {
+                break;
+            }
+            const leftLark = this.dancers[i].role === 'lark' ? this.dancers[i] : this.dancers[i + 2];
+            const leftRobin = leftLark.partner;
+            const rightLark = this.dancers[i + 1].role === 'lark' ? this.dancers[i + 1] : this.dancers[i + 3];
+            const rightRobin = rightLark.partner;
+            this.dancers[i] = leftLark;
+            this.dancers[i + 1] = rightRobin;
+            this.dancers[i + 2] = leftRobin;
+            this.dancers[i + 3] = rightLark;
+        }
+    }
+
+    chain(kind) {
+        if (kind === 'robins') {
+            this.chainRobins();
+        } else if (kind === 'larks') {
+            this.chainLarks();
+        } else {
+            throw new Error('Invalid chain kind: ' + kind);
         }
     }
 
