@@ -120,8 +120,7 @@ function executeMove(dancerSet, move) {
             dancerSet.chainLarks();
         }
     } else if (type === 'do-si-do' || type === 'dosido') {
-        // do-si-do once (1.0) swaps positions, do-si-do twice (2.0) returns to original
-        dancerSet.doSiDo(1.5);
+        dancerSet.doSiDo(1.0);
     }
 }
 
