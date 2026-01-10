@@ -113,17 +113,11 @@ function executeMove(dancerSet, move) {
     } else if (type === 'balance') {
         dancerSet.balance();
     } else if (type === 'swing') {
-        if (move.who === 'neighbor') {
-            dancerSet.swing('neighbor');
-        }
+        dancerSet.swing(move.who);
     } else if (type.includes('long lines')) {
         dancerSet.longLines();
     } else if (type.includes('chain')) {
-        if (move.who === 'robins' || move.who === 'robin') {
-            dancerSet.chainRobins();
-        } else if (move.who === 'larks' || move.who === 'lark') {
-            dancerSet.chainLarks();
-        }
+        dancerSet.chain(move.who);
     } else if (type === 'do-si-do' || type === 'dosido') {
         // do-si-do once (1.0) swaps positions, do-si-do twice (2.0) returns to original
         dancerSet.doSiDo(1.5);
