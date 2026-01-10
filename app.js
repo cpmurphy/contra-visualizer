@@ -71,8 +71,8 @@ function loadDance(dance) {
     updateControls();
 }
 
-// Execute a single move on the dancer set
-function executeMove(dancerSet, move) {
+// Execute just the move logic without progression
+function executeMoveLogic(dancerSet, move) {
     if (!dancerSet) return;
 
     const type = move.type.toLowerCase();
@@ -122,11 +122,18 @@ function executeMove(dancerSet, move) {
         // do-si-do once (1.0) swaps positions, do-si-do twice (2.0) returns to original
         dancerSet.doSiDo(1.5);
     }
+}
 
-    // Handle progression
+// Execute a complete move (progression + move logic)
+function executeMove(dancerSet, move) {
+    if (!dancerSet) return;
+
+    // Handle progression at the START of the move
     if (move.progression) {
         dancerSet.progress();
     }
+
+    executeMoveLogic(dancerSet, move);
 }
 
 // Reset dancer set and replay all moves up to current position
@@ -142,12 +149,16 @@ function replayMovesToCurrent() {
         if (!part.moves) continue;
 
         for (let moveIdx = 0; moveIdx < part.moves.length; moveIdx++) {
-            // Stop before we reach the current move
+            const move = part.moves[moveIdx];
+
+            // If this is the current move, only execute progression (if any)
             if (partIdx === state.currentPartIndex && moveIdx === state.currentMoveIndex) {
+                if (move.progression) {
+                    state.dancerSet.progress();
+                }
                 return;
             }
 
-            const move = part.moves[moveIdx];
             executeMove(state.dancerSet, move);
         }
     }
@@ -417,19 +428,31 @@ function goToNextMove() {
     if (!state.dance) return;
 
     const currentPart = state.dance.parts[state.currentPartIndex];
+    const currentMove = currentPart.moves[state.currentMoveIndex];
 
+    // Execute just the move logic of the current move
+    // (progression was already executed when displaying it)
+    executeMoveLogic(state.dancerSet, currentMove);
+
+    // Advance to next move
     if (state.currentMoveIndex < currentPart.moves.length - 1) {
         state.currentMoveIndex++;
     } else if (state.currentPartIndex < state.dance.parts.length - 1) {
         state.currentPartIndex++;
         state.currentMoveIndex = 0;
     } else {
-        // Loop back to beginning
+        // Loop back to beginning (but keep current dancer state)
         state.currentPartIndex = 0;
         state.currentMoveIndex = 0;
     }
 
-    replayMovesToCurrent();
+    // Execute progression of the new current move (if any)
+    const newPart = state.dance.parts[state.currentPartIndex];
+    const newMove = newPart.moves[state.currentMoveIndex];
+    if (newMove.progression) {
+        state.dancerSet.progress();
+    }
+
     updateMoveList();
     updateVisualization();
 }
