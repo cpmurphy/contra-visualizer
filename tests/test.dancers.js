@@ -636,3 +636,133 @@ test('progressing the set (even number of couples, all active) should rotate bot
     assert.strictEqual(set.dancers[10].getLabel(), "L2");
     assert.strictEqual(set.dancers[11].getLabel(), "R2");
 });
+
+// Snapshot and undo tests
+
+test('snapshot should capture current dancer positions', () => {
+    const set = new Set(4);
+    const initialState = set.dancers.map(d => d.id);
+
+    set.snapshot();
+    set.circleLeft(1);
+
+    // Dancers should have moved
+    assert.notDeepStrictEqual(set.dancers.map(d => d.id), initialState);
+});
+
+test('undo should restore previous dancer positions after one move', () => {
+    const set = new Set(4);
+    const initialState = set.dancers.map(d => d.id);
+
+    set.snapshot();
+    set.circleLeft(1);
+    set.undo();
+
+    assert.deepStrictEqual(set.dancers.map(d => d.id), initialState);
+});
+
+test('undo should restore previous dancer positions after multiple moves', () => {
+    const set = new Set(4);
+
+    set.snapshot();
+    const stateAfterSnapshot = set.dancers.map(d => d.id);
+
+    set.circleLeft(1);
+    set.chainRobins();
+    set.swing('neighbor');
+
+    set.undo();
+
+    assert.deepStrictEqual(set.dancers.map(d => d.id), stateAfterSnapshot);
+});
+
+test('multiple snapshots and undos should work correctly', () => {
+    const set = new Set(4);
+
+    const state0 = set.dancers.map(d => d.id);
+
+    set.snapshot();
+    set.circleLeft(1);
+    const state1 = set.dancers.map(d => d.id);
+
+    set.snapshot();
+    set.chainRobins();
+    const state2 = set.dancers.map(d => d.id);
+
+    set.snapshot();
+    set.swing('neighbor');
+
+    // Undo once - back to state2
+    set.undo();
+    assert.deepStrictEqual(set.dancers.map(d => d.id), state2);
+
+    // Undo again - back to state1
+    set.undo();
+    assert.deepStrictEqual(set.dancers.map(d => d.id), state1);
+
+    // Undo again - back to state0
+    set.undo();
+    assert.deepStrictEqual(set.dancers.map(d => d.id), state0);
+});
+
+test('undo with no snapshots should do nothing', () => {
+    const set = new Set(4);
+    set.circleLeft(1);
+    const currentState = set.dancers.map(d => d.id);
+
+    set.undo();
+
+    // Should remain in same state
+    assert.deepStrictEqual(set.dancers.map(d => d.id), currentState);
+});
+
+test('undo should restore active/inactive state of dancers', () => {
+    const set = new Set(6);
+
+    set.snapshot();
+    assert(set.dancers[0].active);
+
+    set.progress();
+    assert(!set.dancers[0].active);
+
+    set.undo();
+    assert(set.dancers[0].active);
+});
+
+test('undo should restore couple numbers correctly', () => {
+    const set = new Set(6);
+    internallyProgress(set);
+
+    set.snapshot();
+    // After internal progress, bottom couple should be R1/L1 (couple #1)
+    const initialCoupleNumber = set.dancers[10].couple.coupleNumber;
+    assert.strictEqual(initialCoupleNumber, 1);
+
+    // Progress changes bottom couple number to 2
+    set.progress();
+    const changedCoupleNumber = set.dancers[10].couple.coupleNumber;
+    assert.strictEqual(changedCoupleNumber, 2);
+
+    set.undo();
+    assert.strictEqual(set.dancers[10].couple.coupleNumber, initialCoupleNumber);
+});
+
+test('snapshot should preserve dancer identities across complex moves', () => {
+    const set = new Set(4);
+
+    set.snapshot();
+    const initialIds = set.dancers.map(d => d.id);
+    const initialLabels = set.dancers.map(d => d.getLabel());
+
+    // Complex sequence of moves
+    set.circleLeft(2);
+    set.chainRobins();
+    set.doSiDo(1.5);
+
+    set.undo();
+
+    // IDs should match
+    assert.deepStrictEqual(set.dancers.map(d => d.id), initialIds);
+    // Labels should match (which depends on couple numbers and roles)
+    assert.deepStrictEqual(set.dancers.map(d => d.getLabel()), initialLabels);
+});

@@ -63,6 +63,8 @@ function loadDance(dance) {
     // Create dancer set for improper dances
     if (dance.formation === 'improper') {
         state.dancerSet = new Set(6);
+        // Take initial snapshot at the start
+        state.dancerSet.snapshot();
     }
 
     updateDanceInfo();
@@ -71,34 +73,27 @@ function loadDance(dance) {
     updateControls();
 }
 
-// Execute just the move logic without progression
-function executeMoveLogic(dancerSet, move) {
+// Execute a move on the dancer set
+function executeMove(dancerSet, move) {
     if (!dancerSet) return;
 
     const type = move.type.toLowerCase();
 
-    // Parse circle left/right with fractions or places
+    // Handle progression at the START of the move
+    if (move.progression) {
+        dancerSet.progress();
+    }
+
+    // Parse and execute the move
     if (type.includes('circle left')) {
         const match = type.match(/circle left (\d+)/);
         if (match) {
-            const places = parseInt(match[1]);
-            dancerSet.circleLeft(places);
-        } else {
-            const placeMatch = type.match(/circle left (\d+)/);
-            if (placeMatch) {
-                dancerSet.circleLeft(parseInt(placeMatch[1]));
-            }
+            dancerSet.circleLeft(parseInt(match[1]));
         }
     } else if (type.includes('circle right')) {
         const match = type.match(/circle right (\d+)/);
         if (match) {
-            const places = parseInt(match[1]);
-            dancerSet.circleRight(places);
-        } else {
-            const placeMatch = type.match(/circle right (\d+)/);
-            if (placeMatch) {
-                dancerSet.circleRight(parseInt(placeMatch[1]));
-            }
+            dancerSet.circleRight(parseInt(match[1]));
         }
     } else if (type.includes('star left')) {
         const match = type.match(/star left (\d+)/);
@@ -113,54 +108,22 @@ function executeMoveLogic(dancerSet, move) {
     } else if (type === 'balance') {
         dancerSet.balance();
     } else if (type === 'swing') {
-        dancerSet.swing(move.who);
+        if (move.who === 'neighbor') {
+            dancerSet.swing('neighbor');
+        } else if (move.who === 'partner') {
+            dancerSet.swing('partner');
+        }
     } else if (type.includes('long lines')) {
         dancerSet.longLines();
     } else if (type.includes('chain')) {
-        dancerSet.chain(move.who);
+        if (move.who === 'robins' || move.who === 'robin') {
+            dancerSet.chainRobins();
+        } else if (move.who === 'larks' || move.who === 'lark') {
+            dancerSet.chainLarks();
+        }
     } else if (type === 'do-si-do' || type === 'dosido') {
         // do-si-do once (1.0) swaps positions, do-si-do twice (2.0) returns to original
         dancerSet.doSiDo(1.5);
-    }
-}
-
-// Execute a complete move (progression + move logic)
-function executeMove(dancerSet, move) {
-    if (!dancerSet) return;
-
-    // Handle progression at the START of the move
-    if (move.progression) {
-        dancerSet.progress();
-    }
-
-    executeMoveLogic(dancerSet, move);
-}
-
-// Reset dancer set and replay all moves up to current position
-function replayMovesToCurrent() {
-    if (!state.dance || !state.dancerSet) return;
-
-    // Create fresh dancer set
-    state.dancerSet = new Set(6);
-
-    // Replay all moves up to (but not including) the current move
-    for (let partIdx = 0; partIdx < state.dance.parts.length; partIdx++) {
-        const part = state.dance.parts[partIdx];
-        if (!part.moves) continue;
-
-        for (let moveIdx = 0; moveIdx < part.moves.length; moveIdx++) {
-            const move = part.moves[moveIdx];
-
-            // If this is the current move, only execute progression (if any)
-            if (partIdx === state.currentPartIndex && moveIdx === state.currentMoveIndex) {
-                if (move.progression) {
-                    state.dancerSet.progress();
-                }
-                return;
-            }
-
-            executeMove(state.dancerSet, move);
-        }
     }
 }
 
@@ -208,11 +171,12 @@ function updateMoveList() {
                 moveItem.appendChild(beats);
 
                 moveItem.addEventListener('click', () => {
-                    state.currentPartIndex = partIndex;
-                    state.currentMoveIndex = moveIndex;
-                    replayMovesToCurrent();
-                    updateMoveList();
-                    updateVisualization();
+                    // TODO: Implement jumping to arbitrary moves with snapshot/undo
+                    // For now, disable clicking on moves
+                    // state.currentPartIndex = partIndex;
+                    // state.currentMoveIndex = moveIndex;
+                    // updateMoveList();
+                    // updateVisualization();
                 });
 
                 if (partIndex === state.currentPartIndex && moveIndex === state.currentMoveIndex) {
@@ -425,14 +389,16 @@ elements.nextMoveBtn.addEventListener('click', () => {
 });
 
 function goToNextMove() {
-    if (!state.dance) return;
+    if (!state.dance || !state.dancerSet) return;
 
     const currentPart = state.dance.parts[state.currentPartIndex];
     const currentMove = currentPart.moves[state.currentMoveIndex];
 
-    // Execute just the move logic of the current move
-    // (progression was already executed when displaying it)
-    executeMoveLogic(state.dancerSet, currentMove);
+    // Take a snapshot before executing the move
+    state.dancerSet.snapshot();
+
+    // Execute the current move
+    executeMove(state.dancerSet, currentMove);
 
     // Advance to next move
     if (state.currentMoveIndex < currentPart.moves.length - 1) {
@@ -441,16 +407,9 @@ function goToNextMove() {
         state.currentPartIndex++;
         state.currentMoveIndex = 0;
     } else {
-        // Loop back to beginning (but keep current dancer state)
+        // Loop back to beginning
         state.currentPartIndex = 0;
         state.currentMoveIndex = 0;
-    }
-
-    // Execute progression of the new current move (if any)
-    const newPart = state.dance.parts[state.currentPartIndex];
-    const newMove = newPart.moves[state.currentMoveIndex];
-    if (newMove.progression) {
-        state.dancerSet.progress();
     }
 
     updateMoveList();
@@ -458,8 +417,12 @@ function goToNextMove() {
 }
 
 function goToPreviousMove() {
-    if (!state.dance) return;
+    if (!state.dance || !state.dancerSet) return;
 
+    // Undo to restore previous snapshot
+    state.dancerSet.undo();
+
+    // Move pointer backwards
     if (state.currentMoveIndex > 0) {
         state.currentMoveIndex--;
     } else if (state.currentPartIndex > 0) {
@@ -473,7 +436,6 @@ function goToPreviousMove() {
         state.currentMoveIndex = lastPart.moves.length - 1;
     }
 
-    replayMovesToCurrent();
     updateMoveList();
     updateVisualization();
 }

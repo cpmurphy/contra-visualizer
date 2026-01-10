@@ -49,6 +49,8 @@ export class Couple {
 export class Set {
     constructor(coupleCount = 6) {
         this.dancers = [];
+        this.snapshots = [];
+        this.dancerMap = new Map(); // Map from dancer id to dancer object
         let dancerNumber = 1;
 
         for (let i = 0; i < coupleCount; i++) {
@@ -63,6 +65,9 @@ export class Set {
 
             lark.setPartner(robin);
             robin.setPartner(lark);
+
+            this.dancerMap.set(lark.id, lark);
+            this.dancerMap.set(robin.id, robin);
 
             if (i % 2 == 0) {
                 this.dancers.push(robin);
@@ -303,5 +308,52 @@ export class Set {
             lark.activate();
             robin.activate();
         }
+    }
+
+    /**
+     * Capture a snapshot of the current dancer positions and state.
+     * This allows for undo functionality.
+     */
+    snapshot() {
+        const snapshot = {
+            dancerIds: this.dancers.map(d => d.id),
+            dancerStates: new Map()
+        };
+
+        // Store active state and couple number for each dancer
+        this.dancers.forEach(dancer => {
+            snapshot.dancerStates.set(dancer.id, {
+                active: dancer.active,
+                coupleNumber: dancer.couple.coupleNumber
+            });
+        });
+
+        this.snapshots.push(snapshot);
+    }
+
+    /**
+     * Restore the dancer positions and state from the most recent snapshot.
+     * If no snapshots exist, this method does nothing.
+     */
+    undo() {
+        if (this.snapshots.length === 0) {
+            return;
+        }
+
+        const snapshot = this.snapshots.pop();
+
+        // Restore the dancers array order using the dancerMap
+        this.dancers = snapshot.dancerIds.map(id => this.dancerMap.get(id));
+
+        // Restore active state and couple numbers
+        snapshot.dancerStates.forEach((state, id) => {
+            const dancer = this.dancerMap.get(id);
+            if (state.active) {
+                dancer.activate();
+            } else {
+                dancer.inactivate();
+            }
+            dancer.couple.coupleNumber = state.coupleNumber;
+        });
     }
 }
