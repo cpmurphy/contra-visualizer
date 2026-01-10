@@ -63,8 +63,6 @@ function loadDance(dance) {
     // Create dancer set for improper dances
     if (dance.formation === 'improper') {
         state.dancerSet = new Set(6);
-        // Take initial snapshot at the start
-        state.dancerSet.snapshot();
     }
 
     updateDanceInfo();
@@ -394,10 +392,7 @@ function goToNextMove() {
     const currentPart = state.dance.parts[state.currentPartIndex];
     const currentMove = currentPart.moves[state.currentMoveIndex];
 
-    // Take a snapshot before executing the move
-    state.dancerSet.snapshot();
-
-    // Execute the current move
+    // Execute the current move (snapshot is taken automatically)
     executeMove(state.dancerSet, currentMove);
 
     // Advance to next move

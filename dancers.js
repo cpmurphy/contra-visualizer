@@ -94,6 +94,7 @@ export class Set {
      * @param {number} numberOfPlaces - The number of places to rotate
      */
     circleLeft(numberOfPlaces) {
+        this.snapshot();
         const startIndex = this.dancers[0].active ? 0 : 2;
         for (let i = startIndex; i < this.dancers.length; i += 4) {
             if (this.dancers.length - i < 4) {
@@ -125,6 +126,7 @@ export class Set {
      * @param {number} numberOfPlaces - The number of places to rotate
      */
     circleRight(numberOfPlaces) {
+        this.snapshot();
         const startIndex = this.dancers[0].active ? 0 : 2;
         for (let i = startIndex; i < this.dancers.length; i += 4) {
             if (this.dancers.length - i < 4) {
@@ -152,9 +154,11 @@ export class Set {
     }
 
     balance() {
+        this.snapshot();
     }
 
     swing(kind) {
+        this.snapshot();
         if (kind === 'neighbor') {
             this.swingNeighbor();
         } else if (kind === 'partner') {
@@ -165,6 +169,7 @@ export class Set {
     }
 
     longLines() {
+        this.snapshot();
     }
 
     swingNeighbor() {
@@ -212,6 +217,7 @@ export class Set {
     }
 
     chainRobins() {
+        this.snapshot();
         const startIndex = this.dancers[0].active ? 0 : 2;
         for (let i = startIndex; i < this.dancers.length; i += 4) {
             if (this.dancers.length - i < 4) {
@@ -227,6 +233,7 @@ export class Set {
     }
 
     chainLarks() {
+        this.snapshot();
         const startIndex = this.dancers[0].active ? 0 : 2;
         for (let i = startIndex; i < this.dancers.length; i += 4) {
             if (this.dancers.length - i < 4) {
@@ -242,6 +249,7 @@ export class Set {
     }
 
     doSiDo(numberOfTimes) {
+        this.snapshot();
         if (Number.isInteger(numberOfTimes)) {
             // returns dancers to original positions
         } else if (Number.isFinite(numberOfTimes)) {
@@ -266,6 +274,7 @@ export class Set {
     }
 
     progress() {
+        this.snapshot();
         this.progressFirstCouple();
         this.progressLastCouple();
     }

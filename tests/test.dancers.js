@@ -639,11 +639,10 @@ test('progressing the set (even number of couples, all active) should rotate bot
 
 // Snapshot and undo tests
 
-test('snapshot should capture current dancer positions', () => {
+test('automatic snapshot should capture current dancer positions', () => {
     const set = new Set(4);
     const initialState = set.dancers.map(d => d.id);
 
-    set.snapshot();
     set.circleLeft(1);
 
     // Dancers should have moved
@@ -654,7 +653,6 @@ test('undo should restore previous dancer positions after one move', () => {
     const set = new Set(4);
     const initialState = set.dancers.map(d => d.id);
 
-    set.snapshot();
     set.circleLeft(1);
     set.undo();
 
@@ -663,17 +661,18 @@ test('undo should restore previous dancer positions after one move', () => {
 
 test('undo should restore previous dancer positions after multiple moves', () => {
     const set = new Set(4);
-
-    set.snapshot();
-    const stateAfterSnapshot = set.dancers.map(d => d.id);
+    const stateBeforeMoves = set.dancers.map(d => d.id);
 
     set.circleLeft(1);
     set.chainRobins();
     set.swing('neighbor');
 
+    // Undo three times to get back to start
+    set.undo();
+    set.undo();
     set.undo();
 
-    assert.deepStrictEqual(set.dancers.map(d => d.id), stateAfterSnapshot);
+    assert.deepStrictEqual(set.dancers.map(d => d.id), stateBeforeMoves);
 });
 
 test('multiple snapshots and undos should work correctly', () => {
@@ -681,15 +680,12 @@ test('multiple snapshots and undos should work correctly', () => {
 
     const state0 = set.dancers.map(d => d.id);
 
-    set.snapshot();
     set.circleLeft(1);
     const state1 = set.dancers.map(d => d.id);
 
-    set.snapshot();
     set.chainRobins();
     const state2 = set.dancers.map(d => d.id);
 
-    set.snapshot();
     set.swing('neighbor');
 
     // Undo once - back to state2
@@ -705,22 +701,25 @@ test('multiple snapshots and undos should work correctly', () => {
     assert.deepStrictEqual(set.dancers.map(d => d.id), state0);
 });
 
-test('undo with no snapshots should do nothing', () => {
+test('undo when snapshot stack is empty should do nothing', () => {
     const set = new Set(4);
-    set.circleLeft(1);
-    const currentState = set.dancers.map(d => d.id);
+    const initialState = set.dancers.map(d => d.id);
 
+    set.circleLeft(1);
+    // Undo once to go back to initial state
     set.undo();
 
-    // Should remain in same state
-    assert.deepStrictEqual(set.dancers.map(d => d.id), currentState);
+    // Undo again when snapshot stack is empty - should stay in initial state
+    set.undo();
+
+    assert.deepStrictEqual(set.dancers.map(d => d.id), initialState);
 });
 
 test('undo should restore active/inactive state of dancers', () => {
     const set = new Set(6);
 
-    set.snapshot();
-    assert(set.dancers[0].active);
+    const initialActive = set.dancers[0].active;
+    assert(initialActive);
 
     set.progress();
     assert(!set.dancers[0].active);
@@ -733,7 +732,6 @@ test('undo should restore couple numbers correctly', () => {
     const set = new Set(6);
     internallyProgress(set);
 
-    set.snapshot();
     // After internal progress, bottom couple should be R1/L1 (couple #1)
     const initialCoupleNumber = set.dancers[10].couple.coupleNumber;
     assert.strictEqual(initialCoupleNumber, 1);
@@ -747,10 +745,9 @@ test('undo should restore couple numbers correctly', () => {
     assert.strictEqual(set.dancers[10].couple.coupleNumber, initialCoupleNumber);
 });
 
-test('snapshot should preserve dancer identities across complex moves', () => {
+test('automatic snapshot should preserve dancer identities across complex moves', () => {
     const set = new Set(4);
 
-    set.snapshot();
     const initialIds = set.dancers.map(d => d.id);
     const initialLabels = set.dancers.map(d => d.getLabel());
 
@@ -759,6 +756,9 @@ test('snapshot should preserve dancer identities across complex moves', () => {
     set.chainRobins();
     set.doSiDo(1.5);
 
+    // Undo three times
+    set.undo();
+    set.undo();
     set.undo();
 
     // IDs should match
