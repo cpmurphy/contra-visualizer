@@ -4,7 +4,6 @@
 #
 # Usage:
 #   ./test.sh          # Run tests directly with node
-#   npm test            # Alternative: use npm script
 
 cd "$(dirname "$0")"
 
