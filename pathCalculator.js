@@ -48,6 +48,12 @@ export function calculateMovePaths(move, dancerSet) {
         // Circular moves - arc paths around minor set centers
         const isClockwise = type.includes('right');
         createCircularPaths(dancerSet, startPosById, endPosById, paths, beats, isClockwise);
+    } else if (type === 'swing') {
+        // Swing moves - dancers rotate around common center
+        createSwingPaths(dancerSet, startPosById, endPosById, paths, beats);
+    } else if (type.includes('chain')) {
+        // Chain moves - dancers cross with arced paths
+        createChainPaths(dancerSet, startPosById, endPosById, paths, beats);
     } else if (type === 'do-si-do' || type === 'dosido') {
         // Check if it's an integer number of times (returns to start)
         const times = 1.0; // Default from app.js
@@ -139,6 +145,163 @@ function createCircularPaths(dancerSet, startPosById, endPosById, paths, beats, 
             } else {
                 // Create arc path around the center
                 paths.set(dancer.id, createArcPath(start, end, centerPos, beats, 8, isClockwise));
+            }
+        });
+    }
+
+    // Handle any inactive dancers at the beginning
+    if (startIndex === 2) {
+        // First couple is inactive
+        paths.set(dancerSet.dancers[0].id, createStationaryPath(startPosById.get(dancerSet.dancers[0].id), beats));
+        paths.set(dancerSet.dancers[1].id, createStationaryPath(startPosById.get(dancerSet.dancers[1].id), beats));
+    }
+
+    // Handle any inactive dancers at the end
+    const remainder = (dancerSet.dancers.length - startIndex) % 4;
+    if (remainder > 0) {
+        for (let i = dancerSet.dancers.length - remainder; i < dancerSet.dancers.length; i++) {
+            const dancer = dancerSet.dancers[i];
+            paths.set(dancer.id, createStationaryPath(startPosById.get(dancer.id), beats));
+        }
+    }
+}
+
+/**
+ * Create swing paths for dancers
+ * @param {import('./dancers.js').Set} dancerSet
+ * @param {Map<string, Position>} startPosById
+ * @param {Map<string, Position>} endPosById
+ * @param {Map<string, import('./paths.js').Path>} paths
+ * @param {number} beats
+ */
+function createSwingPaths(dancerSet, startPosById, endPosById, paths, beats) {
+    // Determine starting index based on active state
+    const startIndex = dancerSet.dancers[0].active ? 0 : 2;
+
+    // Process each minor set of 4 dancers
+    for (let i = startIndex; i < dancerSet.dancers.length; i += 4) {
+        if (dancerSet.dancers.length - i < 4) {
+            break;
+        }
+
+        // Get the 4 dancers in this minor set
+        const minorSetDancers = [
+            dancerSet.dancers[i],
+            dancerSet.dancers[i + 1],
+            dancerSet.dancers[i + 2],
+            dancerSet.dancers[i + 3]
+        ];
+
+        // For each pair that swings, create arc paths with offset center to avoid collisions
+        minorSetDancers.forEach(dancer => {
+            const start = startPosById.get(dancer.id);
+            const end = endPosById.get(dancer.id);
+
+            if (start.equals(end, 0.01)) {
+                // Dancer doesn't move (inactive)
+                paths.set(dancer.id, createStationaryPath(start, beats));
+            } else {
+                // Calculate center point between start and end
+                const midX = (start.x + end.x) / 2;
+                const midY = (start.y + end.y) / 2;
+
+                // Add slight offset to center to create wider arcs and avoid collisions
+                // Offset perpendicular to the line between start and end
+                const dx = end.x - start.x;
+                const dy = end.y - start.y;
+                const len = Math.sqrt(dx * dx + dy * dy);
+
+                // Create perpendicular offset (rotate 90 degrees)
+                const perpX = -dy;
+                const perpY = dx;
+
+                // Normalize and scale
+                const offsetScale = 2.0; // Adjust arc width
+                const offsetX = len > 0 ? (perpX / len) * offsetScale : 0;
+                const offsetY = len > 0 ? (perpY / len) * offsetScale : 0;
+
+                const centerPos = new Position(midX + offsetX, midY + offsetY);
+
+                // Create arc path - use counter-clockwise for swings
+                paths.set(dancer.id, createArcPath(start, end, centerPos, beats, 8, false));
+            }
+        });
+    }
+
+    // Handle any inactive dancers at the beginning
+    if (startIndex === 2) {
+        // First couple is inactive
+        paths.set(dancerSet.dancers[0].id, createStationaryPath(startPosById.get(dancerSet.dancers[0].id), beats));
+        paths.set(dancerSet.dancers[1].id, createStationaryPath(startPosById.get(dancerSet.dancers[1].id), beats));
+    }
+
+    // Handle any inactive dancers at the end
+    const remainder = (dancerSet.dancers.length - startIndex) % 4;
+    if (remainder > 0) {
+        for (let i = dancerSet.dancers.length - remainder; i < dancerSet.dancers.length; i++) {
+            const dancer = dancerSet.dancers[i];
+            paths.set(dancer.id, createStationaryPath(startPosById.get(dancer.id), beats));
+        }
+    }
+}
+
+/**
+ * Create chain paths for dancers - crossing paths with collision avoidance
+ * @param {import('./dancers.js').Set} dancerSet
+ * @param {Map<string, Position>} startPosById
+ * @param {Map<string, Position>} endPosById
+ * @param {Map<string, import('./paths.js').Path>} paths
+ * @param {number} beats
+ */
+function createChainPaths(dancerSet, startPosById, endPosById, paths, beats) {
+    // Determine starting index based on active state
+    const startIndex = dancerSet.dancers[0].active ? 0 : 2;
+
+    // Process each minor set of 4 dancers
+    for (let i = startIndex; i < dancerSet.dancers.length; i += 4) {
+        if (dancerSet.dancers.length - i < 4) {
+            break;
+        }
+
+        // Get the 4 dancers in this minor set
+        const minorSetDancers = [
+            dancerSet.dancers[i],
+            dancerSet.dancers[i + 1],
+            dancerSet.dancers[i + 2],
+            dancerSet.dancers[i + 3]
+        ];
+
+        // Create paths for each dancer
+        minorSetDancers.forEach(dancer => {
+            const start = startPosById.get(dancer.id);
+            const end = endPosById.get(dancer.id);
+
+            if (start.equals(end, 0.01)) {
+                // Dancer doesn't move (stays in place during chain)
+                paths.set(dancer.id, createStationaryPath(start, beats));
+            } else {
+                // Dancers cross - create arc path to avoid collision
+                // Offset the arc center perpendicular to the crossing line
+                const midX = (start.x + end.x) / 2;
+                const midY = (start.y + end.y) / 2;
+
+                // Offset perpendicular to avoid collision (offset upward/downward)
+                const dx = end.x - start.x;
+                const dy = end.y - start.y;
+                const perpX = -dy;
+                const perpY = dx;
+                const len = Math.sqrt(perpX * perpX + perpY * perpY);
+
+                // Normalize and scale the perpendicular offset
+                const offsetScale = 3.0; // Adjust arc height
+                const offsetX = len > 0 ? (perpX / len) * offsetScale : 0;
+                const offsetY = len > 0 ? (perpY / len) * offsetScale : 0;
+
+                // Create arc center with offset
+                const centerPos = new Position(midX + offsetX, midY + offsetY);
+
+                // Create arc path with more waypoints for smooth crossing (10 waypoints)
+                paths.set(dancer.id, createArcPath(start, end, centerPos, beats, 10, false));
             }
         });
     }

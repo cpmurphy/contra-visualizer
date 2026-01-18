@@ -425,3 +425,253 @@ test('circular moves should handle inactive dancers', () => {
         }
     });
 });
+
+// ===== SWING MOVES TESTS =====
+
+// Test neighbor swing
+test('neighbor swing should create arc paths', () => {
+    const set = new Set(4);
+    const move = { type: 'swing', who: 'neighbor', beats: 8 };
+
+    const paths = calculateMovePaths(move, set);
+
+    // All active dancers should have paths
+    assert.strictEqual(paths.size, set.dancers.length);
+
+    // Swinging dancers should have arc paths with multiple waypoints
+    set.dancers.forEach(dancer => {
+        if (dancer.active) {
+            const path = paths.get(dancer.id);
+            assert(path.waypointCount >= 2,
+                `Dancer ${dancer.id} should have path during swing`);
+        }
+    });
+});
+
+// Test partner swing
+test('partner swing should create arc paths', () => {
+    const set = new Set(4);
+    const move = { type: 'swing', who: 'partner', beats: 8 };
+
+    const paths = calculateMovePaths(move, set);
+
+    // All active dancers should have paths
+    assert.strictEqual(paths.size, set.dancers.length);
+});
+
+// Test neighbor swing end positions
+test('neighbor swing should end at correct positions', () => {
+    const set = new Set(4);
+    const move = { type: 'swing', who: 'neighbor', beats: 8 };
+
+    const paths = calculateMovePaths(move, set);
+
+    // Execute the actual move
+    set.swing('neighbor');
+    const endPositions = set.getPositions();
+    const endPosById = new Map();
+    set.dancers.forEach((dancer, index) => {
+        endPosById.set(dancer.id, endPositions[index]);
+    });
+
+    // Check that path ends match
+    paths.forEach((path, dancerId) => {
+        const expectedEnd = endPosById.get(dancerId);
+        assert(path.end.equals(expectedEnd, 0.01),
+            `Path end for ${dancerId} after neighbor swing should match Set position`);
+    });
+});
+
+// Test partner swing end positions
+test('partner swing should end at correct positions', () => {
+    const set = new Set(4);
+    const move = { type: 'swing', who: 'partner', beats: 8 };
+
+    const paths = calculateMovePaths(move, set);
+
+    // Execute the actual move
+    set.swing('partner');
+    const endPositions = set.getPositions();
+    const endPosById = new Map();
+    set.dancers.forEach((dancer, index) => {
+        endPosById.set(dancer.id, endPositions[index]);
+    });
+
+    // Check that path ends match
+    paths.forEach((path, dancerId) => {
+        const expectedEnd = endPosById.get(dancerId);
+        assert(path.end.equals(expectedEnd, 0.01),
+            `Path end for ${dancerId} after partner swing should match Set position`);
+    });
+});
+
+// Test swing paths have no overlaps (with smaller threshold since swings involve close contact)
+test('swing paths should have no overlaps', () => {
+    const moves = [
+        { type: 'swing', who: 'neighbor', beats: 8 },
+        { type: 'swing', who: 'partner', beats: 8 }
+    ];
+
+    moves.forEach(move => {
+        const set = new Set(4);
+        const paths = calculateMovePaths(move, set);
+        // Swings involve close contact, so use smaller minimum distance (0.5 instead of 1.5)
+        assert(hasNoOverlaps(paths, 0.5),
+            `Paths for swing ${move.who} should have no collisions`);
+    });
+});
+
+// Test swing paths stay within bounds
+test('swing paths should stay within bounds', () => {
+    const moves = [
+        { type: 'swing', who: 'neighbor', beats: 8 },
+        { type: 'swing', who: 'partner', beats: 8 }
+    ];
+
+    moves.forEach(move => {
+        const set = new Set(4);
+        const paths = calculateMovePaths(move, set);
+        assert(allWaypointsInBounds(paths),
+            `All waypoints for swing ${move.who} should be in bounds`);
+    });
+});
+
+// ===== CHAIN MOVES TESTS =====
+
+// Test robin chain
+test('robin chain should create arc paths for robins', () => {
+    const set = new Set(4);
+    const move = { type: 'chain', who: 'robins', beats: 8 };
+
+    const paths = calculateMovePaths(move, set);
+
+    // All dancers should have paths
+    assert.strictEqual(paths.size, set.dancers.length);
+
+    // Robins that move should have arc paths with multiple waypoints
+    set.dancers.forEach(dancer => {
+        if (dancer.active && dancer.role === 'robin') {
+            const path = paths.get(dancer.id);
+            // Robins cross, so they should have paths with waypoints
+            assert(path.waypointCount >= 2,
+                `Robin ${dancer.id} should have path during chain`);
+        }
+    });
+});
+
+// Test lark chain
+test('lark chain should create arc paths for larks', () => {
+    const set = new Set(4);
+    const move = { type: 'chain', who: 'larks', beats: 8 };
+
+    const paths = calculateMovePaths(move, set);
+
+    // All dancers should have paths
+    assert.strictEqual(paths.size, set.dancers.length);
+
+    // Larks that move should have arc paths
+    set.dancers.forEach(dancer => {
+        if (dancer.active && dancer.role === 'lark') {
+            const path = paths.get(dancer.id);
+            assert(path.waypointCount >= 2,
+                `Lark ${dancer.id} should have path during chain`);
+        }
+    });
+});
+
+// Test robin chain end positions
+test('robin chain should end at correct positions', () => {
+    const set = new Set(4);
+    const move = { type: 'chain', who: 'robins', beats: 8 };
+
+    const paths = calculateMovePaths(move, set);
+
+    // Execute the actual move
+    set.chainRobins();
+    const endPositions = set.getPositions();
+    const endPosById = new Map();
+    set.dancers.forEach((dancer, index) => {
+        endPosById.set(dancer.id, endPositions[index]);
+    });
+
+    // Check that path ends match
+    paths.forEach((path, dancerId) => {
+        const expectedEnd = endPosById.get(dancerId);
+        assert(path.end.equals(expectedEnd, 0.01),
+            `Path end for ${dancerId} after robin chain should match Set position`);
+    });
+});
+
+// Test lark chain end positions
+test('lark chain should end at correct positions', () => {
+    const set = new Set(4);
+    const move = { type: 'chain', who: 'larks', beats: 8 };
+
+    const paths = calculateMovePaths(move, set);
+
+    // Execute the actual move
+    set.chainLarks();
+    const endPositions = set.getPositions();
+    const endPosById = new Map();
+    set.dancers.forEach((dancer, index) => {
+        endPosById.set(dancer.id, endPositions[index]);
+    });
+
+    // Check that path ends match
+    paths.forEach((path, dancerId) => {
+        const expectedEnd = endPosById.get(dancerId);
+        assert(path.end.equals(expectedEnd, 0.01),
+            `Path end for ${dancerId} after lark chain should match Set position`);
+    });
+});
+
+// Test chain paths have no overlaps
+test('chain paths should have no overlaps', () => {
+    const moves = [
+        { type: 'chain', who: 'robins', beats: 8 },
+        { type: 'chain', who: 'larks', beats: 8 }
+    ];
+
+    moves.forEach(move => {
+        const set = new Set(4);
+        const paths = calculateMovePaths(move, set);
+        assert(hasNoOverlaps(paths, 1.0),
+            `Paths for ${move.who} chain should have no overlaps`);
+    });
+});
+
+// Test chain paths stay within bounds
+test('chain paths should stay within bounds', () => {
+    const moves = [
+        { type: 'chain', who: 'robins', beats: 8 },
+        { type: 'chain', who: 'larks', beats: 8 }
+    ];
+
+    moves.forEach(move => {
+        const set = new Set(4);
+        const paths = calculateMovePaths(move, set);
+        assert(allWaypointsInBounds(paths),
+            `All waypoints for ${move.who} chain should be in bounds`);
+    });
+});
+
+// Test chain with inactive dancers
+test('chains should handle inactive dancers', () => {
+    const set = new Set(5); // Odd number - last couple inactive
+    set.progress(); // First couple now inactive
+
+    const move = { type: 'chain', who: 'robins', beats: 8 };
+    const paths = calculateMovePaths(move, set);
+
+    // Should have paths for all dancers
+    assert.strictEqual(paths.size, set.dancers.length);
+
+    // Inactive dancers should have stationary paths
+    set.dancers.forEach(dancer => {
+        if (!dancer.active) {
+            const path = paths.get(dancer.id);
+            assert(path.start.equals(path.end, 0.01),
+                `Inactive dancer ${dancer.id} should not move during chain`);
+        }
+    });
+});
