@@ -1,6 +1,8 @@
 // Dancer model used to keep dancer identities stable
 // even as they move between minor sets or become inactive.
 
+import { Position } from './positions.js';
+
 const COLOR_PALETTE = [
     '#1b9e77',
     '#d95f02',
@@ -372,5 +374,61 @@ export class Set {
      */
     clearSnapshots() {
         this.snapshots = [];
+    }
+
+    /**
+     * Get normalized positions (0-100 range) for all dancers based on their current
+     * array positions. This maps the current layout to a coordinate system that can
+     * be used for animation.
+     *
+     * Layout: 2 columns, rows centered vertically in dance floor
+     * - Left column: x ≈ 37.5 (300/800)
+     * - Right column: x ≈ 50.0 (400/800)
+     * - Vertical spacing scaled proportionally
+     *
+     * @returns {import('./positions.js').Position[]} Array of Position objects
+     */
+    getPositions() {
+        // SVG dimensions for reference
+        const svgWidth = 800;
+        const svgHeight = 900;
+        const stageHeight = 100;
+        const danceFloorHeight = svgHeight - stageHeight;
+
+        // Layout parameters (in pixels)
+        const startX = 300;
+        const horizontalSpacing = 100;
+        const verticalSpacing = 120;
+        const dancerRadius = 20;
+
+        const numRows = Math.ceil(this.dancers.length / 2);
+        const totalDancerHeight = (numRows - 1) * verticalSpacing + 2 * dancerRadius;
+        const startY = stageHeight + (danceFloorHeight - totalDancerHeight) / 2 + dancerRadius;
+
+        // Convert each dancer position to normalized coordinates
+        return this.dancers.map((dancer, index) => {
+            const col = index % 2;
+            const row = Math.floor(index / 2);
+
+            const xPixels = startX + col * horizontalSpacing;
+            const yPixels = startY + row * verticalSpacing;
+
+            // Convert to normalized 0-100 coordinates
+            return new Position(
+                (xPixels / svgWidth) * 100,
+                (yPixels / svgHeight) * 100
+            );
+        });
+    }
+
+    /**
+     * Calculate paths for all dancers during a move
+     * @param {Object} move - The move object with type, beats, etc.
+     * @returns {Promise<Map<string, import('./paths.js').Path>>} Map from dancer ID to Path
+     */
+    async calculateMovePath(move) {
+        // Import calculateMovePaths dynamically to avoid circular dependency
+        const { calculateMovePaths } = await import('./pathCalculator.js');
+        return calculateMovePaths(move, this);
     }
 }

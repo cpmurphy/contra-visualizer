@@ -1,4 +1,5 @@
 import { Set } from './dancers.js';
+import { toPixels } from './positions.js';
 
 // Application state
 const state = {
@@ -304,32 +305,20 @@ function drawStage(svg) {
 // Draw dancers from the Set
 function drawDancers(svg, dancerSet) {
     const dancers = dancerSet.dancers;
-
-    // Layout parameters
+    const svgWidth = 800;
     const svgHeight = 900;
-    const stageHeight = 100;
-    const danceFloorHeight = svgHeight - stageHeight;
-
-    const numRows = Math.ceil(dancers.length / 2);
     const dancerRadius = 20;
-    const verticalSpacing = 120;
-    const horizontalSpacing = 100;
 
-    // Calculate total height needed for dancers
-    const totalDancerHeight = (numRows - 1) * verticalSpacing + 2 * dancerRadius;
-
-    // Center dancers vertically in the dance floor
-    const startY = stageHeight + (danceFloorHeight - totalDancerHeight) / 2 + dancerRadius;
-    const startX = 300;
+    // Get normalized positions from the Set
+    const positions = dancerSet.getPositions();
 
     // Draw dancers in reading order: left to right, top to bottom
     // The Set stores 12 dancers in a 2-column layout (6 rows)
     dancers.forEach((dancer, index) => {
-        const col = index % 2;  // 0 or 1
-        const row = Math.floor(index / 2);
-
-        const x = startX + col * horizontalSpacing;
-        const y = startY + row * verticalSpacing;
+        // Convert normalized position to pixel coordinates
+        const pixelPos = toPixels(positions[index], svgWidth, svgHeight);
+        const x = pixelPos.x;
+        const y = pixelPos.y;
 
         // Draw circle with couple color
         const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');

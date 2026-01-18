@@ -10,6 +10,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Set } from '../dancers.js';
+import { distance, isInBounds } from '../positions.js';
 
 
 function internallyProgress(set) {
@@ -788,4 +789,151 @@ test('clearSnapshots should remove all snapshots', () => {
     // And undo shouldn't change anything
     set.undo();
     assert.deepStrictEqual(set.dancers.map(d => d.id), currentState);
+});
+
+// Position calculation tests
+
+test('getPositions should return correct number of positions', () => {
+    const set = new Set(6);
+    const positions = set.getPositions();
+
+    assert.strictEqual(positions.length, 12); // 6 couples = 12 dancers
+});
+
+test('getPositions should return positions for all dancers in set', () => {
+    const set = new Set(4);
+    const positions = set.getPositions();
+
+    assert.strictEqual(positions.length, 8); // 4 couples = 8 dancers
+});
+
+test('all positions should be within bounds (0-100)', () => {
+    const set = new Set(6);
+    const positions = set.getPositions();
+
+    positions.forEach((pos, index) => {
+        assert(isInBounds(pos, 0, 0, 100, 100),
+            `Position ${index} (${pos.x}, ${pos.y}) should be within bounds`);
+    });
+});
+
+test('positions should not overlap (minimum distance maintained)', () => {
+    const set = new Set(6);
+    const positions = set.getPositions();
+
+    // Minimum distance should be at least 2 units (accounting for dancer radius in normalized coords)
+    const minDistance = 2;
+
+    for (let i = 0; i < positions.length; i++) {
+        for (let j = i + 1; j < positions.length; j++) {
+            const dist = distance(positions[i], positions[j]);
+            assert(dist >= minDistance,
+                `Dancers ${i} and ${j} are too close: ${dist} < ${minDistance}`);
+        }
+    }
+});
+
+test('inactive dancers should still have positions', () => {
+    const set = new Set(5); // Odd number makes some inactive
+    const positions = set.getPositions();
+
+    assert.strictEqual(positions.length, 10); // Still 10 dancers
+    assert.strictEqual(set.dancers.filter(d => !d.active).length, 2); // 2 inactive
+});
+
+test('positions should be in two columns', () => {
+    const set = new Set(6);
+    const positions = set.getPositions();
+
+    // Group by x coordinate (should have 2 unique x values)
+    // Use filter to get unique values instead of built-in Set to avoid name collision
+    const xCoords = positions.map(p => p.x.toFixed(1)).filter((x, i, arr) => arr.indexOf(x) === i);
+    assert.strictEqual(xCoords.length, 2, 'Should have exactly 2 columns');
+});
+
+test('positions should have consistent vertical spacing', () => {
+    const set = new Set(6);
+    const positions = set.getPositions();
+
+    // Check left column (even indices)
+    const leftColumn = positions.filter((_, i) => i % 2 === 0);
+    const ySpacings = [];
+
+    for (let i = 1; i < leftColumn.length; i++) {
+        const spacing = leftColumn[i].y - leftColumn[i - 1].y;
+        ySpacings.push(spacing);
+    }
+
+    // All spacings should be approximately equal
+    const avgSpacing = ySpacings.reduce((a, b) => a + b, 0) / ySpacings.length;
+    ySpacings.forEach((spacing, i) => {
+        assert(Math.abs(spacing - avgSpacing) < 0.1,
+            `Spacing ${i} (${spacing}) should be close to average (${avgSpacing})`);
+    });
+});
+
+test('positions remain stable while dancer IDs change after moves', () => {
+    const set = new Set(4);
+    const initialPositions = set.getPositions();
+    const initialDancerIds = set.dancers.map(d => d.id);
+
+    // Circle left changes dancer order in array but not positions
+    set.circleLeft(1);
+    const newPositions = set.getPositions();
+    const newDancerIds = set.dancers.map(d => d.id);
+
+    // Position coordinates should remain the same (indexed by array position)
+    for (let i = 0; i < initialPositions.length; i++) {
+        assert(initialPositions[i].equals(newPositions[i], 0.01),
+            `Position ${i} should remain stable after move`);
+    }
+
+    // But dancer IDs at those positions should have changed
+    let changedCount = 0;
+    for (let i = 0; i < initialDancerIds.length; i++) {
+        if (initialDancerIds[i] !== newDancerIds[i]) {
+            changedCount++;
+        }
+    }
+    assert(changedCount > 0, 'Dancer IDs should change after circle left');
+});
+
+test('positions after progression should still be valid', () => {
+    const set = new Set(6);
+
+    set.progress();
+    const positions = set.getPositions();
+
+    // All positions should still be in bounds
+    positions.forEach((pos, index) => {
+        assert(isInBounds(pos, 0, 0, 100, 100),
+            `Position ${index} after progression should be in bounds`);
+    });
+
+    // Should still maintain minimum distance
+    const minDistance = 2;
+    for (let i = 0; i < positions.length; i++) {
+        for (let j = i + 1; j < positions.length; j++) {
+            const dist = distance(positions[i], positions[j]);
+            assert(dist >= minDistance,
+                `Dancers ${i} and ${j} too close after progression: ${dist}`);
+        }
+    }
+});
+
+test('calculateMovePath should return paths for all dancers', async () => {
+    const set = new Set(4);
+    const move = { type: 'balance', beats: 4 };
+
+    const paths = await set.calculateMovePath(move);
+
+    // Should have path for each dancer
+    assert.strictEqual(paths.size, set.dancers.length);
+
+    // Each path should be valid
+    set.dancers.forEach(dancer => {
+        const path = paths.get(dancer.id);
+        assert(path !== undefined, `Should have path for dancer ${dancer.id}`);
+        assert(path.beats === 4, 'Path should have correct beat duration');
+    });
 });
