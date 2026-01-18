@@ -1,5 +1,7 @@
 import { Set } from './dancers.js';
 import { toPixels } from './positions.js';
+import { Animator, AnimationState } from './animator.js';
+import { calculateMovePaths } from './pathCalculator.js';
 
 // Application state
 const state = {
@@ -8,7 +10,10 @@ const state = {
     currentPartIndex: 0,
     currentMoveIndex: 0,
     isPlaying: false,
-    animationId: null
+    animationId: null,
+    animator: new Animator(120), // 120 BPM
+    animationState: null,
+    currentPaths: null
 };
 
 // DOM elements
@@ -206,7 +211,7 @@ function formatMove(move) {
 }
 
 // Update visualization
-function updateVisualization() {
+function updateVisualization(customPositions = null) {
     // Clear canvas
     const svg = elements.canvas;
     while (svg.firstChild) {
@@ -230,7 +235,7 @@ function updateVisualization() {
 
     // Draw dancers
     if (state.dancerSet) {
-        drawDancers(svg, state.dancerSet);
+        drawDancers(svg, state.dancerSet, customPositions);
     }
 }
 
@@ -303,14 +308,21 @@ function drawStage(svg) {
 }
 
 // Draw dancers from the Set
-function drawDancers(svg, dancerSet) {
+function drawDancers(svg, dancerSet, customPositions = null) {
     const dancers = dancerSet.dancers;
     const svgWidth = 800;
     const svgHeight = 900;
     const dancerRadius = 20;
 
-    // Get normalized positions from the Set
-    const positions = dancerSet.getPositions();
+    // Get normalized positions - either custom (for animation) or from the Set
+    let positions;
+    if (customPositions) {
+        // Custom positions is a Map from dancer ID to Position
+        positions = dancers.map(dancer => customPositions.get(dancer.id));
+    } else {
+        // Get positions from the Set
+        positions = dancerSet.getPositions();
+    }
 
     // Draw dancers in reading order: left to right, top to bottom
     // The Set stores 12 dancers in a 2-column layout (6 rows)
@@ -367,10 +379,18 @@ elements.playPauseBtn.addEventListener('click', () => {
 });
 
 elements.prevMoveBtn.addEventListener('click', () => {
+    // Stop any ongoing animation
+    stopAnimation();
+    state.isPlaying = false;
+    updateControls();
     goToPreviousMove();
 });
 
 elements.nextMoveBtn.addEventListener('click', () => {
+    // Stop any ongoing animation
+    stopAnimation();
+    state.isPlaying = false;
+    updateControls();
     goToNextMove();
 });
 
@@ -430,8 +450,39 @@ function goToPreviousMove() {
 }
 
 function startAnimation() {
-    // TODO: Implement animation logic
-    console.log('Animation started');
+    if (!state.dance || !state.dancerSet) return;
+
+    const currentPart = state.dance.parts[state.currentPartIndex];
+    const currentMove = currentPart.moves[state.currentMoveIndex];
+
+    // Calculate paths for the current move
+    state.currentPaths = calculateMovePaths(currentMove, state.dancerSet);
+
+    // Create animation state
+    state.animationState = new AnimationState(state.currentPaths, state.animator);
+    state.animationState.start(performance.now());
+
+    // Start animation loop
+    function animate(timestamp) {
+        if (!state.isPlaying) return;
+
+        // Get current positions
+        const currentPositions = state.animationState.getCurrentPositions(timestamp);
+
+        // Update visualization with interpolated positions
+        updateVisualization(currentPositions);
+
+        // Check if animation is complete
+        if (state.animationState.isComplete(timestamp)) {
+            // Animation finished - advance to next move
+            advanceToNextMove();
+        } else {
+            // Continue animation
+            state.animationId = requestAnimationFrame(animate);
+        }
+    }
+
+    state.animationId = requestAnimationFrame(animate);
 }
 
 function stopAnimation() {
@@ -439,7 +490,46 @@ function stopAnimation() {
         cancelAnimationFrame(state.animationId);
         state.animationId = null;
     }
-    console.log('Animation stopped');
+    state.animationState = null;
+    state.currentPaths = null;
+}
+
+function advanceToNextMove() {
+    if (!state.dance || !state.dancerSet) return;
+
+    const currentPart = state.dance.parts[state.currentPartIndex];
+    const currentMove = currentPart.moves[state.currentMoveIndex];
+
+    // If we're at the first move, clear snapshots before advancing
+    // (we don't need history from previous iterations)
+    if (state.currentPartIndex === 0 && state.currentMoveIndex === 0) {
+        state.dancerSet.clearSnapshots();
+    }
+
+    // Execute the current move on the Set (snapshot is taken automatically)
+    executeMove(state.dancerSet, currentMove);
+
+    // Advance to next move
+    if (state.currentMoveIndex < currentPart.moves.length - 1) {
+        state.currentMoveIndex++;
+    } else if (state.currentPartIndex < state.dance.parts.length - 1) {
+        state.currentPartIndex++;
+        state.currentMoveIndex = 0;
+    } else {
+        // Loop back to beginning
+        state.currentPartIndex = 0;
+        state.currentMoveIndex = 0;
+    }
+
+    updateMoveList();
+
+    // If still playing, start animation for next move
+    if (state.isPlaying) {
+        startAnimation();
+    } else {
+        // Not playing anymore - just update visualization
+        updateVisualization();
+    }
 }
 
 function updateControls() {
