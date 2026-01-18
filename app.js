@@ -391,6 +391,12 @@ function goToNextMove() {
     const currentPart = state.dance.parts[state.currentPartIndex];
     const currentMove = currentPart.moves[state.currentMoveIndex];
 
+    // If we're at the first move, clear snapshots before advancing
+    // (we don't need history from previous iterations)
+    if (state.currentPartIndex === 0 && state.currentMoveIndex === 0) {
+        state.dancerSet.clearSnapshots();
+    }
+
     // Execute the current move (snapshot is taken automatically)
     executeMove(state.dancerSet, currentMove);
 

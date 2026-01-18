@@ -365,4 +365,12 @@ export class Set {
             dancer.couple.coupleNumber = state.coupleNumber;
         });
     }
+
+    /**
+     * Clear all snapshots. This is useful when restarting a dance from the beginning
+     * to avoid keeping unnecessary history.
+     */
+    clearSnapshots() {
+        this.snapshots = [];
+    }
 }

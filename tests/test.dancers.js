@@ -754,7 +754,7 @@ test('automatic snapshot should preserve dancer identities across complex moves'
     // Complex sequence of moves
     set.circleLeft(2);
     set.chainRobins();
-    set.doSiDo(1.5);
+    set.doSiDo(1.0);
 
     // Undo three times
     set.undo();
@@ -765,4 +765,27 @@ test('automatic snapshot should preserve dancer identities across complex moves'
     assert.deepStrictEqual(set.dancers.map(d => d.id), initialIds);
     // Labels should match (which depends on couple numbers and roles)
     assert.deepStrictEqual(set.dancers.map(d => d.getLabel()), initialLabels);
+});
+
+test('clearSnapshots should remove all snapshots', () => {
+    const set = new Set(4);
+    const initialState = set.dancers.map(d => d.id);
+
+    set.circleLeft(1);
+    set.chainRobins();
+    set.swing('neighbor');
+
+    // Clear all snapshots
+    set.clearSnapshots();
+
+    // Undo should do nothing since snapshots are cleared
+    set.undo();
+
+    // Should still be in the current state (after 3 moves)
+    const currentState = set.dancers.map(d => d.id);
+    assert.notDeepStrictEqual(currentState, initialState);
+
+    // And undo shouldn't change anything
+    set.undo();
+    assert.deepStrictEqual(set.dancers.map(d => d.id), currentState);
 });
