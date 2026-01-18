@@ -43,6 +43,11 @@ export function calculateMovePaths(move, dancerSet) {
             const pos = startPosById.get(dancer.id);
             paths.set(dancer.id, createStationaryPath(pos, beats));
         });
+    } else if (type.includes('circle left') || type.includes('circle right') ||
+               type.includes('star left') || type.includes('star right')) {
+        // Circular moves - arc paths around minor set centers
+        const isClockwise = type.includes('right');
+        createCircularPaths(dancerSet, startPosById, endPosById, paths, beats, isClockwise);
     } else if (type === 'do-si-do' || type === 'dosido') {
         // Check if it's an integer number of times (returns to start)
         const times = 1.0; // Default from app.js
@@ -88,6 +93,71 @@ export function calculateMovePaths(move, dancerSet) {
     }
 
     return paths;
+}
+
+/**
+ * Create circular arc paths for dancers during circle/star moves
+ * @param {import('./dancers.js').Set} dancerSet
+ * @param {Map<string, Position>} startPosById
+ * @param {Map<string, Position>} endPosById
+ * @param {Map<string, import('./paths.js').Path>} paths
+ * @param {number} beats
+ * @param {boolean} isClockwise
+ */
+function createCircularPaths(dancerSet, startPosById, endPosById, paths, beats, isClockwise) {
+    // Determine starting index based on active state
+    const startIndex = dancerSet.dancers[0].active ? 0 : 2;
+
+    // Process each minor set of 4 dancers
+    for (let i = startIndex; i < dancerSet.dancers.length; i += 4) {
+        if (dancerSet.dancers.length - i < 4) {
+            break;
+        }
+
+        // Get the 4 dancers in this minor set
+        const minorSetDancers = [
+            dancerSet.dancers[i],
+            dancerSet.dancers[i + 1],
+            dancerSet.dancers[i + 2],
+            dancerSet.dancers[i + 3]
+        ];
+
+        // Get start positions for this minor set
+        const minorSetStartPositions = minorSetDancers.map(d => startPosById.get(d.id));
+
+        // Calculate center point of this minor set
+        const centerPos = center(minorSetStartPositions);
+
+        // Create arc paths for each dancer in this minor set
+        minorSetDancers.forEach(dancer => {
+            const start = startPosById.get(dancer.id);
+            const end = endPosById.get(dancer.id);
+
+            if (start.equals(end, 0.01)) {
+                // Dancer doesn't move (inactive)
+                paths.set(dancer.id, createStationaryPath(start, beats));
+            } else {
+                // Create arc path around the center
+                paths.set(dancer.id, createArcPath(start, end, centerPos, beats, 8, isClockwise));
+            }
+        });
+    }
+
+    // Handle any inactive dancers at the beginning
+    if (startIndex === 2) {
+        // First couple is inactive
+        paths.set(dancerSet.dancers[0].id, createStationaryPath(startPosById.get(dancerSet.dancers[0].id), beats));
+        paths.set(dancerSet.dancers[1].id, createStationaryPath(startPosById.get(dancerSet.dancers[1].id), beats));
+    }
+
+    // Handle any inactive dancers at the end
+    const remainder = (dancerSet.dancers.length - startIndex) % 4;
+    if (remainder > 0) {
+        for (let i = dancerSet.dancers.length - remainder; i < dancerSet.dancers.length; i++) {
+            const dancer = dancerSet.dancers[i];
+            paths.set(dancer.id, createStationaryPath(startPosById.get(dancer.id), beats));
+        }
+    }
 }
 
 /**

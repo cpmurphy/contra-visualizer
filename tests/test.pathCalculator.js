@@ -227,3 +227,201 @@ test('calculating paths should not mutate original Set', () => {
     assert.deepStrictEqual(afterDancerIds, originalDancerIds,
         'Set dancers should not be reordered by path calculation');
 });
+
+// ===== CIRCULAR MOVES TESTS =====
+
+// Test circle left by 1 place
+test('circle left 1 should create arc paths', () => {
+    const set = new Set(4);
+    const move = { type: 'circle left 1', beats: 4 };
+
+    const paths = calculateMovePaths(move, set);
+
+    // All active dancers should have paths with more than 2 waypoints (arcs)
+    set.dancers.forEach(dancer => {
+        if (dancer.active) {
+            const path = paths.get(dancer.id);
+            assert(path.waypointCount > 2,
+                `Active dancer ${dancer.id} should have arc path with multiple waypoints`);
+        }
+    });
+});
+
+// Test circle right by 1 place
+test('circle right 1 should create arc paths', () => {
+    const set = new Set(4);
+    const move = { type: 'circle right 1', beats: 4 };
+
+    const paths = calculateMovePaths(move, set);
+
+    // All active dancers should have paths
+    assert.strictEqual(paths.size, set.dancers.length);
+});
+
+// Test circle left by different place counts
+test('circle left with different places should end at correct positions', () => {
+    const places = [1, 2, 3];
+
+    places.forEach(numPlaces => {
+        const set = new Set(4);
+        const move = { type: `circle left ${numPlaces}`, beats: 8 };
+
+        const paths = calculateMovePaths(move, set);
+
+        // Execute the actual move
+        set.circleLeft(numPlaces);
+        const endPositions = set.getPositions();
+        const endPosById = new Map();
+        set.dancers.forEach((dancer, index) => {
+            endPosById.set(dancer.id, endPositions[index]);
+        });
+
+        // Check that path ends match
+        paths.forEach((path, dancerId) => {
+            const expectedEnd = endPosById.get(dancerId);
+            assert(path.end.equals(expectedEnd, 0.01),
+                `Path end for ${dancerId} after circle left ${numPlaces} should match Set position`);
+        });
+    });
+});
+
+// Test circle right by different place counts
+test('circle right with different places should end at correct positions', () => {
+    const places = [1, 2, 3];
+
+    places.forEach(numPlaces => {
+        const set = new Set(4);
+        const move = { type: `circle right ${numPlaces}`, beats: 8 };
+
+        const paths = calculateMovePaths(move, set);
+
+        // Execute the actual move
+        set.circleRight(numPlaces);
+        const endPositions = set.getPositions();
+        const endPosById = new Map();
+        set.dancers.forEach((dancer, index) => {
+            endPosById.set(dancer.id, endPositions[index]);
+        });
+
+        // Check that path ends match
+        paths.forEach((path, dancerId) => {
+            const expectedEnd = endPosById.get(dancerId);
+            assert(path.end.equals(expectedEnd, 0.01),
+                `Path end for ${dancerId} after circle right ${numPlaces} should match Set position`);
+        });
+    });
+});
+
+// Test circle left by 4 places (full rotation)
+test('circle left 4 should return dancers to start positions', () => {
+    const set = new Set(4);
+    const move = { type: 'circle left 4', beats: 8 };
+
+    const paths = calculateMovePaths(move, set);
+
+    // All paths should end at their start positions
+    paths.forEach((path, dancerId) => {
+        assert(path.start.equals(path.end, 0.01),
+            `Dancer ${dancerId} should return to start after full rotation`);
+    });
+});
+
+// Test star left
+test('star left should work like circle left', () => {
+    const set = new Set(4);
+    const move = { type: 'star left 2', beats: 8 };
+
+    const paths = calculateMovePaths(move, set);
+
+    // Execute the actual move (star left is same as circle left)
+    set.starLeft(2);
+    const endPositions = set.getPositions();
+    const endPosById = new Map();
+    set.dancers.forEach((dancer, index) => {
+        endPosById.set(dancer.id, endPositions[index]);
+    });
+
+    // Check that path ends match
+    paths.forEach((path, dancerId) => {
+        const expectedEnd = endPosById.get(dancerId);
+        assert(path.end.equals(expectedEnd, 0.01),
+            `Path end for ${dancerId} after star left should match Set position`);
+    });
+});
+
+// Test star right
+test('star right should work like circle right', () => {
+    const set = new Set(4);
+    const move = { type: 'star right 2', beats: 8 };
+
+    const paths = calculateMovePaths(move, set);
+
+    // Execute the actual move (star right is same as circle right)
+    set.starRight(2);
+    const endPositions = set.getPositions();
+    const endPosById = new Map();
+    set.dancers.forEach((dancer, index) => {
+        endPosById.set(dancer.id, endPositions[index]);
+    });
+
+    // Check that path ends match
+    paths.forEach((path, dancerId) => {
+        const expectedEnd = endPosById.get(dancerId);
+        assert(path.end.equals(expectedEnd, 0.01),
+            `Path end for ${dancerId} after star right should match Set position`);
+    });
+});
+
+// Test no overlaps during circular moves
+test('circular move paths should have no overlaps', () => {
+    const moves = [
+        { type: 'circle left 1', beats: 4 },
+        { type: 'circle right 1', beats: 4 },
+        { type: 'circle left 2', beats: 8 },
+        { type: 'star left 1', beats: 4 }
+    ];
+
+    moves.forEach(move => {
+        const set = new Set(4);
+        const paths = calculateMovePaths(move, set);
+        assert(hasNoOverlaps(paths, 1.5),
+            `Paths for ${move.type} should have no overlaps`);
+    });
+});
+
+// Test all waypoints in bounds for circular moves
+test('circular move paths should stay within bounds', () => {
+    const moves = [
+        { type: 'circle left 1', beats: 4 },
+        { type: 'circle right 2', beats: 8 },
+        { type: 'star left 3', beats: 8 }
+    ];
+
+    moves.forEach(move => {
+        const set = new Set(4);
+        const paths = calculateMovePaths(move, set);
+        assert(allWaypointsInBounds(paths),
+            `All waypoints for ${move.type} should be in bounds`);
+    });
+});
+
+// Test circular moves with inactive dancers
+test('circular moves should handle inactive dancers', () => {
+    const set = new Set(5); // Odd number - last couple inactive
+    set.progress(); // First couple now inactive
+
+    const move = { type: 'circle left 1', beats: 4 };
+    const paths = calculateMovePaths(move, set);
+
+    // Should have paths for all dancers
+    assert.strictEqual(paths.size, set.dancers.length);
+
+    // Inactive dancers should have stationary paths
+    set.dancers.forEach(dancer => {
+        if (!dancer.active) {
+            const path = paths.get(dancer.id);
+            assert(path.start.equals(path.end, 0.01),
+                `Inactive dancer ${dancer.id} should not move during circle`);
+        }
+    });
+});
