@@ -93,6 +93,24 @@
             font-weight: 500;
         }
 
+        .move-item.animating {
+            background-color: #c8e6c9;
+            border-left-color: #4caf50;
+            font-weight: 500;
+            animation: pulse 1s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                background-color: #c8e6c9;
+                border-left-color: #4caf50;
+            }
+            50% {
+                background-color: #a5d6a7;
+                border-left-color: #66bb6a;
+            }
+        }
+
         .move-description {
             color: #333;
             font-size: 14px;

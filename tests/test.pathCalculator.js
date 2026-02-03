@@ -19,7 +19,7 @@ function allWaypointsInBounds(paths) {
 }
 
 // Helper to check for overlaps at any waypoint
-function hasNoOverlaps(paths, minDistance = 2.0) {
+function hasNoOverlaps(paths, minDistance = 6.0) {
     const allDancers = [...paths.keys()];
     const maxProgress = 20; // Check 20 points along the path
 
@@ -326,6 +326,34 @@ test('circle left 4 should return dancers to start positions', () => {
     });
 });
 
+test('star left 4 places should animate (not stationary)', () => {
+    const set = new Set(4);
+    const move = { type: 'star left 4', beats: 8 };
+
+    const paths = calculateMovePaths(move, set);
+
+    // All active dancers should have arc paths with 8 waypoints (not stationary)
+    set.dancers.forEach(dancer => {
+        if (dancer.active) {
+            const path = paths.get(dancer.id);
+
+            // Path should have 8 waypoints (full animated arc)
+            assert.strictEqual(path.waypointCount, 8,
+                `Active dancer ${dancer.id} should have 8-waypoint arc path for full rotation`);
+
+            // Verify it's truly animating through all waypoints
+            // For a full rotation, waypoints should vary in position
+            const firstWaypoint = path.waypoints[0];
+            const midWaypoint = path.waypoints[3]; // Quarter turn point
+
+            // Mid-waypoint should be significantly different from start
+            const midDistance = distance(firstWaypoint, midWaypoint);
+            assert(midDistance > 5.0,
+                `Full rotation should have animated waypoints (distance: ${midDistance})`);
+        }
+    });
+});
+
 // Test star left
 test('star left should work like circle left', () => {
     const set = new Set(4);
@@ -384,7 +412,7 @@ test('circular move paths should have no overlaps', () => {
     moves.forEach(move => {
         const set = new Set(4);
         const paths = calculateMovePaths(move, set);
-        assert(hasNoOverlaps(paths, 1.5),
+        assert(hasNoOverlaps(paths, 6.0),
             `Paths for ${move.type} should have no overlaps`);
     });
 });
@@ -515,8 +543,8 @@ test('swing paths should have no overlaps', () => {
     moves.forEach(move => {
         const set = new Set(4);
         const paths = calculateMovePaths(move, set);
-        // Swings involve close contact, so use smaller minimum distance (0.5 instead of 1.5)
-        assert(hasNoOverlaps(paths, 0.5),
+        // With 40px diameter circles, need 6.0 units minimum distance to prevent visual overlap
+        assert(hasNoOverlaps(paths, 6.0),
             `Paths for swing ${move.who} should have no collisions`);
     });
 });
@@ -635,7 +663,7 @@ test('chain paths should have no overlaps', () => {
     moves.forEach(move => {
         const set = new Set(4);
         const paths = calculateMovePaths(move, set);
-        assert(hasNoOverlaps(paths, 1.0),
+        assert(hasNoOverlaps(paths, 6.0),
             `Paths for ${move.who} chain should have no overlaps`);
     });
 });

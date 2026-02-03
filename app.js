@@ -13,7 +13,8 @@ const state = {
     animationId: null,
     animator: new Animator(120), // 120 BPM
     animationState: null,
-    currentPaths: null
+    currentPaths: null,
+    pathCache: new Map() // Cache paths by move signature for performance
 };
 
 // DOM elements
@@ -184,6 +185,11 @@ function updateMoveList() {
 
                 if (partIndex === state.currentPartIndex && moveIndex === state.currentMoveIndex) {
                     moveItem.classList.add('current');
+
+                    // Add 'animating' class if animation is active
+                    if (state.isPlaying && state.animationState) {
+                        moveItem.classList.add('animating');
+                    }
                 }
 
                 partSection.appendChild(moveItem);
@@ -341,10 +347,15 @@ function drawDancers(svg, dancerSet, customPositions = null) {
         circle.setAttribute('stroke', '#333');
         circle.setAttribute('stroke-width', '2');
 
-        // Make inactive dancers semi-transparent
+        // Make inactive dancers semi-transparent with smooth transition
         if (!dancer.active) {
             circle.setAttribute('opacity', '0.3');
+        } else {
+            circle.setAttribute('opacity', '1.0');
         }
+
+        // Add CSS transition for smooth opacity changes
+        circle.style.transition = 'opacity 0.3s ease-in-out';
 
         svg.appendChild(circle);
 
@@ -360,7 +371,11 @@ function drawDancers(svg, dancerSet, customPositions = null) {
 
         if (!dancer.active) {
             label.setAttribute('opacity', '0.3');
+        } else {
+            label.setAttribute('opacity', '1.0');
         }
+
+        label.style.transition = 'opacity 0.3s ease-in-out';
 
         svg.appendChild(label);
     });
@@ -449,40 +464,111 @@ function goToPreviousMove() {
     updateVisualization();
 }
 
+/**
+ * Create a cache key for path caching based on move and dancer positions
+ * @param {Object} move - The move object
+ * @param {Set} dancerSet - The current dancer set
+ * @returns {string} Cache key
+ */
+function createCacheKey(move, dancerSet) {
+    // Include move properties
+    const moveKey = [
+        move.type,
+        move.who || 'none',
+        move.beats || 8,
+        move.progression ? 'prog' : 'noprog'
+    ].join('|');
+
+    // Include dancer positions (rounded to avoid floating point issues)
+    const positions = dancerSet.getPositions();
+    const positionKey = positions
+        .map(pos => `${pos.x.toFixed(2)},${pos.y.toFixed(2)}`)
+        .join(';');
+
+    // Include active states
+    const activeKey = dancerSet.dancers
+        .map(d => d.active ? '1' : '0')
+        .join('');
+
+    return `${moveKey}::${positionKey}::${activeKey}`;
+}
+
 function startAnimation() {
-    if (!state.dance || !state.dancerSet) return;
-
-    const currentPart = state.dance.parts[state.currentPartIndex];
-    const currentMove = currentPart.moves[state.currentMoveIndex];
-
-    // Calculate paths for the current move
-    state.currentPaths = calculateMovePaths(currentMove, state.dancerSet);
-
-    // Create animation state
-    state.animationState = new AnimationState(state.currentPaths, state.animator);
-    state.animationState.start(performance.now());
-
-    // Start animation loop
-    function animate(timestamp) {
-        if (!state.isPlaying) return;
-
-        // Get current positions
-        const currentPositions = state.animationState.getCurrentPositions(timestamp);
-
-        // Update visualization with interpolated positions
-        updateVisualization(currentPositions);
-
-        // Check if animation is complete
-        if (state.animationState.isComplete(timestamp)) {
-            // Animation finished - advance to next move
-            advanceToNextMove();
-        } else {
-            // Continue animation
-            state.animationId = requestAnimationFrame(animate);
-        }
+    if (!state.dance || !state.dancerSet) {
+        console.warn('Cannot start animation: no dance or dancer set loaded');
+        return;
     }
 
-    state.animationId = requestAnimationFrame(animate);
+    const currentPart = state.dance.parts[state.currentPartIndex];
+    if (!currentPart) {
+        console.error('Invalid part index:', state.currentPartIndex);
+        return;
+    }
+
+    const currentMove = currentPart.moves[state.currentMoveIndex];
+    if (!currentMove) {
+        console.error('Invalid move index:', state.currentMoveIndex);
+        return;
+    }
+
+    try {
+        // Create cache key based on move properties and current positions
+        const cacheKey = createCacheKey(currentMove, state.dancerSet);
+
+        // Check cache first
+        let paths = state.pathCache.get(cacheKey);
+
+        if (!paths) {
+            // Calculate paths for the current move
+            paths = calculateMovePaths(currentMove, state.dancerSet);
+
+            // Store in cache
+            state.pathCache.set(cacheKey, paths);
+        }
+
+        state.currentPaths = paths;
+
+        // Create animation state
+        state.animationState = new AnimationState(state.currentPaths, state.animator);
+        state.animationState.start(performance.now());
+
+        // Start animation loop
+        function animate(timestamp) {
+            // Check if animation should stop (user may have stopped it)
+            if (!state.isPlaying || !state.animationState) return;
+
+            try {
+                // Get current positions
+                const currentPositions = state.animationState.getCurrentPositions(timestamp);
+
+                // Update visualization with interpolated positions
+                updateVisualization(currentPositions);
+
+                // Check if animation is complete
+                if (state.animationState.isComplete(timestamp)) {
+                    // Animation finished - advance to next move
+                    advanceToNextMove();
+                } else {
+                    // Continue animation
+                    state.animationId = requestAnimationFrame(animate);
+                }
+            } catch (error) {
+                console.error('Animation error:', error);
+                stopAnimation();
+                state.isPlaying = false;
+                updateControls();
+            }
+        }
+
+        state.animationId = requestAnimationFrame(animate);
+
+        // Update move list to show animating state
+        updateMoveList();
+    } catch (error) {
+        console.error('Failed to start animation:', error);
+        state.isPlaying = false;
+        updateControls();
+    }
 }
 
 function stopAnimation() {
@@ -492,6 +578,9 @@ function stopAnimation() {
     }
     state.animationState = null;
     state.currentPaths = null;
+
+    // Update move list to remove animating state
+    updateMoveList();
 }
 
 function advanceToNextMove() {

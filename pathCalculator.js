@@ -2,7 +2,7 @@
 // Computes paths for each dancer during a move
 
 import { Position, center, distance } from './positions.js';
-import { createStraightPath, createStationaryPath, createArcPath } from './paths.js';
+import { Path, createStraightPath, createStationaryPath, createArcPath } from './paths.js';
 
 /**
  * Calculate paths for all dancers during a move
@@ -139,11 +139,28 @@ function createCircularPaths(dancerSet, startPosById, endPosById, paths, beats, 
             const start = startPosById.get(dancer.id);
             const end = endPosById.get(dancer.id);
 
-            if (start.equals(end, 0.01)) {
-                // Dancer doesn't move (inactive)
+            if (!dancer.active) {
+                // Dancer is inactive - create stationary path
                 paths.set(dancer.id, createStationaryPath(start, beats));
+            } else if (start.equals(end, 0.01)) {
+                // Full rotation (e.g., star left 4 places) - dancer returns to start
+                // Generate explicit 360° circle animation
+                const radius = distance(start, centerPos);
+                const startAngle = Math.atan2(start.y - centerPos.y, start.x - centerPos.x);
+
+                const waypoints = [];
+                for (let i = 0; i <= 7; i++) {
+                    const progress = i / 7;
+                    const angleDelta = isClockwise ? -2 * Math.PI : 2 * Math.PI;
+                    const angle = startAngle + angleDelta * progress;
+                    waypoints.push(new Position(
+                        centerPos.x + radius * Math.cos(angle),
+                        centerPos.y + radius * Math.sin(angle)
+                    ));
+                }
+                paths.set(dancer.id, new Path(waypoints, beats));
             } else {
-                // Create arc path around the center
+                // Partial rotation - create normal arc path
                 paths.set(dancer.id, createArcPath(start, end, centerPos, beats, 8, isClockwise));
             }
         });
@@ -197,32 +214,54 @@ function createSwingPaths(dancerSet, startPosById, endPosById, paths, beats) {
             const start = startPosById.get(dancer.id);
             const end = endPosById.get(dancer.id);
 
-            if (start.equals(end, 0.01)) {
-                // Dancer doesn't move (inactive)
+            if (!dancer.active) {
+                // Dancer is inactive - create stationary path
                 paths.set(dancer.id, createStationaryPath(start, beats));
+            } else if (start.equals(end, 0.01)) {
+                // Full swing rotation - create full circle around center
+                // Calculate center point between start and end for radius
+                const midX = (start.x + end.x) / 2;
+                const midY = (start.y + end.y) / 2;
+                const centerPos = new Position(midX, midY);
+
+                const radius = distance(start, centerPos);
+                const startAngle = Math.atan2(start.y - centerPos.y, start.x - centerPos.x);
+
+                const waypoints = [];
+                for (let i = 0; i <= 7; i++) {
+                    const progress = i / 7;
+                    const angle = startAngle + 2 * Math.PI * progress; // Counter-clockwise
+                    waypoints.push(new Position(
+                        centerPos.x + radius * Math.cos(angle),
+                        centerPos.y + radius * Math.sin(angle)
+                    ));
+                }
+                paths.set(dancer.id, new Path(waypoints, beats));
             } else {
-                // Calculate center point between start and end
+                // Normal swing - create arc path with offset center
                 const midX = (start.x + end.x) / 2;
                 const midY = (start.y + end.y) / 2;
 
-                // Add slight offset to center to create wider arcs and avoid collisions
-                // Offset perpendicular to the line between start and end
                 const dx = end.x - start.x;
                 const dy = end.y - start.y;
                 const len = Math.sqrt(dx * dx + dy * dy);
 
                 // Create perpendicular offset (rotate 90 degrees)
-                const perpX = -dy;
-                const perpY = dx;
+                // Use consistent direction: always offset to the "right" side of the movement vector
+                // This ensures both dancers in a swing pair arc in the same direction
+                let perpX = -dy;
+                let perpY = dx;
 
-                // Normalize and scale
-                const offsetScale = 2.0; // Adjust arc width
+                // For vertical swings (common case), ensure both dancers arc in the same horizontal direction
+                if (Math.abs(dx) < 0.1) {  // Nearly vertical movement
+                    perpX = Math.abs(perpX);  // Always offset to the right (positive X)
+                }
+
+                const offsetScale = 8.0; // Wider arcs to prevent dancer overlaps
                 const offsetX = len > 0 ? (perpX / len) * offsetScale : 0;
                 const offsetY = len > 0 ? (perpY / len) * offsetScale : 0;
 
                 const centerPos = new Position(midX + offsetX, midY + offsetY);
-
-                // Create arc path - use counter-clockwise for swings
                 paths.set(dancer.id, createArcPath(start, end, centerPos, beats, 8, false));
             }
         });
@@ -276,31 +315,28 @@ function createChainPaths(dancerSet, startPosById, endPosById, paths, beats) {
             const start = startPosById.get(dancer.id);
             const end = endPosById.get(dancer.id);
 
-            if (start.equals(end, 0.01)) {
-                // Dancer doesn't move (stays in place during chain)
+            if (!dancer.active) {
+                // Dancer is inactive - create stationary path
+                paths.set(dancer.id, createStationaryPath(start, beats));
+            } else if (start.equals(end, 0.01)) {
+                // Active dancer doesn't move during this chain (other role is chaining)
                 paths.set(dancer.id, createStationaryPath(start, beats));
             } else {
                 // Dancers cross - create arc path to avoid collision
-                // Offset the arc center perpendicular to the crossing line
                 const midX = (start.x + end.x) / 2;
                 const midY = (start.y + end.y) / 2;
 
-                // Offset perpendicular to avoid collision (offset upward/downward)
                 const dx = end.x - start.x;
                 const dy = end.y - start.y;
                 const perpX = -dy;
                 const perpY = dx;
                 const len = Math.sqrt(perpX * perpX + perpY * perpY);
 
-                // Normalize and scale the perpendicular offset
-                const offsetScale = 3.0; // Adjust arc height
+                const offsetScale = 12.0; // Higher arcs to prevent collisions during chains
                 const offsetX = len > 0 ? (perpX / len) * offsetScale : 0;
                 const offsetY = len > 0 ? (perpY / len) * offsetScale : 0;
 
-                // Create arc center with offset
                 const centerPos = new Position(midX + offsetX, midY + offsetY);
-
-                // Create arc path with more waypoints for smooth crossing (10 waypoints)
                 paths.set(dancer.id, createArcPath(start, end, centerPos, beats, 10, false));
             }
         });
