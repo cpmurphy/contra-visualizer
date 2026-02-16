@@ -535,18 +535,23 @@ test('partner swing should end at correct positions', () => {
 
 // Test swing paths have no overlaps (with smaller threshold since swings involve close contact)
 test('swing paths should have no overlaps', () => {
-    const moves = [
-        { type: 'swing', who: 'neighbor', beats: 8 },
-        { type: 'swing', who: 'partner', beats: 8 }
-    ];
+    // Test neighbor swing on fresh set (realistic - neighbors are on same side in improper)
+    const neighborSet = new Set(4);
+    const neighborMove = { type: 'swing', who: 'neighbor', beats: 8 };
+    const neighborPaths = calculateMovePaths(neighborMove, neighborSet);
+    assert(hasNoOverlaps(neighborPaths, 6.0),
+        `Paths for swing neighbor should have no collisions`);
 
-    moves.forEach(move => {
-        const set = new Set(4);
-        const paths = calculateMovePaths(move, set);
-        // With 40px diameter circles, need 6.0 units minimum distance to prevent visual overlap
-        assert(hasNoOverlaps(paths, 6.0),
-            `Paths for swing ${move.who} should have no collisions`);
-    });
+    // Test partner swing on a set positioned realistically
+    // In real dances, partner swings happen after moves that bring partners to same side
+    // e.g., after neighbor swing + circle left 3, partners are in same column
+    const partnerSet = new Set(4);
+    partnerSet.swing('neighbor');  // First, neighbors swing
+    partnerSet.circleLeft(3);      // Then circle left 3/4 brings partners together
+    const partnerMove = { type: 'swing', who: 'partner', beats: 8 };
+    const partnerPaths = calculateMovePaths(partnerMove, partnerSet);
+    assert(hasNoOverlaps(partnerPaths, 6.0),
+        `Paths for swing partner should have no collisions`);
 });
 
 // Test swing paths stay within bounds
