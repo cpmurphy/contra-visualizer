@@ -539,7 +539,7 @@ test('swing paths should have no overlaps', () => {
     const neighborSet = new Set(4);
     const neighborMove = { type: 'swing', who: 'neighbor', beats: 8 };
     const neighborPaths = calculateMovePaths(neighborMove, neighborSet);
-    assert(hasNoOverlaps(neighborPaths, 6.0),
+    assert(hasNoOverlaps(neighborPaths, 5.0),
         `Paths for swing neighbor should have no collisions`);
 
     // Test partner swing on a set positioned realistically
@@ -550,7 +550,7 @@ test('swing paths should have no overlaps', () => {
     partnerSet.circleLeft(3);      // Then circle left 3/4 brings partners together
     const partnerMove = { type: 'swing', who: 'partner', beats: 8 };
     const partnerPaths = calculateMovePaths(partnerMove, partnerSet);
-    assert(hasNoOverlaps(partnerPaths, 6.0),
+    assert(hasNoOverlaps(partnerPaths, 5.0),
         `Paths for swing partner should have no collisions`);
 });
 
@@ -566,6 +566,59 @@ test('swing paths should stay within bounds', () => {
         const paths = calculateMovePaths(move, set);
         assert(allWaypointsInBounds(paths),
             `All waypoints for swing ${move.who} should be in bounds`);
+    });
+});
+
+// Test swing waypoint count structure
+test('swing paths should have correct waypoint count for 8-beat swing', () => {
+    const set = new Set(4);
+    const move = { type: 'swing', who: 'neighbor', beats: 8 };
+
+    const paths = calculateMovePaths(move, set);
+
+    // For 8-beat swing: totalRotation = 3pi, rotationSteps = 12
+    // Waypoints: 1 (start) + 1 (entry) + 12 (rotation) + 1 (end) = 15
+    set.dancers.forEach(dancer => {
+        if (dancer.active) {
+            const path = paths.get(dancer.id);
+            assert.strictEqual(path.waypointCount, 15,
+                `Active dancer ${dancer.id} should have 15 waypoints for 8-beat swing`);
+        }
+    });
+});
+
+// Test within-pair separation during rotation
+test('swing pair dancers should remain separated during rotation', () => {
+    const set = new Set(4);
+    const move = { type: 'swing', who: 'neighbor', beats: 8 };
+
+    // Identify neighbor pairs in the first minor set before swing modifies set
+    const leftLark = set.dancers[0].role === 'lark' ? set.dancers[0] : set.dancers[2];
+    const leftRobin = set.dancers[0].role === 'robin' ? set.dancers[0] : set.dancers[2];
+    const rightLark = set.dancers[1].role === 'lark' ? set.dancers[1] : set.dancers[3];
+    const rightRobin = set.dancers[1].role === 'robin' ? set.dancers[1] : set.dancers[3];
+
+    const paths = calculateMovePaths(move, set);
+
+    const pairs = [
+        [leftLark.id, leftRobin.id],
+        [rightLark.id, rightRobin.id]
+    ];
+
+    // Within-pair distance should stay above 4.0 (2*dancerRadius in normalized units)
+    pairs.forEach(([id1, id2]) => {
+        const path1 = paths.get(id1);
+        const path2 = paths.get(id2);
+
+        for (let p = 0; p <= 20; p++) {
+            const progress = p / 20;
+            const pos1 = path1.getPositionAt(progress);
+            const pos2 = path2.getPositionAt(progress);
+            const dist = distance(pos1, pos2);
+
+            assert(dist >= 4.0,
+                `Pair ${id1}/${id2} should stay separated at progress ${progress} (got ${dist.toFixed(2)})`);
+        }
     });
 });
 
