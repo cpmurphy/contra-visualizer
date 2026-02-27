@@ -60,11 +60,20 @@ test('balance should create stationary paths', () => {
     // Should have path for each dancer
     assert.strictEqual(paths.size, set.dancers.length);
 
-    // All paths should be stationary (start = end)
+    // All dancers should return to their starting position
     set.dancers.forEach(dancer => {
         const path = paths.get(dancer.id);
         assert(path.start.equals(path.end, 0.01),
-            `Dancer ${dancer.id} should not move during balance`);
+            `Dancer ${dancer.id} should return to start after balance`);
+    });
+
+    // At midpoint, neighbor pairs should be closer together vertically
+    set.dancers.forEach(dancer => {
+        const path = paths.get(dancer.id);
+        const midPos = path.getPositionAt(0.5);
+        // X should not change (movement is purely vertical)
+        assert(Math.abs(midPos.x - path.start.x) < 0.01,
+            `Dancer ${dancer.id} should not move horizontally during balance`);
     });
 });
 
