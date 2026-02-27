@@ -45,12 +45,15 @@ export function calculateMovePaths(move, dancerSet) {
     const type = move.type.toLowerCase();
     const beats = move.beats || 8;
 
-    if (type === 'balance' || type.includes('long lines')) {
+    if (type === 'balance') {
         // No movement - stationary paths
         dancerSet.dancers.forEach(dancer => {
             const pos = startPosById.get(dancer.id);
             paths.set(dancer.id, createStationaryPath(pos, beats));
         });
+    } else if (type.includes('long lines')) {
+        // Two lines approach each other and retreat
+        createLongLinesPaths(dancerSet, startPosById, paths, beats);
     } else if (type.includes('circle left') || type.includes('circle right') ||
                type.includes('star left') || type.includes('star right')) {
         // Circular moves - arc paths around minor set centers
@@ -190,6 +193,50 @@ function createCircularPaths(dancerSet, startPosById, endPosById, paths, beats, 
             paths.set(dancer.id, createStationaryPath(startPosById.get(dancer.id), beats));
         }
     }
+}
+
+/**
+ * Create long lines paths - two vertical lines approach each other and retreat.
+ * Dancers move horizontally toward the center line, then return to their starting position.
+ * @param {import('./dancers.js').Set} dancerSet
+ * @param {Map<string, Position>} startPosById
+ * @param {Map<string, import('./paths.js').Path>} paths
+ * @param {number} beats
+ */
+function createLongLinesPaths(dancerSet, startPosById, paths, beats) {
+    // Find the center x between the two columns
+    const allPositions = dancerSet.dancers.map(d => startPosById.get(d.id));
+    const centerX = center(allPositions).x;
+
+    // Compute how far each side can approach while maintaining a minimum gap
+    // Find the minimum distance from any dancer to center
+    const activePositions = dancerSet.dancers
+        .filter(d => d.active)
+        .map(d => startPosById.get(d.id));
+    const minDistToCenter = Math.min(...activePositions.map(p => Math.abs(p.x - centerX)));
+    // Leave a gap of at least 2 dancer radii in normalized coords on each side
+    const minGap = (2 * DANCER_RADIUS_PX / SVG_WIDTH) * 100;
+    const maxApproach = Math.max(0, (minDistToCenter - minGap) / minDistToCenter);
+
+    dancerSet.dancers.forEach(dancer => {
+        const start = startPosById.get(dancer.id);
+
+        if (!dancer.active) {
+            paths.set(dancer.id, createStationaryPath(start, beats));
+            return;
+        }
+
+        const approachX = start.x + (centerX - start.x) * maxApproach;
+        const approachPos = new Position(approachX, start.y);
+
+        // 3 waypoints: start → approach → return to start
+        const waypoints = [
+            start.clone(),
+            approachPos,
+            start.clone()
+        ];
+        paths.set(dancer.id, new Path(waypoints, beats));
+    });
 }
 
 /**

@@ -80,17 +80,33 @@ test('balance paths should have correct beat duration', () => {
 });
 
 // Test long lines move
-test('long lines should create stationary paths', () => {
+test('long lines should approach center and retreat', () => {
     const set = new Set(4);
     const move = { type: 'long lines', beats: 8 };
 
     const paths = calculateMovePaths(move, set);
 
-    // All paths should be stationary (start = end)
+    // All dancers should end where they started
     set.dancers.forEach(dancer => {
         const path = paths.get(dancer.id);
         assert(path.start.equals(path.end, 0.01),
-            `Dancer ${dancer.id} should not move during long lines`);
+            `Dancer ${dancer.id} should return to start after long lines`);
+    });
+
+    // At midpoint (progress=0.5), dancers should be closer to center than at start
+    const positions = set.getPositions();
+    const centerX = positions.reduce((sum, p) => sum + p.x, 0) / positions.length;
+
+    set.dancers.forEach((dancer, index) => {
+        const path = paths.get(dancer.id);
+        const startPos = path.start;
+        const midPos = path.getPositionAt(0.5);
+
+        const startDistFromCenter = Math.abs(startPos.x - centerX);
+        const midDistFromCenter = Math.abs(midPos.x - centerX);
+
+        assert(midDistFromCenter < startDistFromCenter,
+            `Dancer ${dancer.id} should be closer to center at midpoint`);
     });
 });
 
