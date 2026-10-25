@@ -186,12 +186,10 @@ export class AnimationState {
             return 0;
         }
 
-        if (this.pausedTime !== null) {
-            // Currently paused - return elapsed up to pause point
-            return this.pausedTime - this.startTime - this.totalPausedDuration;
-        }
-
-        return timestamp - this.startTime - this.totalPausedDuration;
+        const endTime = this.pausedTime !== null ? this.pausedTime : timestamp;
+        // requestAnimationFrame timestamps mark the start of the frame, so the
+        // first frame's timestamp can precede the start time; clamp to zero
+        return Math.max(0, endTime - this.startTime - this.totalPausedDuration);
     }
 
     /**

@@ -258,6 +258,19 @@ test('AnimationState start sets start time', () => {
     assert.strictEqual(state.getElapsedTime(1500), 500);
 });
 
+test('AnimationState elapsed time is zero for timestamps before start', () => {
+    const animator = new Animator(120);
+    const paths = new Map();
+    paths.set('d1', createStationaryPath(new Position(50, 50), 8));
+
+    const state = new AnimationState(paths, animator);
+    state.start(1000);
+
+    // requestAnimationFrame can deliver a frame timestamp earlier than start
+    assert.strictEqual(state.getElapsedTime(990), 0);
+    assert.doesNotThrow(() => state.getCurrentPositions(990));
+});
+
 test('AnimationState pause stops elapsed time', () => {
     const animator = new Animator(120);
     const paths = new Map();
