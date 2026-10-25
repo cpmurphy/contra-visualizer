@@ -448,19 +448,38 @@ function computeSwingRadius(centerPx, rectangle) {
 }
 
 /**
+ * Choose how far a swing rotates: close to the nominal (beats/4 - 0.5) revolutions,
+ * but adjusted so the dancer leaves the circle on the side facing their end
+ * position. Otherwise the straight exit leg can cut through the circle's center,
+ * straight through their swing partner.
+ * @param {number} beats - Duration in beats
+ * @param {number} entryAngle - Angle at which the dancer enters the circle
+ * @param {number} exitAngle - Angle from the center toward the dancer's end position
+ * @returns {number} Clockwise rotation in radians (positive, y-down)
+ */
+function computeSwingRotation(beats, entryAngle, exitAngle) {
+    const fullTurn = 2 * Math.PI;
+    const nominal = (beats / 4 - 0.5) * fullTurn;
+
+    // Clockwise angle from entry to exit, in [0, 2π)
+    const baseRotation = ((exitAngle - entryAngle) % fullTurn + fullTurn) % fullTurn;
+
+    // Add whole turns to land as close to the nominal rotation as possible
+    const extraTurns = Math.max(0, Math.round((nominal - baseRotation) / fullTurn));
+    return baseRotation + extraTurns * fullTurn;
+}
+
+/**
  * Generate swing waypoints in pixel space, converted to normalized coords.
  * @param {Position} startPos - Dancer's start position (normalized)
  * @param {Position} endPos - Dancer's end position (normalized)
  * @param {{x: number, y: number}} centerPx - Swing center in pixels
  * @param {number} radius - Swing radius in pixels
- * @param {number} beats - Duration in beats
  * @param {number} entryAngle - Angle at which dancer enters the circle
+ * @param {number} totalRotation - Clockwise rotation around the circle (radians)
  * @returns {Position[]} Array of waypoint positions (normalized)
  */
-function generateSwingWaypoints(startPos, endPos, centerPx, radius, beats, entryAngle) {
-    // Total rotation: clockwise in SVG coords (positive angle, y-down)
-    const totalRotation = (beats / 4 - 0.5) * 2 * Math.PI;
-
+function generateSwingWaypoints(startPos, endPos, centerPx, radius, entryAngle, totalRotation) {
     // Number of rotation steps (8 waypoints per revolution)
     const rotationSteps = Math.round(Math.abs(totalRotation) * 4 / Math.PI);
 
@@ -583,8 +602,13 @@ function createSwingPaths(dancerSet, startPosById, endPosById, paths, beats, swi
             const entryAngle1 = Math.atan2(s1px.y - centerPx.y, s1px.x - centerPx.x);
             const entryAngle2 = entryAngle1 + Math.PI;
 
-            const waypoints1 = generateSwingWaypoints(start1, end1, centerPx, radius, beats, entryAngle1);
-            const waypoints2 = generateSwingWaypoints(start2, end2, centerPx, radius, beats, entryAngle2);
+            // Both dancers rotate by the same amount so they stay opposite each other
+            const e1px = toPixels(end1, SVG_WIDTH, SVG_HEIGHT);
+            const exitAngle1 = Math.atan2(e1px.y - centerPx.y, e1px.x - centerPx.x);
+            const totalRotation = computeSwingRotation(beats, entryAngle1, exitAngle1);
+
+            const waypoints1 = generateSwingWaypoints(start1, end1, centerPx, radius, entryAngle1, totalRotation);
+            const waypoints2 = generateSwingWaypoints(start2, end2, centerPx, radius, entryAngle2, totalRotation);
 
             paths.set(dancer1.id, new Path(waypoints1, beats));
             paths.set(dancer2.id, new Path(waypoints2, beats));

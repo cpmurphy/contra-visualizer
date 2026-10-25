@@ -866,3 +866,34 @@ test('long lines should come close to the other line', () => {
     const gapPx = (right.x - left.x) * 8; // 800px wide SVG
     assert(gapPx >= 40 && gapPx <= 55, `gap should be just over a dancer width (got ${gapPx.toFixed(1)}px)`);
 });
+
+test('swing exits should not pass through the swing partner', () => {
+    // Swing from the starting formation and from the Simplicity Swing A2 setup
+    // (neighbor swing then circle left 3/4), for a range of swing lengths
+    const setups = [
+        [],
+        [{ type: 'swing', who: 'neighbor', beats: 12 }, { type: 'circle left 3/4', beats: 6 }]
+    ];
+
+    for (const setup of setups) {
+        for (const who of ['neighbor', 'partner']) {
+            for (const beats of [6, 8, 10, 12, 16]) {
+                const set = new Set(6);
+                setup.forEach(move => executeMove(set, move));
+
+                const paths = calculateMovePaths({ type: 'swing', who, beats }, set);
+                const ids = [...paths.keys()];
+                for (let p = 0; p <= 200; p++) {
+                    const positions = ids.map(id => paths.get(id).getPositionAt(p / 200));
+                    for (let i = 0; i < ids.length; i++) {
+                        for (let j = i + 1; j < ids.length; j++) {
+                            const dist = distance(positions[i], positions[j]);
+                            assert(dist >= 4.0,
+                                `${beats}-beat ${who} swing: ${ids[i]}/${ids[j]} too close at progress ${p / 200} (got ${dist.toFixed(2)})`);
+                        }
+                    }
+                }
+            }
+        }
+    }
+});
