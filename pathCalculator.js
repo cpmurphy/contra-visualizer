@@ -23,6 +23,48 @@ const TURN_ALONE_ALONG_PX = 10;
 const CAST_OFF_OUTSIDE_PX = 35;
 const CAST_OFF_PIVOT_INSIDE_PX = 25;
 
+// Routes through half a hey for the left robin and left lark of a minor set with
+// the robins on the diagonal from bottom left to top right, as [time, x, y]: time
+// is the fraction of the hey, and x and y are in units of half the minor set's
+// width and height from its center (y down). The right robin and lark follow the
+// same routes turned half way around. Everyone travels half way around a figure
+// eight, and the four passes come about a quarter of the hey apart:
+// - the robins pass right shoulders in the middle;
+// - each robin, going down the inside of the far line, passes the lark coming up
+//   the outside of it by the left;
+// - the larks pass right shoulders in the middle, the robins looping around the
+//   far ends;
+// - each robin, coming back up the outside of the far line, passes the lark going
+//   down the inside of it by the left.
+// Each lark ends in the other lark's place, and each robin in the other robin's.
+const HEY_ROUTES = {
+    robin: [
+        [0, -1, 1],
+        [0.08, -0.75, 0.45],
+        [0.16, -0.18, -0.32],
+        [0.27, 0.4, -0.85],
+        [0.375, 0.7, -0.33],
+        [0.5, 0.7, 0.6],
+        [0.6, 0.95, 1.45],
+        [0.7, 1.3, 0.75],
+        [0.875, 1.3, -0.17],
+        [1, 1, -1]
+    ],
+    lark: [
+        [0, -1, -1],
+        [0.15, -1.2, -0.4],
+        [0.375, -1.3, 0.33],
+        [0.47, -0.95, 1.25],
+        [0.55, -0.6, 0.65],
+        [0.625, -0.18, -0.32],
+        [0.72, 0.4, -0.85],
+        [0.875, 0.7, 0.17],
+        [1, 1, 1]
+    ]
+};
+// Waypoints between each point of a route through a hey
+const HEY_SAMPLES_PER_STEP = 8;
+
 // Figures for one couple ('ones' or 'twos') to dance, in either formation
 const COUPLE_FIGURES = ['down the center', 'up the center', 'turn alone', 'cast off', 'balance', 'swing'];
 const COUPLES = ['ones', 'twos'];
@@ -54,6 +96,7 @@ export function isMoveSupported(move, dancerSet) {
     if (type === 'swing') return who === 'neighbor' || who === 'partner';
     if (type.includes('chain')) return ['robins', 'robin', 'larks', 'lark'].includes(who);
     if (type === 'do-si-do' || type === 'dosido') return NEIGHBOR_WHO.includes(who);
+    if (type === 'half hey') return [undefined, null, 'all'].includes(who);
     return false;
 }
 
@@ -127,6 +170,8 @@ export function calculateMovePaths(move, dancerSet) {
     } else if (type === 'do-si-do' || type === 'dosido') {
         // Neighbor pairs trace a wide counter-clockwise circle around their shared center
         createDoSiDoPaths(dancerSet, startPosById, paths, beats);
+    } else if (type === 'half hey') {
+        createHalfHeyPaths(dancerSet, startPosById, endPosById, paths, beats);
     } else if (type === 'down the center' || type === 'up the center') {
         createCenterTravelPaths(dancerSet, startPosById, endPosById, paths, beats);
     } else if (type === 'turn alone') {
@@ -429,6 +474,99 @@ function createEllipticalPath(start, centerPos, places, beats, isClockwise) {
         waypoints.push(new Position(centerPos.x + a * Math.cos(angle), centerPos.y + b * Math.sin(angle)));
     }
     return new Path(waypoints, beats);
+}
+
+/**
+ * Create half hey paths, for a minor set with the robins on one diagonal: on the
+ * left side the lark above the robin, and on the right the robin above the lark (see
+ * HEY_ROUTES). Each dancer follows a smooth curve through their route.
+ * @param {import('./dancers.js').Set} dancerSet
+ * @param {Map<string, Position>} startPosById
+ * @param {Map<string, Position>} endPosById
+ * @param {Map<string, import('./paths.js').Path>} paths
+ * @param {number} beats
+ */
+function createHalfHeyPaths(dancerSet, startPosById, endPosById, paths, beats) {
+    dancerSet.dancers.forEach(dancer => {
+        paths.set(dancer.id, createStationaryPath(startPosById.get(dancer.id), beats));
+    });
+
+    for (const i of dancerSet.minorSetStarts()) {
+        const [leftLark, leftRobin, rightRobin, rightLark] = dancerSet.heyLine(i).map(index => dancerSet.dancers[index]);
+        const px = dancer => toPixels(startPosById.get(dancer.id), SVG_WIDTH, SVG_HEIGHT);
+        if (px(leftLark).y > px(leftRobin).y) {
+            throw new Error('Half hey with the robins starting above the larks on the left is not animated yet');
+        }
+
+        // The routes are in units of half the minor set's width and height, from its center
+        const corners = [leftLark, leftRobin, rightRobin, rightLark].map(px);
+        const centerPx = {
+            x: corners.reduce((sum, p) => sum + p.x, 0) / 4,
+            y: corners.reduce((sum, p) => sum + p.y, 0) / 4
+        };
+        const halfWidth = (px(rightRobin).x - px(leftRobin).x) / 2;
+        const halfHeight = (px(leftRobin).y - px(leftLark).y) / 2;
+
+        // The dancers on the right follow the same routes turned half way around
+        const routes = [
+            [leftRobin, HEY_ROUTES.robin, 1],
+            [rightRobin, HEY_ROUTES.robin, -1],
+            [leftLark, HEY_ROUTES.lark, 1],
+            [rightLark, HEY_ROUTES.lark, -1]
+        ];
+        for (const [dancer, route, turn] of routes) {
+            const points = route.map(([, u, v]) => ({
+                x: centerPx.x + turn * u * halfWidth,
+                y: centerPx.y + turn * v * halfHeight
+            }));
+            // Start and end exactly in place
+            points[0] = px(dancer);
+            points[points.length - 1] = toPixels(endPosById.get(dancer.id), SVG_WIDTH, SVG_HEIGHT);
+
+            const padded = [points[0], ...points, points[points.length - 1]];
+            const waypoints = [startPosById.get(dancer.id).clone()];
+            const times = [0];
+            for (let k = 0; k < route.length - 1; k++) {
+                for (let j = 1; j <= HEY_SAMPLES_PER_STEP; j++) {
+                    const u = j / HEY_SAMPLES_PER_STEP;
+                    const point = catmullRom(padded[k], padded[k + 1], padded[k + 2], padded[k + 3], u);
+                    waypoints.push(fromPixels(point.x, point.y, SVG_WIDTH, SVG_HEIGHT));
+                    times.push(route[k][0] + (route[k + 1][0] - route[k][0]) * u);
+                }
+            }
+            paths.set(dancer.id, new Path(waypoints, beats, times));
+        }
+    }
+}
+
+/**
+ * Point on a centripetal Catmull-Rom segment from p1 to p2
+ * @param {{x: number, y: number}} p0
+ * @param {{x: number, y: number}} p1
+ * @param {{x: number, y: number}} p2
+ * @param {{x: number, y: number}} p3
+ * @param {number} u - Progress from p1 (0) to p2 (1)
+ * @returns {{x: number, y: number}}
+ */
+function catmullRom(p0, p1, p2, p3, u) {
+    // Knot spacing grows with the square root of distance (centripetal), which
+    // keeps the curve from overshooting at sharp corners
+    const gap = (a, b) => Math.max(Math.sqrt(Math.hypot(b.x - a.x, b.y - a.y)), 1e-6);
+    const t0 = 0;
+    const t1 = t0 + gap(p0, p1);
+    const t2 = t1 + gap(p1, p2);
+    const t3 = t2 + gap(p2, p3);
+    const t = t1 + (t2 - t1) * u;
+    const mix = (a, b, ta, tb) => ta === tb ? a : {
+        x: (tb - t) / (tb - ta) * a.x + (t - ta) / (tb - ta) * b.x,
+        y: (tb - t) / (tb - ta) * a.y + (t - ta) / (tb - ta) * b.y
+    };
+    const a1 = mix(p0, p1, t0, t1);
+    const a2 = mix(p1, p2, t1, t2);
+    const a3 = mix(p2, p3, t2, t3);
+    const b1 = mix(a1, a2, t0, t2);
+    const b2 = mix(a2, a3, t1, t3);
+    return mix(b1, b2, t1, t2);
 }
 
 /**
@@ -1374,5 +1512,7 @@ function executePlaceFigure(dancerSet, move, type) {
         }
     } else if (type === 'do-si-do' || type === 'dosido') {
         dancerSet.doSiDo(1.0);
+    } else if (type === 'half hey') {
+        dancerSet.halfHey();
     }
 }

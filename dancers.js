@@ -288,6 +288,44 @@ export class Set {
     }
 
     /**
+     * Half a hey for four, started by the robins passing right shoulders in the
+     * middle. The four dancers are in a line (see heyLine) and travel half way
+     * around a figure eight along it, so the line ends up reversed: each lark ends in
+     * the other lark's place, and each robin in the other robin's.
+     */
+    halfHey() {
+        this.snapshot();
+        for (const i of this.minorSetStarts()) {
+            const hey = this.heyLine(i);
+            if (!hey) {
+                throw new Error('A hey needs a lark and a robin on each side of the minor set');
+            }
+            const dancers = hey.map(index => this.dancers[index]);
+            hey.forEach((index, k) => {
+                this.dancers[index] = dancers[3 - k];
+            });
+        }
+    }
+
+    /**
+     * The places of the dancers in a minor set, in order along the line of a hey that
+     * the robins start: the left lark, left robin, right robin and right lark
+     * @param {number} i - Index of the first place of the minor set
+     * @returns {number[]|null} Null if a side doesn't have one lark and one robin
+     */
+    heyLine(i) {
+        const side = column => {
+            const places = [i + column, i + 2 + column];
+            const lark = places.find(index => this.dancers[index].role === 'lark');
+            const robin = places.find(index => this.dancers[index].role === 'robin');
+            return lark !== undefined && robin !== undefined ? { lark, robin } : null;
+        };
+        const left = side(0);
+        const right = side(1);
+        return left && right ? [left.lark, left.robin, right.robin, right.lark] : null;
+    }
+
+    /**
      * Normalized x of the middle of the set
      * @returns {number}
      */

@@ -1037,7 +1037,7 @@ test('robins chain: robins pull by clockwise around the middle, passing right sh
 test('moves we cannot animate yet should be unsupported', () => {
     const improper = new Set(6);
     const proper = new Set(6, 'proper');
-    assert(!isMoveSupported({ type: 'half hey', who: 'all', beats: 8 }, improper));
+    assert(!isMoveSupported({ type: 'right and left through', who: 'neighbor', beats: 8 }, improper));
     assert(!isMoveSupported({ type: 'turn contra corners', who: 'ones', beats: 16 }, improper));
     assert(!isMoveSupported({ type: 'balance', who: 'partner', beats: 4 }, improper));
     assert(!isMoveSupported({ type: 'swing', who: 'neighbor', beats: 12 }, proper));
@@ -1069,7 +1069,7 @@ test('an unsupported move should leave every dancer where they are', () => {
 test('an unsupported move should still progress when it is the progression', () => {
     const set = new Set(6);
     executeMove(set, { type: 'balance', beats: 4 });
-    executeMove(set, { type: 'half hey', who: 'all', beats: 8, progression: true });
+    executeMove(set, { type: 'turn contra corners', who: 'ones', beats: 16, progression: true });
     assert(!set.dancers[0].active, 'top couple should wait out after progressing');
 });
 
@@ -1103,7 +1103,7 @@ test('every move should record exactly one undo snapshot', () => {
     executeMove(set, { type: 'balance', beats: 4 });
     const moves = [
         { type: 'do-si-do', who: 'new neighbor', beats: 8, progression: true },
-        { type: 'half hey', who: 'all', beats: 8 },
+        { type: 'turn contra corners', who: 'ones', beats: 16 },
         { type: 'down the center', who: 'ones', beats: 4 },
         { type: 'swing', who: 'neighbor', beats: 12 }
     ];
@@ -1294,4 +1294,52 @@ test('the ones\' balance and swing should not collide and should end where the s
             });
         }
     }
+});
+
+// Half hey
+
+const HALF_HEY = { type: 'half hey', who: 'all', beats: 8 };
+
+/** An improper set as Hay in the Barn has it for its first half hey: in each minor
+ * set, the twos on the left (lark above robin) and the ones on the right */
+function beforeHalfHey() {
+    const set = new Set(6);
+    executeMove(set, { type: 'swing', who: 'neighbor', beats: 12 });
+    executeMove(set, { type: 'chain to partner', who: 'robins', beats: 8 });
+    return set;
+}
+
+test('half a hey should reverse the line: larks trade places, and so do robins', () => {
+    const set = beforeHalfHey();
+    assert.deepEqual(set.dancers.slice(0, 4).map(d => d.getLabel()), ['L2', 'R1', 'R2', 'L1']);
+    executeMove(set, HALF_HEY);
+    assert.deepEqual(set.dancers.slice(0, 4).map(d => d.getLabel()), ['L1', 'R2', 'R1', 'L2']);
+});
+
+test('half hey paths should not collide, and should start and end where the set says', () => {
+    const set = beforeHalfHey();
+    const start = set.getPositions();
+    const ids = set.dancers.map(d => d.id);
+    const paths = calculateMovePaths(HALF_HEY, set);
+    assert(hasNoOverlaps(paths), 'half hey should have no overlaps');
+    assert(allWaypointsInBounds(paths), 'half hey should stay in bounds');
+    executeMove(set, HALF_HEY);
+    const end = new Map(set.dancers.map((d, i) => [d.id, set.getPositions()[i]]));
+    ids.forEach((id, index) => {
+        assert(paths.get(id).start.equals(start[index]), `${id} should start in place`);
+        assert(paths.get(id).end.equals(end.get(id)), `${id} should end in place`);
+    });
+});
+
+test('in half a hey everyone should travel', () => {
+    const set = beforeHalfHey();
+    const paths = calculateMovePaths(HALF_HEY, set);
+    for (const [id, path] of paths) {
+        assert(!path.start.equals(path.end), `${id} should end somewhere else`);
+    }
+});
+
+test('half a hey with the robins starting in the other diagonal should say it is not animated', () => {
+    const set = new Set(6); // R1 above L2 on the left
+    assert.throws(() => calculateMovePaths(HALF_HEY, set), /not animated yet/);
 });
