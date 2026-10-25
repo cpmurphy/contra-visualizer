@@ -99,6 +99,7 @@ const COUPLES = ['ones', 'twos'];
 
 // "who" values that mean each dancer's neighbor (moves that don't say mean neighbors)
 const NEIGHBOR_WHO = [undefined, null, 'neighbor', 'neighbors', 'new neighbor'];
+const PARTNER_WHO = ['partner', 'partners'];
 
 /**
  * Whether a move is one we know how to execute and animate in the set's formation.
@@ -116,6 +117,7 @@ export function isMoveSupported(move, dancerSet) {
     if (/(circle|star) (left|right) \d+/.test(type)) return true;
     if (type.includes('long lines')) return true;
     if (COUPLE_FIGURES.includes(type) && COUPLES.includes(who)) return true;
+    if (type === 'balance' && PARTNER_WHO.includes(who)) return true;
     if (type === 'right and left through') return ['neighbor', 'partner'].includes(who);
 
     // Everything else is worked out for improper minor sets only
@@ -168,6 +170,10 @@ export function calculateMovePaths(move, dancerSet) {
         // Partners in the couple balance towards each other
         createCouplePairPaths(dancerSet, move.who, startPosById, paths, beats, (d1, d2) =>
             addBalancePairPaths(d1, d2, startPosById, paths, beats));
+    } else if (type === 'balance' && PARTNER_WHO.includes(move.who)) {
+        // Partners balance towards each other, wherever they are in the minor set
+        createPartnerPairPaths(dancerSet, startPosById, paths, beats, (lark, robin) =>
+            addBalancePairPaths(lark, robin, startPosById, paths, beats));
     } else if (type === 'swing' && COUPLES.includes(move.who)) {
         // Partners in the couple swing in the middle of the set
         createCouplePairPaths(dancerSet, move.who, startPosById, paths, beats, (d1, d2, i) =>
@@ -666,6 +672,30 @@ function catmullRom(p0, p1, p2, p3, u) {
     const b1 = mix(a1, a2, t0, t2);
     const b2 = mix(a2, a3, t1, t3);
     return mix(b1, b2, t1, t2);
+}
+
+/**
+ * Create paths for partners dancing together in each minor set; everyone else
+ * stands still
+ * @param {import('./dancers.js').Set} dancerSet
+ * @param {Map<string, Position>} startPosById
+ * @param {Map<string, import('./paths.js').Path>} paths
+ * @param {number} beats
+ * @param {(lark: import('./dancers.js').Dancer, robin: import('./dancers.js').Dancer) => void} addPairPaths -
+ *   Adds the paths for a lark and robin
+ */
+function createPartnerPairPaths(dancerSet, startPosById, paths, beats, addPairPaths) {
+    dancerSet.dancers.forEach(dancer => {
+        paths.set(dancer.id, createStationaryPath(startPosById.get(dancer.id), beats));
+    });
+    for (const i of dancerSet.minorSetStarts()) {
+        const minorSet = dancerSet.dancers.slice(i, i + 4);
+        for (const lark of minorSet.filter(dancer => dancer.role === 'lark')) {
+            if (minorSet.includes(lark.partner)) {
+                addPairPaths(lark, lark.partner);
+            }
+        }
+    }
 }
 
 /**
@@ -1704,7 +1734,7 @@ function executeMoveSteps(dancerSet, move) {
         dancerSet.upTheOutside(move.who);
     } else if (type === 'turn contra corners') {
         dancerSet.contraCorners(move.who);
-    } else if (type === 'turn alone' || (type === 'balance' && COUPLES.includes(move.who))) {
+    } else if (type === 'turn alone' || (type === 'balance' && (COUPLES.includes(move.who) || PARTNER_WHO.includes(move.who)))) {
         // Everyone ends where they started
     } else if (type === 'swing' && COUPLES.includes(move.who)) {
         dancerSet.swingInCenter(move.who, move.facing || 'down');

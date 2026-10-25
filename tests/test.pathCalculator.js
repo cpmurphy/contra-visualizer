@@ -1038,7 +1038,6 @@ test('moves we cannot animate yet should be unsupported', () => {
     const improper = new Set(6);
     const proper = new Set(6, 'proper');
     assert(!isMoveSupported({ type: 'petronella', who: 'all', beats: 8 }, improper));
-    assert(!isMoveSupported({ type: 'balance', who: 'partner', beats: 4 }, improper));
     assert(!isMoveSupported({ type: 'swing', who: 'neighbor', beats: 12 }, proper));
 });
 
@@ -1483,4 +1482,25 @@ test('contra corners paths should not collide, and should start and end where th
         assert(paths.get(id).start.equals(start[index]), `${id} should start in place`);
         assert(paths.get(id).end.equals(end.get(id)), `${id} should end where the set says`);
     });
+});
+
+// Partner balance
+
+test('partners should balance towards each other, on the side or across the set', () => {
+    // After Hay in the Barn's first half hey, partners are on the same side
+    const set = beforeHalfHey();
+    executeMove(set, HALF_HEY);
+    const paths = calculateMovePaths({ type: 'balance', who: 'partner', beats: 4 }, set);
+    assert(hasNoOverlaps(paths), 'partner balance should have no overlaps');
+    for (const i of set.minorSetStarts()) {
+        for (const dancer of set.dancers.slice(i, i + 4)) {
+            const path = paths.get(dancer.id);
+            const partnerPath = paths.get(dancer.partner.id);
+            assert(path.start.equals(path.end), 'a balance ends where it starts');
+            const before = distance(path.start, partnerPath.start);
+            const during = distance(path.getPositionAt(0.5), partnerPath.getPositionAt(0.5));
+            assert(during < before - 1, `${dancer.getLabel()} should step towards their partner`);
+        }
+    }
+    assert(isMoveSupported({ type: 'balance', who: 'partner', beats: 4 }, new Set(6, 'proper')));
 });
