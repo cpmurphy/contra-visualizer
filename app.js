@@ -1,7 +1,10 @@
 import { Set } from './dancers.js';
 import { toPixels } from './positions.js';
 import { Animator, AnimationState } from './animator.js';
-import { calculateMovePaths, executeMove, withSetState, pathCacheKey } from './pathCalculator.js';
+import { calculateMovePaths, executeMove, withSetState, pathCacheKey, isMoveSupported } from './pathCalculator.js';
+import { dances, danceSlug, findDance } from './library.js';
+
+const APP_TITLE = document.title;
 
 // Application state
 const state = {
@@ -23,43 +26,111 @@ const elements = {
     danceTitle: document.getElementById('dance-title'),
     danceAuthor: document.getElementById('dance-author'),
     danceFormation: document.getElementById('dance-formation'),
+    danceNotes: document.getElementById('dance-notes'),
     moveList: document.getElementById('move-list'),
     canvas: document.getElementById('dance-canvas'),
     playPauseBtn: document.getElementById('play-pause-btn'),
     prevMoveBtn: document.getElementById('prev-move-btn'),
     nextMoveBtn: document.getElementById('next-move-btn'),
-    fileInput: document.getElementById('file-input'),
-    loadDanceBtn: document.getElementById('load-dance-btn')
+    menuView: document.getElementById('menu-view'),
+    danceMenu: document.getElementById('dance-menu'),
+    danceView: document.getElementById('dance-view'),
+    menuLink: document.getElementById('menu-link')
 };
 
-// File loading
-elements.loadDanceBtn.addEventListener('click', () => {
-    elements.fileInput.click();
-});
+/**
+ * Show the dance named in the URL (e.g. "#lady-of-the-lake"), or the menu when
+ * there isn't one, so that reloading the page stays on the same dance
+ */
+function route() {
+    const slug = decodeURIComponent(location.hash.slice(1));
+    const dance = slug ? findDance(slug) : null;
 
-elements.fileInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            try {
-                let data = JSON.parse(event.target.result);
-                // If data is an array, take the first dance
-                if (Array.isArray(data)) {
-                    if (data.length === 0) {
-                        alert('No dances found in file');
-                        return;
-                    }
-                    data = data[0];
-                }
-                loadDance(data);
-            } catch (error) {
-                alert('Error loading dance file: ' + error.message);
-            }
-        };
-        reader.readAsText(file);
+    if (!dance) {
+        if (slug) {
+            console.warn(`No dance named "${slug}"`);
+        }
+        showMenu();
+    } else if (dance !== state.dance) {
+        showDance(dance);
     }
-});
+}
+
+function showMenu() {
+    stopAnimation();
+    state.dance = null;
+    state.dancerSet = null;
+    state.isPlaying = false;
+    updateControls();
+
+    // Drop an empty "#" left over from following the menu link
+    if (location.href.endsWith('#')) {
+        history.replaceState(null, '', location.pathname + location.search);
+    }
+
+    document.title = APP_TITLE;
+    elements.danceView.hidden = true;
+    elements.menuView.hidden = false;
+}
+
+function showDance(dance) {
+    elements.menuView.hidden = true;
+    elements.danceView.hidden = false;
+    document.title = `${dance.title} - ${APP_TITLE}`;
+    loadDance(dance);
+}
+
+// Build the menu of built-in dances
+function buildMenu() {
+    dances.forEach(dance => {
+        const item = document.createElement('li');
+        const link = document.createElement('a');
+        link.href = '#' + danceSlug(dance);
+
+        const title = document.createElement('div');
+        title.className = 'menu-title';
+        title.textContent = dance.title;
+
+        const details = document.createElement('div');
+        details.className = 'menu-details';
+        details.textContent = [dance.author && `by ${dance.author}`, dance.formation]
+            .filter(Boolean).join(' · ');
+
+        const support = document.createElement('div');
+        support.className = 'menu-support';
+        support.textContent = describeSupport(dance);
+
+        link.append(title, details, support);
+        item.appendChild(link);
+        elements.danceMenu.appendChild(item);
+    });
+}
+
+/**
+ * Say how much of a dance can be animated
+ * @param {Object} dance
+ * @returns {string}
+ */
+function describeSupport(dance) {
+    const dancerSet = createDancerSet(dance);
+    if (!dancerSet) {
+        return `${dance.formation} formation isn't animated yet`;
+    }
+    const moves = dance.parts.flatMap(part => part.moves);
+    const supported = moves.filter(move => isMoveSupported(move, dancerSet)).length;
+    return supported === moves.length
+        ? 'All figures animated'
+        : `${supported} of ${moves.length} figures animated`;
+}
+
+/**
+ * Create the set of dancers for a dance, if we can lay out its formation
+ * @param {Object} dance
+ * @returns {Set|null}
+ */
+function createDancerSet(dance) {
+    return Set.FORMATIONS.includes(dance.formation) ? new Set(6, dance.formation) : null;
+}
 
 // Load dance data
 function loadDance(dance) {
@@ -68,11 +139,7 @@ function loadDance(dance) {
     state.currentPartIndex = 0;
     state.currentMoveIndex = 0;
     state.isPlaying = false;
-
-    // Create dancer set for improper dances
-    if (dance.formation === 'improper') {
-        state.dancerSet = new Set(6);
-    }
+    state.dancerSet = createDancerSet(dance);
 
     updateDanceInfo();
     updateMoveList();
@@ -87,6 +154,7 @@ function updateDanceInfo() {
     elements.danceTitle.textContent = state.dance.title || 'Untitled Dance';
     elements.danceAuthor.textContent = state.dance.author ? `by ${state.dance.author}` : '';
     elements.danceFormation.textContent = state.dance.formation ? `Formation: ${state.dance.formation}` : '';
+    elements.danceNotes.textContent = state.dance.notes || '';
 }
 
 // Update move list display
@@ -122,6 +190,21 @@ function updateMoveList() {
 
                 moveItem.appendChild(description);
                 moveItem.appendChild(beats);
+
+                if (move.detail) {
+                    const detail = document.createElement('span');
+                    detail.className = 'move-detail';
+                    detail.textContent = move.detail;
+                    moveItem.appendChild(detail);
+                }
+
+                if (state.dancerSet && !isMoveSupported(move, state.dancerSet)) {
+                    moveItem.classList.add('unsupported');
+                    const unsupported = document.createElement('span');
+                    unsupported.className = 'move-unsupported';
+                    unsupported.textContent = 'not animated yet';
+                    moveItem.appendChild(unsupported);
+                }
 
                 moveItem.addEventListener('click', () => {
                     // TODO: Implement jumping to arbitrary moves with snapshot/undo
@@ -176,14 +259,16 @@ function updateVisualization(customPositions = null) {
     // Draw stage area
     drawStage(svg);
 
-    if (!state.dance) {
+    if (!state.dance || !state.dancerSet) {
         const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         text.setAttribute('x', '400');
         text.setAttribute('y', '450');
         text.setAttribute('text-anchor', 'middle');
         text.setAttribute('font-size', '18');
         text.setAttribute('fill', '#999');
-        text.textContent = 'Load a dance to begin';
+        text.textContent = state.dance
+            ? `${state.dance.formation} formation isn't animated yet`
+            : 'Choose a dance to begin';
         svg.appendChild(text);
         return;
     }
@@ -619,10 +704,12 @@ function advanceToNextMove(startTime) {
 
 function updateControls() {
     elements.playPauseBtn.textContent = state.isPlaying ? 'Pause' : 'Play';
-    elements.prevMoveBtn.disabled = !state.dance;
-    elements.nextMoveBtn.disabled = !state.dance;
-    elements.playPauseBtn.disabled = !state.dance;
+    elements.prevMoveBtn.disabled = !state.dancerSet;
+    elements.nextMoveBtn.disabled = !state.dancerSet;
+    elements.playPauseBtn.disabled = !state.dancerSet;
 }
 
 // Initialize
-updateControls();
+buildMenu();
+window.addEventListener('hashchange', route);
+route();

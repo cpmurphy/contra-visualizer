@@ -73,5 +73,336 @@
                 ]
             }
         ]
+    },
+    {
+        "title": "Chorus Jig",
+        "author": "Traditional",
+        "formation": "proper",
+        "references": [
+            "https://www.ibiblio.org/contradance/thecallersbox/dance.php?id=3418"
+        ],
+        "parts": [
+            {
+                "name": "A1",
+                "beats": 16,
+                "moves": [
+                    {
+                        "type": "down the outside",
+                        "beats": 8,
+                        "who": "ones"
+                    },
+                    {
+                        "type": "up the outside",
+                        "beats": 8,
+                        "who": "ones"
+                    }
+                ]
+            },
+            {
+                "name": "A2",
+                "beats": 16,
+                "moves": [
+                    {
+                        "type": "down the center",
+                        "beats": 4,
+                        "who": "ones"
+                    },
+                    {
+                        "type": "turn alone",
+                        "beats": 4,
+                        "who": "ones"
+                    },
+                    {
+                        "type": "up the center",
+                        "beats": 4,
+                        "who": "ones"
+                    },
+                    {
+                        "type": "cast off",
+                        "beats": 4,
+                        "who": "ones",
+                        "progression": true
+                    }
+                ]
+            },
+            {
+                "name": "B1",
+                "beats": 16,
+                "moves": [
+                    {
+                        "type": "turn contra corners",
+                        "beats": 16,
+                        "who": "ones"
+                    }
+                ]
+            },
+            {
+                "name": "B2",
+                "beats": 16,
+                "moves": [
+                    {
+                        "type": "balance",
+                        "beats": 4,
+                        "who": "ones"
+                    },
+                    {
+                        "type": "swing",
+                        "beats": 12,
+                        "who": "ones",
+                        "detail": "in the center; face up"
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "title": "Jefferson and Liberty",
+        "author": "Traditional",
+        "formation": "proper",
+        "references": [
+            "https://www.ibiblio.org/contradance/thecallersbox/dance.php?id=3461"
+        ],
+        "parts": [
+            {
+                "name": "A1",
+                "beats": 16,
+                "moves": [
+                    {
+                        "type": "circle left 4 places",
+                        "beats": 8,
+                        "who": "all"
+                    },
+                    {
+                        "type": "circle right 4 places",
+                        "beats": 8,
+                        "who": "all"
+                    }
+                ]
+            },
+            {
+                "name": "A2",
+                "beats": 16,
+                "moves": [
+                    {
+                        "type": "star right 4 places",
+                        "beats": 8,
+                        "who": "all"
+                    },
+                    {
+                        "type": "star left 4 places",
+                        "beats": 8,
+                        "who": "all"
+                    }
+                ]
+            },
+            {
+                "name": "B1",
+                "beats": 16,
+                "moves": [
+                    {
+                        "type": "down the center",
+                        "beats": 4,
+                        "who": "ones"
+                    },
+                    {
+                        "type": "turn alone",
+                        "beats": 4,
+                        "who": "ones"
+                    },
+                    {
+                        "type": "up the center",
+                        "beats": 4,
+                        "who": "ones"
+                    },
+                    {
+                        "type": "cast off",
+                        "beats": 4,
+                        "who": "ones",
+                        "progression": true
+                    }
+                ]
+            },
+            {
+                "name": "B2",
+                "beats": 16,
+                "moves": [
+                    {
+                        "type": "right and left through",
+                        "beats": 8,
+                        "who": "neighbor",
+                        "detail": "same role"
+                    },
+                    {
+                        "type": "right and left through",
+                        "beats": 8,
+                        "who": "neighbor",
+                        "detail": "same role"
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "title": "Lady of the Lake",
+        "author": "Traditional",
+        "formation": "improper",
+        "notes": "As in Don Armstrong's Caller/Teacher Manual for Contras, p 86",
+        "references": [
+            "https://www.ibiblio.org/contradance/thecallersbox/dance.php?id=2"
+        ],
+        "parts": [
+            {
+                "name": "A1",
+                "beats": 16,
+                "moves": [
+                    {
+                        "type": "balance",
+                        "beats": 4,
+                        "who": "neighbor"
+                    },
+                    {
+                        "type": "swing",
+                        "beats": 12,
+                        "who": "neighbor"
+                    }
+                ]
+            },
+            {
+                "name": "A2",
+                "beats": 16,
+                "moves": [
+                    {
+                        "type": "balance",
+                        "beats": 4,
+                        "who": "ones"
+                    },
+                    {
+                        "type": "swing",
+                        "beats": 12,
+                        "who": "ones"
+                    }
+                ]
+            },
+            {
+                "name": "B1",
+                "beats": 16,
+                "moves": [
+                    {
+                        "type": "down the center",
+                        "beats": 4,
+                        "who": "ones"
+                    },
+                    {
+                        "type": "turn alone",
+                        "beats": 4,
+                        "who": "ones"
+                    },
+                    {
+                        "type": "up the center",
+                        "beats": 4,
+                        "who": "ones"
+                    },
+                    {
+                        "type": "cast off",
+                        "beats": 4,
+                        "who": "ones",
+                        "progression": true
+                    }
+                ]
+            },
+            {
+                "name": "B2",
+                "beats": 16,
+                "moves": [
+                    {
+                        "type": "chain to partner",
+                        "beats": 8,
+                        "who": "robins"
+                    },
+                    {
+                        "type": "chain to neighbor",
+                        "beats": 8,
+                        "who": "robins"
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "title": "Hay in the Barn",
+        "author": "Chart Guthrie",
+        "formation": "improper",
+        "references": [
+            "https://www.ibiblio.org/contradance/thecallersbox/dance.php?id=10482"
+        ],
+        "parts": [
+            {
+                "name": "A1",
+                "beats": 16,
+                "moves": [
+                    {
+                        "type": "balance",
+                        "beats": 4,
+                        "who": "neighbor"
+                    },
+                    {
+                        "type": "swing",
+                        "beats": 12,
+                        "who": "neighbor"
+                    }
+                ]
+            },
+            {
+                "name": "A2",
+                "beats": 16,
+                "moves": [
+                    {
+                        "type": "chain to partner",
+                        "beats": 8,
+                        "who": "robins"
+                    },
+                    {
+                        "type": "half hey",
+                        "beats": 8,
+                        "who": "all",
+                        "detail": "robins pass right shoulders, neighbors left, larks right"
+                    }
+                ]
+            },
+            {
+                "name": "B1",
+                "beats": 16,
+                "moves": [
+                    {
+                        "type": "balance",
+                        "beats": 4,
+                        "who": "partner"
+                    },
+                    {
+                        "type": "swing",
+                        "beats": 12,
+                        "who": "partner"
+                    }
+                ]
+            },
+            {
+                "name": "B2",
+                "beats": 16,
+                "moves": [
+                    {
+                        "type": "chain to neighbor",
+                        "beats": 8,
+                        "who": "robins"
+                    },
+                    {
+                        "type": "half hey",
+                        "beats": 8,
+                        "who": "all",
+                        "progression": true,
+                        "detail": "robins pass right shoulders, partners left, larks right, new neighbors left"
+                    }
+                ]
+            }
+        ]
     }
 ]

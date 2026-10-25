@@ -21,6 +21,17 @@ We'll allow for other conventions as well, such as the former names of
 
 For now, all tests are in the `tests/` directory and can be run using test.sh.
 
+## Dance Library
+
+The dances are built into the application from `library/dances.json`
+(loaded by `library.js`); there is no file upload. The app opens on a
+menu of these dances. Choosing one puts its slug in the URL hash (e.g.
+`index.html#lady-of-the-lake`), so reloading stays on that dance.
+
+Figures the path calculator can't animate yet (see `isMoveSupported`
+in `pathCalculator.js`) are shown as "not animated yet", and the dancers
+hold their places during them.
+
 ## Dance Data Structure
 
 Dances are stored as JSON with the following structure:
