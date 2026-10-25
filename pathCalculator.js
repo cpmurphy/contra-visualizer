@@ -707,6 +707,31 @@ function createChainPaths(dancerSet, startPosById, endPosById, paths, beats) {
 }
 
 /**
+ * Create a cache key for path caching based on move and dancer arrangement
+ * @param {Object} move - The move object
+ * @param {import('./dancers.js').Set} dancerSet - The current dancer set
+ * @returns {string} Cache key
+ */
+export function pathCacheKey(move, dancerSet) {
+    // Include move properties
+    const moveKey = [
+        move.type,
+        move.who || 'none',
+        move.beats || 8,
+        move.progression ? 'prog' : 'noprog'
+    ].join('|');
+
+    // Include which dancer is in each place, and whether they're active. Positions
+    // alone aren't enough: places are fixed, so every arrangement of dancers has the
+    // same positions, and paths are keyed by dancer ID.
+    const dancerKey = dancerSet.dancers
+        .map(d => `${d.id}${d.active ? '' : '*'}`)
+        .join(',');
+
+    return `${moveKey}::${dancerKey}`;
+}
+
+/**
  * Map each dancer ID to its current position
  * @param {import('./dancers.js').Set} dancerSet
  * @returns {Map<string, Position>}

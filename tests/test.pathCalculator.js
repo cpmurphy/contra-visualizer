@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Set } from '../dancers.js';
-import { calculateMovePaths, executeMove, withSetState } from '../pathCalculator.js';
+import { calculateMovePaths, executeMove, withSetState, pathCacheKey } from '../pathCalculator.js';
 import { distance, isInBounds } from '../positions.js';
 
 // Helper to check if all waypoints are within bounds
@@ -896,4 +896,32 @@ test('swing exits should not pass through the swing partner', () => {
             }
         }
     }
+});
+
+test('path cache key distinguishes arrangements that share the same places', () => {
+    // Two full times through Simplicity Swing: everyone is active again, but the
+    // couples have progressed, so the cached paths from the first time can't be reused
+    const dance = [
+        { type: 'balance', beats: 4, who: 'neighbor' },
+        { type: 'swing', beats: 12, who: 'neighbor' },
+        { type: 'circle left 3/4', beats: 6 },
+        { type: 'swing', beats: 10, who: 'partner' },
+        { type: 'Long lines, forward and back', beats: 8 },
+        { type: 'chain to neighbor', beats: 8, who: 'robins' },
+        { type: 'star left 4 places', beats: 8 },
+        { type: 'do-si-do', beats: 8, progression: true }
+    ];
+    const set = new Set(6);
+    const balance = dance[0];
+    const firstKey = pathCacheKey(balance, set);
+
+    dance.concat(dance).forEach(move => executeMove(set, move));
+
+    assert(set.dancers.every(d => d.active), 'everyone should be active again');
+    assert.notStrictEqual(pathCacheKey(balance, set), firstKey);
+});
+
+test('path cache key matches for the same arrangement', () => {
+    const move = { type: 'balance', beats: 4 };
+    assert.strictEqual(pathCacheKey(move, new Set(6)), pathCacheKey(move, new Set(6)));
 });

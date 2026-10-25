@@ -1,7 +1,7 @@
 import { Set } from './dancers.js';
 import { toPixels } from './positions.js';
 import { Animator, AnimationState } from './animator.js';
-import { calculateMovePaths, executeMove, withSetState } from './pathCalculator.js';
+import { calculateMovePaths, executeMove, withSetState, pathCacheKey } from './pathCalculator.js';
 
 // Application state
 const state = {
@@ -420,35 +420,6 @@ function goToPreviousMove() {
 }
 
 /**
- * Create a cache key for path caching based on move and dancer positions
- * @param {Object} move - The move object
- * @param {Set} dancerSet - The current dancer set
- * @returns {string} Cache key
- */
-function createCacheKey(move, dancerSet) {
-    // Include move properties
-    const moveKey = [
-        move.type,
-        move.who || 'none',
-        move.beats || 8,
-        move.progression ? 'prog' : 'noprog'
-    ].join('|');
-
-    // Include dancer positions (rounded to avoid floating point issues)
-    const positions = dancerSet.getPositions();
-    const positionKey = positions
-        .map(pos => `${pos.x.toFixed(2)},${pos.y.toFixed(2)}`)
-        .join(';');
-
-    // Include active states
-    const activeKey = dancerSet.dancers
-        .map(d => d.active ? '1' : '0')
-        .join('');
-
-    return `${moveKey}::${positionKey}::${activeKey}`;
-}
-
-/**
  * Get paths for a move from the given set state, using the cache when possible
  * @param {Object} move - The move object
  * @param {Set} dancerSet - The set state the move starts from
@@ -456,7 +427,7 @@ function createCacheKey(move, dancerSet) {
  */
 function getMovePaths(move, dancerSet) {
     // Cache key is based on move properties and current positions
-    const cacheKey = createCacheKey(move, dancerSet);
+    const cacheKey = pathCacheKey(move, dancerSet);
     let paths = state.pathCache.get(cacheKey);
 
     if (!paths) {
