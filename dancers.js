@@ -15,6 +15,8 @@ const DANCER_RADIUS = 20;
 const CENTER_LANE_OFFSET_PX = 30;
 // Dancers going down or up the outside walk this far outside the lines
 const OUTSIDE_LANE_OFFSET_PX = 50;
+// After contra corners, the couple stand this far either side of the middle
+const CONTRA_CORNERS_END_OFFSET_PX = 45;
 
 const COLOR_PALETTE = [
     '#1b9e77',
@@ -376,6 +378,51 @@ export class Set {
                 y: this.getOffset(dancer).y + distancePx / SVG_HEIGHT * 100
             });
         }
+    }
+
+    /**
+     * The couple turn contra corners: partners allemande right in the middle, each
+     * allemandes left with their first corner, partners allemande right again, and
+     * each allemandes left with their second corner. They end crossed over, facing
+     * each other across the middle of the set at their row, so their places are
+     * swapped.
+     * @param {string} who - 'ones' or 'twos'
+     */
+    contraCorners(who) {
+        this.snapshot();
+        const turning = this.placesOf(who);
+        const places = this.getPlacePositions();
+        const positions = this.getPositions();
+        for (const larkIndex of turning.filter(index => this.dancers[index].role === 'lark')) {
+            const lark = this.dancers[larkIndex];
+            const robinIndex = this.dancers.indexOf(lark.partner);
+            if (!turning.includes(robinIndex)) continue;
+            const y = (positions[larkIndex].y + positions[robinIndex].y) / 2;
+            this.dancers[larkIndex] = lark.partner;
+            this.dancers[robinIndex] = lark;
+            for (const index of [larkIndex, robinIndex]) {
+                const onLeft = index % 2 === 0;
+                const x = this.middleX() + (onLeft ? -1 : 1) * CONTRA_CORNERS_END_OFFSET_PX / SVG_WIDTH * 100;
+                this.offsets.set(this.dancers[index].id, { x: x - places[index].x, y: y - places[index].y });
+            }
+        }
+    }
+
+    /**
+     * A dancer's contra corners: facing across the set, the first is on their right
+     * diagonal and the second on their left
+     * @param {number} index - The dancer's place
+     * @returns {{first: number, second: number}} Places of the corners; either may be
+     *   off the end of the set
+     */
+    contraCornersOf(index) {
+        const row = Math.floor(index / 2);
+        const column = index % 2;
+        const across = 1 - column;
+        // Facing across from the left, your right is down the hall
+        const firstRow = column === 0 ? row + 1 : row - 1;
+        const secondRow = column === 0 ? row - 1 : row + 1;
+        return { first: firstRow * 2 + across, second: secondRow * 2 + across };
     }
 
     /**

@@ -74,9 +74,27 @@ const COURTESY_TURN_RADIUS_PX = 25;
 // Waypoints for each half of a right and left through
 const RIGHT_AND_LEFT_SAMPLES = 16;
 
+// Allemandes: how far apart the two turning are (twice the radius they turn at)
+const ALLEMANDE_RADIUS_PX = 25;
+// Contra corners, as fractions of the figure (sixteenths, for a 16-beat figure):
+// when each dancer turning gets to the middle, finishes turning their partner, turns
+// the first corner, is back in the middle, turns their partner again, turns the
+// second corner, and is back in the middle
+const CONTRA_CORNERS_TIMES = {
+    middle: 1 / 16,
+    partner: 3 / 16,
+    firstCorner: [4 / 16, 6.5 / 16],
+    backFromFirst: 7.5 / 16,
+    partnerAgain: 9.5 / 16,
+    secondCorner: [10.5 / 16, 13 / 16],
+    backFromSecond: 14 / 16
+};
+// Waypoints per beat of contra corners
+const CONTRA_CORNERS_SAMPLES_PER_BEAT = 8;
+
 // Figures for one couple ('ones' or 'twos') to dance, in either formation
 const COUPLE_FIGURES = ['down the center', 'up the center', 'turn alone', 'cast off', 'balance', 'swing',
-    'down the outside', 'up the outside'];
+    'down the outside', 'up the outside', 'turn contra corners'];
 const COUPLES = ['ones', 'twos'];
 
 // "who" values that mean each dancer's neighbor (moves that don't say mean neighbors)
@@ -185,6 +203,8 @@ export function calculateMovePaths(move, dancerSet) {
         createHalfHeyPaths(dancerSet, startPosById, endPosById, paths, beats);
     } else if (type === 'right and left through') {
         createRightAndLeftThroughPaths(dancerSet, startPosById, endPosById, paths, beats);
+    } else if (type === 'turn contra corners') {
+        createContraCornersPaths(dancerSet, dancerSet.placesOf(move.who), startPosById, endPosById, paths, beats);
     } else if (type === 'up the outside') {
         createReturnUpOutsidePaths(dancerSet, startPosById, endPosById, paths, beats);
     } else if (type === 'down the center' || type === 'up the center' || type === 'down the outside') {
@@ -670,6 +690,124 @@ function createCouplePairPaths(dancerSet, who, startPosById, paths, beats, addPa
         if (lark && places.includes(dancerSet.dancers.indexOf(lark.partner))) {
             addPairPaths(lark, lark.partner, i);
         }
+    }
+}
+
+/**
+ * Create contra corners paths. Partners meet in the middle of the set at their row
+ * and allemande right 5/8, which leaves each facing their first corner (on their
+ * right diagonal); each goes to that corner and allemandes left once around, comes
+ * back to the middle and allemandes right 3/4 with their partner to face their second
+ * corner (on their left diagonal), allemandes left once around with them, and comes
+ * back to the middle, crossed over. Allemandes right turn clockwise as seen from
+ * above, with the music at the top, and lefts counter-clockwise. A corner turns once
+ * around with the dancer turning them, and is back in place after; a corner off the
+ * end of the set is imaginary.
+ * @param {import('./dancers.js').Set} dancerSet
+ * @param {number[]} turning - Places of the dancers turning contra corners
+ * @param {Map<string, Position>} startPosById
+ * @param {Map<string, Position>} endPosById
+ * @param {Map<string, import('./paths.js').Path>} paths
+ * @param {number} beats
+ */
+function createContraCornersPaths(dancerSet, turning, startPosById, endPosById, paths, beats) {
+    dancerSet.dancers.forEach(dancer => {
+        paths.set(dancer.id, createStationaryPath(startPosById.get(dancer.id), beats));
+    });
+    const T = CONTRA_CORNERS_TIMES;
+    const placesPx = dancerSet.getPlacePositions().map(p => toPixels(p, SVG_WIDTH, SVG_HEIGHT));
+    const rowSpacing = placesPx.length > 2 ? placesPx[2].y - placesPx[0].y : VERTICAL_SPACING_PX;
+    // Where a place would be, even off the end of the set
+    const placeAt = index => index >= 0 && index < placesPx.length ? placesPx[index] : {
+        x: placesPx[index % 2 === 0 ? 0 : 1].x,
+        y: placesPx[0].y + Math.floor(index / 2) * rowSpacing
+    };
+    const point = (center, radius, angle) => ({ x: center.x + radius * Math.cos(angle), y: center.y + radius * Math.sin(angle) });
+    const samples = (from, to) => Math.max(2, Math.ceil((to - from) * beats * CONTRA_CORNERS_SAMPLES_PER_BEAT));
+    // Clockwise (as seen from above) is increasing angle in y-down coordinates
+    const CLOCKWISE = 1;
+    const COUNTER_CLOCKWISE = -1;
+
+    // Times at which each corner turns, with the center and starting angle of the turn
+    const cornerTurns = new Map();
+
+    for (const index of turning) {
+        const dancer = dancerSet.dancers[index];
+        const partnerIndex = dancerSet.dancers.indexOf(dancer.partner);
+        if (!turning.includes(partnerIndex)) continue;
+        const start = toPixels(startPosById.get(dancer.id), SVG_WIDTH, SVG_HEIGHT);
+        const partnerStart = toPixels(startPosById.get(dancer.partner.id), SVG_WIDTH, SVG_HEIGHT);
+        const middle = { x: (start.x + partnerStart.x) / 2, y: (start.y + partnerStart.y) / 2 };
+        const fromMiddle = Math.atan2(start.y - middle.y, start.x - middle.x);
+        const corners = dancerSet.contraCornersOf(index);
+
+        const waypoints = [start];
+        const times = [0];
+        const add = (t, p) => { waypoints.push(p); times.push(t); };
+        // Turn about a center from one time to another
+        const turn = (center, radius, fromAngle, sweep, t0, t1) => {
+            const count = samples(t0, t1);
+            for (let k = 1; k <= count; k++) {
+                const u = k / count;
+                add(t0 + (t1 - t0) * u, point(center, radius, fromAngle + sweep * u));
+            }
+            return fromAngle + sweep;
+        };
+        // Allemande left once around a corner: go to them, turn, come back
+        const turnCorner = (cornerIndex, [t0, t1], tBack) => {
+            const from = waypoints[waypoints.length - 1];
+            const corner = placeAt(cornerIndex);
+            const distance = Math.hypot(corner.x - from.x, corner.y - from.y);
+            const toward = { x: (corner.x - from.x) / distance, y: (corner.y - from.y) / distance };
+            const turnCenter = { x: corner.x - toward.x * ALLEMANDE_RADIUS_PX, y: corner.y - toward.y * ALLEMANDE_RADIUS_PX };
+            const angle = Math.atan2(-toward.y, -toward.x);
+            add(t0, point(turnCenter, ALLEMANDE_RADIUS_PX, angle));
+            turn(turnCenter, ALLEMANDE_RADIUS_PX, angle, COUNTER_CLOCKWISE * 2 * Math.PI, t0, t1);
+            add(tBack, from);
+            const cornerDancer = dancerSet.dancers[cornerIndex];
+            if (cornerDancer) {
+                const list = cornerTurns.get(cornerDancer) || [];
+                list.push({ t0, t1, center: turnCenter, angle: angle + Math.PI });
+                cornerTurns.set(cornerDancer, list);
+            }
+        };
+
+        // Into the middle, and allemande right 5/8 with partner
+        add(T.middle, point(middle, ALLEMANDE_RADIUS_PX, fromMiddle));
+        const facingFirst = turn(middle, ALLEMANDE_RADIUS_PX, fromMiddle, CLOCKWISE * 5 / 8 * 2 * Math.PI,
+            T.middle, T.partner);
+        turnCorner(corners.first, T.firstCorner, T.backFromFirst);
+        // Allemande right 3/4 with partner
+        turn(middle, ALLEMANDE_RADIUS_PX, facingFirst, CLOCKWISE * 3 / 4 * 2 * Math.PI, T.backFromFirst, T.partnerAgain);
+        turnCorner(corners.second, T.secondCorner, T.backFromSecond);
+        // Back to the middle, crossed over
+        add(1, toPixels(endPosById.get(dancer.id), SVG_WIDTH, SVG_HEIGHT));
+
+        const normalized = waypoints.map(p => fromPixels(p.x, p.y, SVG_WIDTH, SVG_HEIGHT));
+        normalized[normalized.length - 1] = endPosById.get(dancer.id).clone();
+        paths.set(dancer.id, new Path(normalized, beats, times));
+    }
+
+    // Each corner turns once around with each dancer who turns them
+    for (const [corner, turns] of cornerTurns) {
+        const start = toPixels(startPosById.get(corner.id), SVG_WIDTH, SVG_HEIGHT);
+        const waypoints = [start];
+        const times = [0];
+        for (const { t0, t1, center, angle } of turns.sort((a, b) => a.t0 - b.t0)) {
+            waypoints.push(start);
+            times.push(t0);
+            const count = samples(t0, t1);
+            for (let k = 1; k <= count; k++) {
+                waypoints.push(point(center, ALLEMANDE_RADIUS_PX, angle + COUNTER_CLOCKWISE * 2 * Math.PI * k / count));
+                times.push(t0 + (t1 - t0) * k / count);
+            }
+        }
+        waypoints.push(start);
+        times.push(1);
+        const normalized = waypoints.map(p => fromPixels(p.x, p.y, SVG_WIDTH, SVG_HEIGHT));
+        normalized[0] = startPosById.get(corner.id).clone();
+        normalized[normalized.length - 1] = startPosById.get(corner.id).clone();
+        paths.set(corner.id, new Path(normalized, beats, times));
     }
 }
 
@@ -1564,6 +1702,8 @@ function executeMoveSteps(dancerSet, move) {
         dancerSet.downTheOutside(move.who, DOWN_THE_OUTSIDE_PX);
     } else if (type === 'up the outside') {
         dancerSet.upTheOutside(move.who);
+    } else if (type === 'turn contra corners') {
+        dancerSet.contraCorners(move.who);
     } else if (type === 'turn alone' || (type === 'balance' && COUPLES.includes(move.who))) {
         // Everyone ends where they started
     } else if (type === 'swing' && COUPLES.includes(move.who)) {

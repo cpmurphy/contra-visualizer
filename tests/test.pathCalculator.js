@@ -1037,8 +1037,7 @@ test('robins chain: robins pull by clockwise around the middle, passing right sh
 test('moves we cannot animate yet should be unsupported', () => {
     const improper = new Set(6);
     const proper = new Set(6, 'proper');
-    assert(!isMoveSupported({ type: 'turn contra corners', who: 'twos', beats: 16 }, improper));
-    assert(!isMoveSupported({ type: 'turn contra corners', who: 'ones', beats: 16 }, improper));
+    assert(!isMoveSupported({ type: 'petronella', who: 'all', beats: 8 }, improper));
     assert(!isMoveSupported({ type: 'balance', who: 'partner', beats: 4 }, improper));
     assert(!isMoveSupported({ type: 'swing', who: 'neighbor', beats: 12 }, proper));
 });
@@ -1055,7 +1054,7 @@ test('moves we can animate should be supported', () => {
 
 test('an unsupported move should leave every dancer where they are', () => {
     const set = new Set(6);
-    const move = { type: 'turn contra corners', who: 'ones', beats: 16 };
+    const move = { type: 'petronella', who: 'all', beats: 8 };
     const before = set.dancers.map(d => d.id);
     const paths = calculateMovePaths(move, set);
     assert.equal(paths.size, 12);
@@ -1069,7 +1068,7 @@ test('an unsupported move should leave every dancer where they are', () => {
 test('an unsupported move should still progress when it is the progression', () => {
     const set = new Set(6);
     executeMove(set, { type: 'balance', beats: 4 });
-    executeMove(set, { type: 'turn contra corners', who: 'ones', beats: 16, progression: true });
+    executeMove(set, { type: 'petronella', who: 'all', beats: 8, progression: true });
     assert(!set.dancers[0].active, 'top couple should wait out after progressing');
 });
 
@@ -1103,7 +1102,7 @@ test('every move should record exactly one undo snapshot', () => {
     executeMove(set, { type: 'balance', beats: 4 });
     const moves = [
         { type: 'do-si-do', who: 'new neighbor', beats: 8, progression: true },
-        { type: 'turn contra corners', who: 'ones', beats: 16 },
+        { type: 'petronella', who: 'all', beats: 8 },
         { type: 'down the center', who: 'ones', beats: 4 },
         { type: 'swing', who: 'neighbor', beats: 12 }
     ];
@@ -1433,4 +1432,55 @@ test('down and up the outside paths should not collide, and should end where the
             assert(paths.get(dancer.id).end.equals(set.getPositions()[index]), `${move.type}: ${dancer.id} end`);
         });
     }
+});
+
+// Contra corners
+
+const ONES_CONTRA_CORNERS = { type: 'turn contra corners', who: 'ones', beats: 16 };
+
+test('contra corners should leave the ones crossed over in the middle, facing each other', () => {
+    const set = afterCastOff(); // L2 R2 / L1 R1 in each minor set
+    executeMove(set, ONES_CONTRA_CORNERS);
+    assert.deepEqual(set.dancers.slice(0, 4).map(d => d.getLabel()), ['L2', 'R2', 'R1', 'L1']);
+    const positions = set.getPositions();
+    assert(positions[2].x > 33.75 + 3 && positions[2].x < 43.75, 'R1 should be in the middle, left of center');
+    assert(positions[3].x < 53.75 - 3 && positions[3].x > 43.75, 'L1 should be in the middle, right of center');
+    assert(Math.abs(positions[2].y - positions[3].y) < 0.01, 'the ones should be level');
+    for (const index of [0, 1]) {
+        assert(!set.offsets.has(set.dancers[index].id), 'the twos should be in their places');
+    }
+});
+
+test('contra corners should turn the corners on the diagonals', () => {
+    const set = afterCastOff();
+    // L1 (left, second row) has R2 below right as first corner and R2 above right as second
+    assert.deepEqual(set.contraCornersOf(2), { first: 5, second: 1 });
+    // R1 (right, second row) has L2 above left as first corner and L2 below left as second
+    assert.deepEqual(set.contraCornersOf(3), { first: 0, second: 4 });
+});
+
+test('in contra corners every corner should turn and end in place', () => {
+    const set = afterCastOff();
+    const paths = calculateMovePaths(ONES_CONTRA_CORNERS, set);
+    set.dancers.forEach(dancer => {
+        if (dancer.couple.coupleNumber !== 2 || !dancer.active) return;
+        const path = paths.get(dancer.id);
+        assert(path.start.equals(path.end), `${dancer.id} should end in place`);
+        assert(path.getWaypoints().some(p => distance(p, path.start) > 2), `${dancer.id} should turn`);
+    });
+});
+
+test('contra corners paths should not collide, and should start and end where the set says', () => {
+    const set = afterCastOff();
+    const start = set.getPositions();
+    const ids = set.dancers.map(d => d.id);
+    const paths = calculateMovePaths(ONES_CONTRA_CORNERS, set);
+    assert(hasNoOverlaps(paths), 'contra corners should have no overlaps');
+    assert(allWaypointsInBounds(paths), 'contra corners should stay in bounds');
+    executeMove(set, ONES_CONTRA_CORNERS);
+    const end = new Map(set.dancers.map((d, i) => [d.id, set.getPositions()[i]]));
+    ids.forEach((id, index) => {
+        assert(paths.get(id).start.equals(start[index]), `${id} should start in place`);
+        assert(paths.get(id).end.equals(end.get(id)), `${id} should end where the set says`);
+    });
 });
