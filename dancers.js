@@ -5,7 +5,7 @@ import { Position } from './positions.js';
 
 // Layout of the set on the SVG canvas, in pixels
 const SVG_WIDTH = 800;
-const SVG_HEIGHT = 900;
+const SVG_HEIGHT = 1000;
 const STAGE_HEIGHT = 100;
 const START_X = 270;
 const HORIZONTAL_SPACING = 160;
@@ -236,16 +236,72 @@ export class Set {
     downTheCenter(who, distancePx) {
         this.snapshot();
         const places = this.getPlacePositions();
+        const positions = this.getPositions();
         for (const index of this.placesOf(who)) {
             const dancer = this.dancers[index];
-            const middle = START_X + HORIZONTAL_SPACING / 2;
-            const laneX = (middle + (index % 2 === 0 ? -1 : 1) * CENTER_LANE_OFFSET_PX) / SVG_WIDTH * 100;
             const offset = this.getOffset(dancer);
             this.offsets.set(dancer.id, {
-                x: laneX - places[index].x,
+                x: this.laneX(positions[index].x < this.middleX()) - places[index].x,
                 y: offset.y + distancePx / SVG_HEIGHT * 100
             });
         }
+    }
+
+    /**
+     * Partners in the couple swing in the middle of the set, halfway between where
+     * they were, and end side by side there facing up or down the hall, the robin on
+     * the lark's right. Their places are swapped if need be so that each is in the
+     * column on the side of the set they end on.
+     * @param {string} who - 'ones' or 'twos'
+     * @param {string} facing - 'up' or 'down'
+     */
+    swingInCenter(who, facing) {
+        this.snapshot();
+        const swinging = this.placesOf(who);
+        const positions = this.getPositions();
+        const places = this.getPlacePositions();
+        for (const larkIndex of swinging.filter(index => this.dancers[index].role === 'lark')) {
+            const lark = this.dancers[larkIndex];
+            const robinIndex = this.dancers.indexOf(lark.partner);
+            if (!swinging.includes(robinIndex)) continue;
+
+            // Facing down the hall, the lark's right is on the left side of the set
+            const robinOnLeft = facing !== 'up';
+            const leftDancer = robinOnLeft ? lark.partner : lark;
+            const rightDancer = robinOnLeft ? lark : lark.partner;
+            if (larkIndex % 2 !== robinIndex % 2 && this.dancers.indexOf(leftDancer) % 2 !== 0) {
+                // They end on the opposite sides from their columns: trade places
+                this.dancers[larkIndex] = lark.partner;
+                this.dancers[robinIndex] = lark;
+            }
+            const leftIndex = this.dancers.indexOf(leftDancer);
+            const rightIndex = this.dancers.indexOf(rightDancer);
+
+            const y = (positions[larkIndex].y + positions[robinIndex].y) / 2;
+            for (const [index, onLeft] of [[leftIndex, true], [rightIndex, false]]) {
+                this.offsets.set(this.dancers[index].id, {
+                    x: this.laneX(onLeft) - places[index].x,
+                    y: y - places[index].y
+                });
+            }
+        }
+    }
+
+    /**
+     * Normalized x of the middle of the set
+     * @returns {number}
+     */
+    middleX() {
+        return (START_X + HORIZONTAL_SPACING / 2) / SVG_WIDTH * 100;
+    }
+
+    /**
+     * Normalized x at which a dancer in a couple in the middle of the set stands
+     * @param {boolean} onLeft - Whether they're on the left side of the middle
+     * @returns {number}
+     */
+    laneX(onLeft) {
+        return this.middleX() + (onLeft ? -1 : 1) * CENTER_LANE_OFFSET_PX / SVG_WIDTH * 100;
     }
 
     /**

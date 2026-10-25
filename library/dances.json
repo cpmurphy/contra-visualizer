@@ -149,7 +149,8 @@
                         "type": "swing",
                         "beats": 12,
                         "who": "ones",
-                        "detail": "in the center; face up"
+                        "detail": "in the center",
+                        "facing": "up"
                     }
                 ]
             }
@@ -280,7 +281,9 @@
                     {
                         "type": "swing",
                         "beats": 12,
-                        "who": "ones"
+                        "who": "ones",
+                        "facing": "down",
+                        "detail": "in the center"
                     }
                 ]
             },

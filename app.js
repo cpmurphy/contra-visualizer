@@ -262,7 +262,7 @@ function updateVisualization(customPositions = null) {
     if (!state.dance || !state.dancerSet) {
         const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         text.setAttribute('x', '400');
-        text.setAttribute('y', '450');
+        text.setAttribute('y', '500');
         text.setAttribute('text-anchor', 'middle');
         text.setAttribute('font-size', '18');
         text.setAttribute('fill', '#999');
@@ -351,7 +351,7 @@ function drawStage(svg) {
 function drawDancers(svg, dancerSet, customPositions = null) {
     const dancers = dancerSet.dancers;
     const svgWidth = 800;
-    const svgHeight = 900;
+    const svgHeight = 1000;
     const dancerRadius = 20;
 
     // Get normalized positions - either custom (for animation) or from the Set

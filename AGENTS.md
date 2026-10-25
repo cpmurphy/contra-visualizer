@@ -50,6 +50,8 @@ Dances are stored as JSON with the following structure:
           "beats": 8,
           "who": "neighbors" or "partners" or "lark" or "robin" or "ones" or "twos",
           "direction": "left" or "right" or "clockwise" or null,
+          "facing": "up" or "down" (optional: which way dancers end up facing),
+          "progression": true (optional: new neighbors from this move on),
           "detail": "additional parameters as needed"
         }
       ]
