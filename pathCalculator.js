@@ -12,6 +12,35 @@ const DANCER_RADIUS_PX = 20;
 const VERTICAL_SPACING_PX = 120;
 const COLUMN_MIDPOINT_PX = 350;
 
+// "who" values that mean each dancer's neighbor (moves that don't say mean neighbors)
+const NEIGHBOR_WHO = [undefined, null, 'neighbor', 'neighbors', 'new neighbor'];
+
+/**
+ * Whether a move is one we know how to execute and animate in the set's formation.
+ * Figures we don't know yet (heys, casts, the ones-only figures of the old dances,
+ * and so on) leave the dancers where they are rather than animating them wrongly.
+ * @param {Object} move - The move object with type, who, etc.
+ * @param {import('./dancers.js').Set} dancerSet - The set the move would be danced in
+ * @returns {boolean}
+ */
+export function isMoveSupported(move, dancerSet) {
+    const type = move.type.toLowerCase();
+    const who = move.who;
+
+    // Rotations and long lines don't depend on who is where
+    if (/(circle|star) (left|right) \d+/.test(type)) return true;
+    if (type.includes('long lines')) return true;
+
+    // Everything else is worked out for improper minor sets only
+    if (!dancerSet.isImproper()) return false;
+
+    if (type === 'balance') return NEIGHBOR_WHO.includes(who);
+    if (type === 'swing') return who === 'neighbor' || who === 'partner';
+    if (type.includes('chain')) return ['robins', 'robin', 'larks', 'lark'].includes(who);
+    if (type === 'do-si-do' || type === 'dosido') return NEIGHBOR_WHO.includes(who);
+    return false;
+}
+
 /**
  * Calculate paths for all dancers during a move
  * @param {Object} move - The move object with type, beats, etc.
@@ -42,7 +71,12 @@ export function calculateMovePaths(move, dancerSet) {
     const type = move.type.toLowerCase();
     const beats = move.beats || 8;
 
-    if (type === 'balance') {
+    if (!isMoveSupported(move, dancerSet)) {
+        // Not animated yet: everyone holds their place
+        dancerSet.dancers.forEach(dancer => {
+            paths.set(dancer.id, createStationaryPath(startPosById.get(dancer.id), beats));
+        });
+    } else if (type === 'balance') {
         // Neighbor pairs approach each other vertically and retreat
         createBalancePaths(dancerSet, startPosById, paths, beats);
     } else if (type.includes('long lines')) {
@@ -949,6 +983,7 @@ function createChainPaths(dancerSet, startPosById, endPosById, paths, beats) {
 export function pathCacheKey(move, dancerSet) {
     // Include move properties
     const moveKey = [
+        dancerSet.formation,
         move.type,
         move.who || 'none',
         move.beats || 8,
@@ -1043,7 +1078,9 @@ export function executeMove(dancerSet, move) {
     }
 
     // Parse and execute the move
-    if (type.includes('circle left')) {
+    if (!isMoveSupported(move, dancerSet)) {
+        // Not modeled yet: the dancers stay where they are
+    } else if (type.includes('circle left')) {
         const match = type.match(/circle left (\d+)/);
         if (match) {
             dancerSet.circleLeft(parseInt(match[1]));

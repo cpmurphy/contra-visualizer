@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Set } from '../dancers.js';
-import { calculateMovePaths, executeMove, withSetState, pathCacheKey } from '../pathCalculator.js';
+import { calculateMovePaths, executeMove, withSetState, pathCacheKey, isMoveSupported } from '../pathCalculator.js';
 import { distance, isInBounds } from '../positions.js';
 
 // Helper to check if all waypoints are within bounds
@@ -1028,4 +1028,58 @@ test('robins chain: robins pull by clockwise around the middle, passing right sh
     const rightOfTravel = { x: -v1.y * 9, y: v1.x * 8 };
     assert(toOther.x * rightOfTravel.x + toOther.y * rightOfTravel.y > 0,
         'the other robin should be on the right while pulling by');
+});
+
+test('moves we cannot animate yet should be unsupported', () => {
+    const improper = new Set(6);
+    const proper = new Set(6, 'proper');
+    assert(!isMoveSupported({ type: 'half hey', who: 'all', beats: 8 }, improper));
+    assert(!isMoveSupported({ type: 'swing', who: 'ones', beats: 12 }, improper));
+    assert(!isMoveSupported({ type: 'balance', who: 'partner', beats: 4 }, improper));
+    assert(!isMoveSupported({ type: 'swing', who: 'neighbor', beats: 12 }, proper));
+});
+
+test('moves we can animate should be supported', () => {
+    const improper = new Set(6);
+    const proper = new Set(6, 'proper');
+    assert(isMoveSupported({ type: 'swing', who: 'partner', beats: 10 }, improper));
+    assert(isMoveSupported({ type: 'balance', beats: 4 }, improper));
+    assert(isMoveSupported({ type: 'chain to neighbor', who: 'robins', beats: 8 }, improper));
+    assert(isMoveSupported({ type: 'circle left 4 places', who: 'all', beats: 8 }, proper));
+    assert(isMoveSupported({ type: 'star right 4 places', who: 'all', beats: 8 }, proper));
+});
+
+test('an unsupported move should leave every dancer where they are', () => {
+    const set = new Set(6);
+    const move = { type: 'turn contra corners', who: 'ones', beats: 16 };
+    const before = set.dancers.map(d => d.id);
+    const paths = calculateMovePaths(move, set);
+    assert.equal(paths.size, 12);
+    for (const path of paths.values()) {
+        assert(path.start.equals(path.end), 'path should be stationary');
+    }
+    executeMove(set, move);
+    assert.deepEqual(set.dancers.map(d => d.id), before);
+});
+
+test('an unsupported move should still progress when it is the progression', () => {
+    const set = new Set(6);
+    executeMove(set, { type: 'half hey', who: 'all', beats: 8, progression: true });
+    assert(!set.dancers[0].active, 'top couple should wait out after progressing');
+});
+
+test('circling in a proper set should rotate the minor sets', () => {
+    const set = new Set(4, 'proper');
+    const [a, b, c, d] = set.dancers;
+    executeMove(set, { type: 'circle left 1 place', who: 'all', beats: 2 });
+    assert.deepEqual(set.dancers.slice(0, 4), [c, a, d, b]);
+});
+
+test('the path cache key should depend on the formation', () => {
+    const move = { type: 'swing', who: 'neighbor', beats: 8 };
+    const improper = new Set(6);
+    const proper = new Set(6, 'proper');
+    // Same dancers in the same places, but only the improper set can swing
+    proper.dancers = improper.dancers.map(d => proper.dancerMap.get(d.id));
+    assert.notEqual(pathCacheKey(move, improper), pathCacheKey(move, proper));
 });

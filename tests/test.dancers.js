@@ -937,3 +937,40 @@ test('calculateMovePath should return paths for all dancers', async () => {
         assert(path.beats === 4, 'Path should have correct beat duration');
     });
 });
+
+test('a proper set should put all the larks on one side and all the robins on the other', () => {
+    const set = new Set(6, 'proper');
+    set.dancers.forEach((dancer, index) => {
+        const expectedRole = index % 2 === 0 ? 'lark' : 'robin';
+        assert.equal(dancer.role, expectedRole, `dancer at place ${index} should be a ${expectedRole}`);
+    });
+    assert.deepEqual(set.dancers.map(d => d.getLabel()),
+        ['L1', 'R1', 'L2', 'R2', 'L1', 'R1', 'L2', 'R2', 'L1', 'R1', 'L2', 'R2']);
+});
+
+test('an improper set should cross the ones over', () => {
+    const set = new Set(4);
+    assert.deepEqual(set.dancers.map(d => d.getLabel()),
+        ['R1', 'L1', 'L2', 'R2', 'R1', 'L1', 'L2', 'R2']);
+});
+
+test('a proper set with an odd number of couples should not cross over the last couple', () => {
+    const set = new Set(5, 'proper');
+    assert.deepEqual(set.dancers.slice(-2).map(d => d.getLabel()), ['L2', 'R2']);
+    assert(!set.dancers[9].active, 'last couple should be inactive');
+});
+
+test('progressing a proper set should not cross over the couples waiting out at the ends', () => {
+    const set = new Set(6, 'proper');
+    set.progress();
+    assert.deepEqual(set.dancers.map(d => d.role),
+        new Array(6).fill(['lark', 'robin']).flat());
+    assert(!set.dancers[0].active && !set.dancers[1].active, 'top couple should wait out');
+    assert(!set.dancers[10].active && !set.dancers[11].active, 'bottom couple should wait out');
+    assert.equal(set.dancers[0].couple.coupleNumber, 1, 'top couple should become ones');
+    assert.equal(set.dancers[10].couple.coupleNumber, 2, 'bottom couple should become twos');
+});
+
+test('creating a set in an unknown formation should throw', () => {
+    assert.throws(() => new Set(6, 'becket'), /Unsupported formation/);
+});

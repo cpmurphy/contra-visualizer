@@ -49,7 +49,18 @@ export class Couple {
 }
 
 export class Set {
-    constructor(coupleCount = 6) {
+    /** Formations the set can be laid out in */
+    static FORMATIONS = ['improper', 'proper'];
+
+    /**
+     * @param {number} coupleCount - Number of couples in the set
+     * @param {string} formation - 'improper' (ones crossed over) or 'proper'
+     */
+    constructor(coupleCount = 6, formation = 'improper') {
+        if (!Set.FORMATIONS.includes(formation)) {
+            throw new Error('Unsupported formation: ' + formation);
+        }
+        this.formation = formation;
         this.dancers = [];
         this.snapshots = [];
         this.dancerMap = new Map(); // Map from dancer id to dancer object
@@ -71,7 +82,7 @@ export class Set {
             this.dancerMap.set(lark.id, lark);
             this.dancerMap.set(robin.id, robin);
 
-            if (i % 2 == 0) {
+            if (i % 2 == 0 && this.isImproper()) {
                 this.dancers.push(robin);
                 this.dancers.push(lark);
             } else {
@@ -80,15 +91,26 @@ export class Set {
             }
         }
         if (coupleCount % 2 != 0) {
-            // rotate the last couple and make them a "2"
+            // make the last couple a "2", rotating them in improper dances
             const secondLast = coupleCount * 2 - 2;
-            const robin = this.dancers[secondLast];
             const last = coupleCount * 2 - 1;
-            const lark = this.dancers[last];
-            lark.couple.coupleNumber = 2;
-            this.dancers[secondLast] = lark; // on left, facing up
-            this.dancers[last] = robin;      // on right, facing up
+            this.dancers[last].couple.coupleNumber = 2;
+            if (this.isImproper()) {
+                const robin = this.dancers[secondLast];
+                const lark = this.dancers[last];
+                this.dancers[secondLast] = lark; // on left, facing up
+                this.dancers[last] = robin;      // on right, facing up
+            }
         }
+    }
+
+    /**
+     * Whether the ones start crossed over (and couples cross over when they wait
+     * out at the ends of the set)
+     * @returns {boolean}
+     */
+    isImproper() {
+        return this.formation === 'improper';
     }
 
     /**
@@ -288,9 +310,11 @@ export class Set {
             const robin = this.dancers[1];
             lark.inactivate();
             robin.inactivate();
-            // rotate the couple, make them a "1"
-            this.dancers[0] = robin;
-            this.dancers[1] = lark;
+            // in improper dances, rotate the couple; either way, make them a "1"
+            if (this.isImproper()) {
+                this.dancers[0] = robin;
+                this.dancers[1] = lark;
+            }
             lark.couple.coupleNumber = 1;
         } else {
             // activate the first couple
@@ -308,9 +332,11 @@ export class Set {
             const robin = this.dancers[this.dancers.length - 1];
             lark.inactivate();
             robin.inactivate();
-            // rotate the couple, make them a "2"
-            this.dancers[this.dancers.length - 2] = robin;
-            this.dancers[this.dancers.length - 1] = lark;
+            // in improper dances, rotate the couple; either way, make them a "2"
+            if (this.isImproper()) {
+                this.dancers[this.dancers.length - 2] = robin;
+                this.dancers[this.dancers.length - 1] = lark;
+            }
             lark.couple.coupleNumber = 2;
         } else {
             // activate the last couple
