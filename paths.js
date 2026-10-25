@@ -187,6 +187,27 @@ export function createOutAndBackPath(start, turn, beats, waypointCount = 17) {
 }
 
 /**
+ * Create a path along a Bezier curve, at constant speed
+ * @param {Position[]} controlPoints - Start, control points and end (any number, at least 2)
+ * @param {number} beats - Duration in beats
+ * @param {number} waypointCount - Number of waypoints (default 17)
+ * @returns {Path}
+ */
+export function createBezierPath(controlPoints, beats, waypointCount = 17) {
+    const waypoints = [];
+    for (let i = 0; i < waypointCount; i++) {
+        const t = i / (waypointCount - 1);
+        // de Casteljau: repeatedly interpolate between neighboring points
+        let points = controlPoints;
+        while (points.length > 1) {
+            points = points.slice(1).map((point, j) => lerp(points[j], point, t));
+        }
+        waypoints.push(points[0]);
+    }
+    return new Path(waypoints, beats);
+}
+
+/**
  * Create a simple straight-line path between two positions
  * @param {Position} start - Starting position
  * @param {Position} end - Ending position

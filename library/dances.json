@@ -89,7 +89,8 @@
                     {
                         "type": "down the outside",
                         "beats": 8,
-                        "who": "ones"
+                        "who": "ones",
+                        "progression": true
                     },
                     {
                         "type": "up the outside",
@@ -120,8 +121,7 @@
                     {
                         "type": "cast off",
                         "beats": 4,
-                        "who": "ones",
-                        "progression": true
+                        "who": "ones"
                     }
                 ]
             },
@@ -170,7 +170,8 @@
                     {
                         "type": "circle left 4 places",
                         "beats": 8,
-                        "who": "all"
+                        "who": "all",
+                        "progression": true
                     },
                     {
                         "type": "circle right 4 places",
@@ -217,8 +218,7 @@
                     {
                         "type": "cast off",
                         "beats": 4,
-                        "who": "ones",
-                        "progression": true
+                        "who": "ones"
                     }
                 ]
             },
@@ -258,7 +258,8 @@
                     {
                         "type": "balance",
                         "beats": 4,
-                        "who": "neighbor"
+                        "who": "neighbor",
+                        "progression": true
                     },
                     {
                         "type": "swing",
@@ -305,8 +306,7 @@
                     {
                         "type": "cast off",
                         "beats": 4,
-                        "who": "ones",
-                        "progression": true
+                        "who": "ones"
                     }
                 ]
             },

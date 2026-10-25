@@ -3,6 +3,17 @@
 
 import { Position } from './positions.js';
 
+// Layout of the set on the SVG canvas, in pixels
+const SVG_WIDTH = 800;
+const SVG_HEIGHT = 900;
+const STAGE_HEIGHT = 100;
+const START_X = 270;
+const HORIZONTAL_SPACING = 160;
+const VERTICAL_SPACING = 120;
+const DANCER_RADIUS = 20;
+// A couple going down or up the center walks this far either side of the middle
+const CENTER_LANE_OFFSET_PX = 30;
+
 const COLOR_PALETTE = [
     '#1b9e77',
     '#d95f02',
@@ -63,6 +74,10 @@ export class Set {
         this.formation = formation;
         this.dancers = [];
         this.snapshots = [];
+        // How far (normalized) each dancer who isn't standing in their place is from it
+        this.offsets = new Map();
+        // Whether any move has been danced since the dancers lined up
+        this.started = false;
         this.dancerMap = new Map(); // Map from dancer id to dancer object
         let dancerNumber = 1;
 
@@ -179,6 +194,107 @@ export class Set {
 
     balance() {
         this.snapshot();
+    }
+
+    /**
+     * The index of the first place of each complete minor set
+     * @returns {number[]}
+     */
+    minorSetStarts() {
+        const starts = [];
+        for (let i = this.dancers[0].active ? 0 : 2; i + 4 <= this.dancers.length; i += 4) {
+            starts.push(i);
+        }
+        return starts;
+    }
+
+    /**
+     * The places of the active dancers in complete minor sets who are in the given
+     * couple ('ones' or 'twos')
+     * @param {string} who
+     * @returns {number[]} Indexes into this.dancers
+     */
+    placesOf(who) {
+        const coupleNumber = { ones: 1, twos: 2 }[who];
+        if (!coupleNumber) {
+            throw new Error('Invalid couple: ' + who);
+        }
+        return this.minorSetStarts()
+            .flatMap(i => [i, i + 1, i + 2, i + 3])
+            .filter(index => {
+                const dancer = this.dancers[index];
+                return dancer.active && dancer.couple.coupleNumber === coupleNumber;
+            });
+    }
+
+    /**
+     * The couple goes down (or, for a negative distance, up) the center of the set,
+     * each walking on their own side of the middle
+     * @param {string} who - 'ones' or 'twos'
+     * @param {number} distancePx - How far down the hall to go, in pixels
+     */
+    downTheCenter(who, distancePx) {
+        this.snapshot();
+        const places = this.getPlacePositions();
+        for (const index of this.placesOf(who)) {
+            const dancer = this.dancers[index];
+            const middle = START_X + HORIZONTAL_SPACING / 2;
+            const laneX = (middle + (index % 2 === 0 ? -1 : 1) * CENTER_LANE_OFFSET_PX) / SVG_WIDTH * 100;
+            const offset = this.getOffset(dancer);
+            this.offsets.set(dancer.id, {
+                x: laneX - places[index].x,
+                y: offset.y + distancePx / SVG_HEIGHT * 100
+            });
+        }
+    }
+
+    /**
+     * The couple comes back up the center of the set
+     * @param {string} who - 'ones' or 'twos'
+     * @param {number} distancePx - How far up the hall to come, in pixels
+     */
+    upTheCenter(who, distancePx) {
+        this.downTheCenter(who, -distancePx);
+    }
+
+    /**
+     * Each of the couple casts off around the dancer on their side of the minor set,
+     * ending in the line below them (the other dancer moving up if need be)
+     * @param {string} who - 'ones' or 'twos'
+     */
+    castOff(who) {
+        this.snapshot();
+        const casting = this.placesOf(who);
+        for (const i of this.minorSetStarts()) {
+            for (const column of [0, 1]) {
+                const upper = i + column;
+                const lower = i + 2 + column;
+                const castingIndex = [upper, lower].find(index => casting.includes(index));
+                if (castingIndex === undefined) continue;
+                const caster = this.dancers[castingIndex];
+                const pivot = this.dancers[castingIndex === upper ? lower : upper];
+                this.dancers[lower] = caster;
+                this.dancers[upper] = pivot;
+                this.offsets.delete(caster.id);
+                this.offsets.delete(pivot.id);
+            }
+        }
+    }
+
+    /**
+     * How far a dancer is from their place (zero when they're in it)
+     * @param {Dancer} dancer
+     * @returns {{x: number, y: number}} Normalized offset
+     */
+    getOffset(dancer) {
+        return this.offsets.get(dancer.id) || { x: 0, y: 0 };
+    }
+
+    /**
+     * Put everyone back in their places
+     */
+    clearOffsets() {
+        this.offsets.clear();
     }
 
     swing(kind) {
@@ -354,7 +470,9 @@ export class Set {
     snapshot() {
         const snapshot = {
             dancerIds: this.dancers.map(d => d.id),
-            dancerStates: new Map()
+            dancerStates: new Map(),
+            offsets: new Map([...this.offsets].map(([id, offset]) => [id, { ...offset }])),
+            started: this.started
         };
 
         // Store active state and couple number for each dancer
@@ -381,6 +499,8 @@ export class Set {
 
         // Restore the dancers array order using the dancerMap
         this.dancers = snapshot.dancerIds.map(id => this.dancerMap.get(id));
+        this.offsets = snapshot.offsets;
+        this.started = snapshot.started;
 
         // Restore active state and couple numbers
         snapshot.dancerStates.forEach((state, id) => {
@@ -403,8 +523,22 @@ export class Set {
     }
 
     /**
-     * Get normalized positions (0-100 range) for all dancers based on their current
-     * array positions. This maps the current layout to a coordinate system that can
+     * Get normalized positions (0-100 range) for all dancers: their places, moved by
+     * any offsets of dancers who aren't standing in their places.
+     *
+     * @returns {import('./positions.js').Position[]} Array of Position objects
+     */
+    getPositions() {
+        const places = this.getPlacePositions();
+        return this.dancers.map((dancer, index) => {
+            const offset = this.getOffset(dancer);
+            return new Position(places[index].x + offset.x, places[index].y + offset.y);
+        });
+    }
+
+    /**
+     * Get normalized positions (0-100 range) of the places in the set, in the order
+     * of this.dancers. This maps the current layout to a coordinate system that can
      * be used for animation.
      *
      * Layout: 2 columns, rows centered vertically in dance floor
@@ -414,35 +548,23 @@ export class Set {
      *
      * @returns {import('./positions.js').Position[]} Array of Position objects
      */
-    getPositions() {
-        // SVG dimensions for reference
-        const svgWidth = 800;
-        const svgHeight = 900;
-        const stageHeight = 100;
-        const danceFloorHeight = svgHeight - stageHeight;
-
-        // Layout parameters (in pixels)
-        const startX = 270;
-        const horizontalSpacing = 160;
-        const verticalSpacing = 120;
-        const dancerRadius = 20;
-
+    getPlacePositions() {
+        const danceFloorHeight = SVG_HEIGHT - STAGE_HEIGHT;
         const numRows = Math.ceil(this.dancers.length / 2);
-        const totalDancerHeight = (numRows - 1) * verticalSpacing + 2 * dancerRadius;
-        const startY = stageHeight + (danceFloorHeight - totalDancerHeight) / 2 + dancerRadius;
+        const totalDancerHeight = (numRows - 1) * VERTICAL_SPACING + 2 * DANCER_RADIUS;
+        const startY = STAGE_HEIGHT + (danceFloorHeight - totalDancerHeight) / 2 + DANCER_RADIUS;
 
-        // Convert each dancer position to normalized coordinates
+        // Convert each place to normalized coordinates
         return this.dancers.map((dancer, index) => {
             const col = index % 2;
             const row = Math.floor(index / 2);
 
-            const xPixels = startX + col * horizontalSpacing;
-            const yPixels = startY + row * verticalSpacing;
+            const xPixels = START_X + col * HORIZONTAL_SPACING;
+            const yPixels = startY + row * VERTICAL_SPACING;
 
-            // Convert to normalized 0-100 coordinates
             return new Position(
-                (xPixels / svgWidth) * 100,
-                (yPixels / svgHeight) * 100
+                (xPixels / SVG_WIDTH) * 100,
+                (yPixels / SVG_HEIGHT) * 100
             );
         });
     }

@@ -1064,6 +1064,7 @@ test('an unsupported move should leave every dancer where they are', () => {
 
 test('an unsupported move should still progress when it is the progression', () => {
     const set = new Set(6);
+    executeMove(set, { type: 'balance', beats: 4 });
     executeMove(set, { type: 'half hey', who: 'all', beats: 8, progression: true });
     assert(!set.dancers[0].active, 'top couple should wait out after progressing');
 });
@@ -1082,4 +1083,143 @@ test('the path cache key should depend on the formation', () => {
     // Same dancers in the same places, but only the improper set can swing
     proper.dancers = improper.dancers.map(d => proper.dancerMap.get(d.id));
     assert.notEqual(pathCacheKey(move, improper), pathCacheKey(move, proper));
+});
+
+test('a progression should not happen before the dance has started', () => {
+    const set = new Set(6);
+    const move = { type: 'balance', who: 'neighbor', beats: 4, progression: true };
+    executeMove(set, move);
+    assert(set.dancers.every(d => d.active), 'nobody should wait out the first time through');
+    executeMove(set, move);
+    assert(!set.dancers[0].active, 'the top couple should wait out once the dance has started');
+});
+
+test('every move should record exactly one undo snapshot', () => {
+    const set = new Set(6);
+    executeMove(set, { type: 'balance', beats: 4 });
+    const moves = [
+        { type: 'do-si-do', who: 'new neighbor', beats: 8, progression: true },
+        { type: 'half hey', who: 'all', beats: 8 },
+        { type: 'down the center', who: 'ones', beats: 4 },
+        { type: 'swing', who: 'neighbor', beats: 12 }
+    ];
+    for (const move of moves) {
+        const before = { ids: set.dancers.map(d => d.id), active: set.dancers.map(d => d.active),
+            positions: set.getPositions() };
+        const depth = set.snapshots.length;
+        executeMove(set, move);
+        assert.equal(set.snapshots.length, depth + 1, `${move.type} should take one snapshot`);
+        set.undo();
+        assert.deepEqual(set.dancers.map(d => d.id), before.ids, `undoing ${move.type} should restore places`);
+        assert.deepEqual(set.dancers.map(d => d.active), before.active, `undoing ${move.type} should restore active`);
+        assert.deepEqual(set.getPositions(), before.positions, `undoing ${move.type} should restore positions`);
+        executeMove(set, move);
+    }
+});
+
+// Down the center, turn alone, come back and cast off
+
+/** A proper set with the ones at the top of each minor set */
+function properSet() {
+    return new Set(6, 'proper');
+}
+
+const ONES_DOWN = { type: 'down the center', who: 'ones', beats: 4 };
+const ONES_TURN = { type: 'turn alone', who: 'ones', beats: 4 };
+const ONES_UP = { type: 'up the center', who: 'ones', beats: 4 };
+const ONES_CAST = { type: 'cast off', who: 'ones', beats: 4 };
+
+test('going down the center should take the ones into the middle and down the hall', () => {
+    const set = properSet();
+    const before = set.getPositions();
+    executeMove(set, ONES_DOWN);
+    const after = set.getPositions();
+    set.dancers.forEach((dancer, index) => {
+        if (dancer.couple.coupleNumber === 1) {
+            assert(after[index].y > before[index].y + 10, `${dancer.getLabel()} should go down`);
+            assert(Math.abs(after[index].x - 43.75) < 5, `${dancer.getLabel()} should be near the middle`);
+        } else {
+            assert(after[index].equals(before[index]), `${dancer.getLabel()} should stay put`);
+        }
+    });
+    // Each walks on their own side of the middle
+    assert(after[0].x < 43.75 && after[1].x > 43.75);
+});
+
+test('coming back up the center should return the ones to where they turned', () => {
+    const set = properSet();
+    executeMove(set, ONES_DOWN);
+    const down = set.getPositions();
+    executeMove(set, ONES_TURN);
+    assert.deepEqual(set.getPositions(), down, 'turning alone should not move anyone');
+    executeMove(set, ONES_UP);
+    const up = set.getPositions();
+    set.dancers.forEach((dancer, index) => {
+        if (dancer.couple.coupleNumber === 1) {
+            assert(up[index].y < down[index].y - 10, `${dancer.getLabel()} should come back up`);
+        }
+    });
+});
+
+test('casting off should put the ones in the lines below the twos', () => {
+    const set = properSet();
+    const before = set.dancers.map(d => d.getLabel());
+    for (const move of [ONES_DOWN, ONES_TURN, ONES_UP, ONES_CAST]) {
+        executeMove(set, move);
+    }
+    assert.deepEqual(before.slice(0, 4), ['L1', 'R1', 'L2', 'R2']);
+    assert.deepEqual(set.dancers.map(d => d.getLabel()).slice(0, 4), ['L2', 'R2', 'L1', 'R1']);
+    assert.equal(set.offsets.size, 0, 'everyone should be back in places');
+});
+
+test('casting off from below the twos should leave the twos in place', () => {
+    const set = new Set(6);
+    executeMove(set, { type: 'swing', who: 'neighbor', beats: 12 }); // ones end below
+    const before = set.dancers.map(d => d.id);
+    executeMove(set, ONES_CAST);
+    assert.deepEqual(set.dancers.map(d => d.id), before);
+});
+
+test('down the center, turn alone, up the center and cast off paths should not collide', () => {
+    for (const set of [properSet(), new Set(6)]) {
+        for (const move of [ONES_DOWN, ONES_TURN, ONES_UP, ONES_CAST]) {
+            const paths = calculateMovePaths(move, set);
+            assert(hasNoOverlaps(paths, 5.0), `${set.formation} ${move.type} should have no overlaps`);
+            assert(allWaypointsInBounds(paths), `${set.formation} ${move.type} should stay in bounds`);
+            executeMove(set, move);
+        }
+    }
+});
+
+test('paths for the ones\' figures should start and end where the set says', () => {
+    const set = properSet();
+    for (const move of [ONES_DOWN, ONES_TURN, ONES_UP, ONES_CAST]) {
+        const start = set.getPositions();
+        const paths = calculateMovePaths(move, set);
+        const ids = set.dancers.map(d => d.id);
+        executeMove(set, move);
+        const end = new Map(set.dancers.map((d, i) => [d.id, set.getPositions()[i]]));
+        ids.forEach((id, index) => {
+            assert(paths.get(id).start.equals(start[index]), `${move.type}: ${id} start`);
+            assert(paths.get(id).end.equals(end.get(id)), `${move.type}: ${id} end`);
+        });
+    }
+});
+
+test('turning alone should loop on the spot', () => {
+    const set = properSet();
+    executeMove(set, ONES_DOWN);
+    const paths = calculateMovePaths(ONES_TURN, set);
+    const one = paths.get(set.dancers[0].id);
+    assert(one.start.equals(one.end));
+    assert(one.getWaypoints().some(p => distance(p, one.start) > 1), 'should move during the turn');
+    const two = paths.get(set.dancers[2].id);
+    assert(two.getWaypoints().every(p => p.equals(two.start)), 'twos should stand still');
+});
+
+test('the path cache key should depend on where dancers are off their places', () => {
+    const set = properSet();
+    const key = pathCacheKey(ONES_TURN, set);
+    executeMove(set, ONES_DOWN);
+    assert.notEqual(pathCacheKey(ONES_TURN, set), key);
 });

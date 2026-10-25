@@ -2,7 +2,7 @@
 // Computes paths for each dancer during a move
 
 import { Position, center, distance, toPixels, fromPixels } from './positions.js';
-import { Path, createStraightPath, createStationaryPath, createArcPath, createOutAndBackPath } from './paths.js';
+import { Path, createStraightPath, createStationaryPath, createArcPath, createOutAndBackPath, createBezierPath } from './paths.js';
 
 // SVG layout constants (must match dancers.js getPositions)
 const SVG_WIDTH = 800;
@@ -11,6 +11,18 @@ const STAGE_HEIGHT = 100;
 const DANCER_RADIUS_PX = 20;
 const VERTICAL_SPACING_PX = 120;
 const COLUMN_MIDPOINT_PX = 350;
+
+// How far down the hall a couple goes down the center
+const DOWN_THE_CENTER_PX = 120;
+// Size of the little loop a dancer turning alone makes
+const TURN_ALONE_RADIUS_PX = 8;
+// How far outside the line a dancer casting off goes, and how far in the dancer
+// they cast around steps to let them by
+const CAST_OFF_OUTSIDE_PX = 35;
+const CAST_OFF_PIVOT_INSIDE_PX = 25;
+
+// Figures for one couple ('ones' or 'twos') to dance, in either formation
+const COUPLE_FIGURES = ['down the center', 'up the center', 'turn alone', 'cast off'];
 
 // "who" values that mean each dancer's neighbor (moves that don't say mean neighbors)
 const NEIGHBOR_WHO = [undefined, null, 'neighbor', 'neighbors', 'new neighbor'];
@@ -30,6 +42,7 @@ export function isMoveSupported(move, dancerSet) {
     // Rotations and long lines don't depend on who is where
     if (/(circle|star) (left|right) \d+/.test(type)) return true;
     if (type.includes('long lines')) return true;
+    if (COUPLE_FIGURES.includes(type)) return who === 'ones' || who === 'twos';
 
     // Everything else is worked out for improper minor sets only
     if (!dancerSet.isImproper()) return false;
@@ -48,7 +61,7 @@ export function isMoveSupported(move, dancerSet) {
  * @returns {Map<string, import('./paths.js').Path>} Map from dancer ID to Path
  */
 export function calculateMovePaths(move, dancerSet) {
-    if (move.progression) {
+    if (progresses(move, dancerSet)) {
         // Progression happens at the start of the move: compute the figure from the
         // progressed set, then have the couples crossing over at the ends of the set
         // travel there during the move instead of jumping.
@@ -103,6 +116,12 @@ export function calculateMovePaths(move, dancerSet) {
     } else if (type === 'do-si-do' || type === 'dosido') {
         // Neighbor pairs trace a wide counter-clockwise circle around their shared center
         createDoSiDoPaths(dancerSet, startPosById, paths, beats);
+    } else if (type === 'down the center' || type === 'up the center') {
+        createCenterTravelPaths(dancerSet, startPosById, endPosById, paths, beats);
+    } else if (type === 'turn alone') {
+        createTurnAlonePaths(dancerSet, dancerSet.placesOf(move.who), startPosById, paths, beats);
+    } else if (type === 'cast off') {
+        createCastOffPaths(dancerSet, dancerSet.placesOf(move.who), startPosById, endPosById, paths, beats);
     } else {
         // For any other move, create straight paths
         dancerSet.dancers.forEach(dancer => {
@@ -384,6 +403,102 @@ function createEllipticalPath(start, centerPos, places, beats, isClockwise) {
         waypoints.push(new Position(centerPos.x + a * Math.cos(angle), centerPos.y + b * Math.sin(angle)));
     }
     return new Path(waypoints, beats);
+}
+
+/**
+ * Create paths for a couple going down or coming up the center: they move across
+ * into the middle of the set first (if they aren't there already), then along it.
+ * @param {import('./dancers.js').Set} dancerSet
+ * @param {Map<string, Position>} startPosById
+ * @param {Map<string, Position>} endPosById
+ * @param {Map<string, import('./paths.js').Path>} paths
+ * @param {number} beats
+ */
+function createCenterTravelPaths(dancerSet, startPosById, endPosById, paths, beats) {
+    dancerSet.dancers.forEach(dancer => {
+        const start = startPosById.get(dancer.id);
+        const end = endPosById.get(dancer.id);
+        if (start.equals(end, 0.01)) {
+            paths.set(dancer.id, createStationaryPath(start, beats));
+        } else {
+            paths.set(dancer.id, createBezierPath([
+                start,
+                new Position(end.x, start.y),
+                new Position(end.x, (start.y + end.y) / 2),
+                end
+            ], beats));
+        }
+    });
+}
+
+/**
+ * Create paths for dancers turning alone: each makes a little loop on the spot,
+ * around towards the middle of the set, and back to where they were.
+ * @param {import('./dancers.js').Set} dancerSet
+ * @param {number[]} turning - Places of the dancers turning alone
+ * @param {Map<string, Position>} startPosById
+ * @param {Map<string, import('./paths.js').Path>} paths
+ * @param {number} beats
+ */
+function createTurnAlonePaths(dancerSet, turning, startPosById, paths, beats) {
+    const rx = TURN_ALONE_RADIUS_PX / SVG_WIDTH * 100;
+    const ry = TURN_ALONE_RADIUS_PX / SVG_HEIGHT * 100;
+    const middleX = COLUMN_MIDPOINT_PX / SVG_WIDTH * 100;
+
+    dancerSet.dancers.forEach((dancer, index) => {
+        const start = startPosById.get(dancer.id);
+        if (!turning.includes(index)) {
+            paths.set(dancer.id, createStationaryPath(start, beats));
+            return;
+        }
+        // The loop is down the hall from the dancer (there's no room either side), and
+        // they turn in towards their partner first
+        const inward = start.x < middleX ? 1 : -1;
+        const loopCenter = new Position(start.x, start.y + ry);
+        const waypoints = [];
+        const count = 16;
+        for (let i = 0; i <= count; i++) {
+            const angle = -Math.PI / 2 + inward * 2 * Math.PI * i / count;
+            waypoints.push(new Position(loopCenter.x + rx * Math.cos(angle), loopCenter.y + ry * Math.sin(angle)));
+        }
+        waypoints[count] = start.clone();
+        paths.set(dancer.id, new Path(waypoints, beats));
+    });
+}
+
+/**
+ * Create cast off paths: each dancer casting off turns out and goes around the
+ * outside of the line, ending in the line below the dancer on their side, who steps
+ * up on the inside if they need to move up.
+ * @param {import('./dancers.js').Set} dancerSet
+ * @param {number[]} casting - Places of the dancers casting off
+ * @param {Map<string, Position>} startPosById
+ * @param {Map<string, Position>} endPosById
+ * @param {Map<string, import('./paths.js').Path>} paths
+ * @param {number} beats
+ */
+function createCastOffPaths(dancerSet, casting, startPosById, endPosById, paths, beats) {
+    const castingIds = casting.map(index => dancerSet.dancers[index].id);
+    const middleX = COLUMN_MIDPOINT_PX / SVG_WIDTH * 100;
+
+    dancerSet.dancers.forEach(dancer => {
+        const start = startPosById.get(dancer.id);
+        const end = endPosById.get(dancer.id);
+        if (start.equals(end, 0.01)) {
+            paths.set(dancer.id, createStationaryPath(start, beats));
+            return;
+        }
+        // Halfway, casters are outside the line and the dancers they go around inside it
+        const outward = end.x < middleX ? -1 : 1;
+        const sidewaysPx = castingIds.includes(dancer.id) ? CAST_OFF_OUTSIDE_PX : -CAST_OFF_PIVOT_INSIDE_PX;
+        const halfway = new Position(end.x + outward * sidewaysPx / SVG_WIDTH * 100, (start.y + end.y) / 2);
+        // Quadratic control point that puts the curve through the halfway point
+        const control = new Position(
+            2 * halfway.x - (start.x + end.x) / 2,
+            2 * halfway.y - (start.y + end.y) / 2
+        );
+        paths.set(dancer.id, createBezierPath([start, control, end], beats));
+    });
 }
 
 /**
@@ -1012,10 +1127,14 @@ export function pathCacheKey(move, dancerSet) {
     // alone aren't enough: places are fixed, so every arrangement of dancers has the
     // same positions, and paths are keyed by dancer ID.
     const dancerKey = dancerSet.dancers
-        .map(d => `${d.id}${d.active ? '' : '*'}`)
+        .map(d => {
+            const offset = dancerSet.offsets.get(d.id);
+            const offsetKey = offset ? `@${offset.x.toFixed(3)},${offset.y.toFixed(3)}` : '';
+            return `${d.id}${d.active ? '' : '*'}${offsetKey}`;
+        })
         .join(',');
 
-    return `${moveKey}::${dancerKey}`;
+    return `${moveKey}::${dancerKey}${dancerSet.started ? '' : '::unstarted'}`;
 }
 
 /**
@@ -1083,22 +1202,71 @@ function addCrossOverPaths(paths, preProgressPosById, postProgressPosById) {
 }
 
 /**
- * Execute a move on the set (each move records its own undo snapshot)
+ * Whether the progression marked on a move happens. A progression on the first move
+ * of the dance doesn't happen the first time through: the dancers line up facing
+ * their first neighbors.
+ * @param {Object} move
+ * @param {import('./dancers.js').Set} dancerSet - The set the move starts from
+ * @returns {boolean}
+ */
+function progresses(move, dancerSet) {
+    return Boolean(move.progression) && dancerSet.started;
+}
+
+/**
+ * Execute a move on the set, recording exactly one undo snapshot: the set as it was
+ * before the move
  * @param {import('./dancers.js').Set} dancerSet
  * @param {Object} move
  */
 export function executeMove(dancerSet, move) {
+    const depth = dancerSet.snapshots.length;
+    dancerSet.snapshot();
+    executeMoveSteps(dancerSet, move);
+    dancerSet.started = true;
+    // Drop the snapshots the steps took along the way
+    dancerSet.snapshots.length = depth + 1;
+}
+
+/**
+ * Make the changes a move makes to the set
+ * @param {import('./dancers.js').Set} dancerSet
+ * @param {Object} move
+ */
+function executeMoveSteps(dancerSet, move) {
     const type = move.type.toLowerCase();
 
     // Handle progression at the START of the move
-    if (move.progression) {
+    if (progresses(move, dancerSet)) {
         dancerSet.progress();
     }
 
     // Parse and execute the move
     if (!isMoveSupported(move, dancerSet)) {
         // Not modeled yet: the dancers stay where they are
-    } else if (type.includes('circle left')) {
+    } else if (type === 'down the center') {
+        dancerSet.downTheCenter(move.who, DOWN_THE_CENTER_PX);
+    } else if (type === 'up the center') {
+        dancerSet.upTheCenter(move.who, DOWN_THE_CENTER_PX);
+    } else if (type === 'turn alone') {
+        // Everyone ends where they started
+    } else if (type === 'cast off') {
+        dancerSet.castOff(move.who);
+    } else {
+        // The rest of the figures end with everyone in their places
+        dancerSet.clearOffsets();
+        executePlaceFigure(dancerSet, move, type);
+    }
+}
+
+/**
+ * Execute a figure that ends with everyone standing in places
+ * @param {import('./dancers.js').Set} dancerSet
+ * @param {Object} move
+ * @param {string} type - The move type, in lowercase
+ */
+function executePlaceFigure(dancerSet, move, type) {
+    if (type.includes('circle left')) {
         const match = type.match(/circle left (\d+)/);
         if (match) {
             dancerSet.circleLeft(parseInt(match[1]));
