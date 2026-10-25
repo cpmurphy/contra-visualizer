@@ -1,6 +1,72 @@
 // Animation timing system for dance moves
 // Handles beat-based timing at a fixed tempo
 
+import { Position } from './positions.js';
+
+/**
+ * Longest stretch (in beats, on each side of a move boundary) over which one move
+ * is blended into the next
+ */
+export const MAX_BLEND_BEATS = 1;
+
+/**
+ * Half-width in beats of the blend window around the boundary between two moves.
+ * Capped at a quarter of either move so short moves keep their shape.
+ * @param {number} beatsBefore - Duration of the earlier move
+ * @param {number} beatsAfter - Duration of the later move
+ * @returns {number}
+ */
+export function blendHalfWidth(beatsBefore, beatsAfter) {
+    return Math.min(MAX_BLEND_BEATS, beatsBefore / 4, beatsAfter / 4);
+}
+
+/**
+ * Cubic Hermite curve between two positions with given velocities
+ * @param {import('./positions.js').Position} p0 - Start position
+ * @param {{x: number, y: number}} v0 - Velocity at start (units per beat)
+ * @param {import('./positions.js').Position} p1 - End position
+ * @param {{x: number, y: number}} v1 - Velocity at end (units per beat)
+ * @param {number} durationBeats - Time to get from p0 to p1
+ * @param {number} u - Progress through the curve, clamped to [0, 1]
+ * @returns {import('./positions.js').Position}
+ */
+function hermite(p0, v0, p1, v1, durationBeats, u) {
+    u = Math.max(0, Math.min(1, u));
+    const u2 = u * u;
+    const u3 = u2 * u;
+    const h00 = 2 * u3 - 3 * u2 + 1;
+    const h10 = (u3 - 2 * u2 + u) * durationBeats;
+    const h01 = -2 * u3 + 3 * u2;
+    const h11 = (u3 - u2) * durationBeats;
+    return new Position(
+        h00 * p0.x + h10 * v0.x + h01 * p1.x + h11 * v1.x,
+        h00 * p0.y + h10 * v0.y + h01 * p1.y + h11 * v1.y
+    );
+}
+
+/**
+ * Position within the blend window around the boundary between two moves.
+ * The window runs from halfWidth beats before the end of the earlier path to
+ * halfWidth beats into the later one; a Hermite curve joins the two, matching
+ * position and velocity at both edges so motion never jumps or jerks.
+ * @param {import('./paths.js').Path} before - Path of the earlier move
+ * @param {import('./paths.js').Path} after - Path of the later move
+ * @param {number} beatFromBoundary - Time relative to the boundary (negative = before)
+ * @returns {import('./positions.js').Position}
+ */
+function blendAcrossBoundary(before, after, beatFromBoundary) {
+    const halfWidth = blendHalfWidth(before.beats, after.beats);
+    const windowStart = before.beats - halfWidth;
+    return hermite(
+        before.getPositionAtBeat(windowStart),
+        before.getVelocityAtBeat(windowStart),
+        after.getPositionAtBeat(halfWidth),
+        after.getVelocityAtBeat(halfWidth),
+        2 * halfWidth,
+        (beatFromBoundary + halfWidth) / (2 * halfWidth)
+    );
+}
+
 /**
  * Animator class for managing animation timing
  */
@@ -124,8 +190,12 @@ export class AnimationState {
      * Create a new AnimationState
      * @param {Map<string, import('./paths.js').Path>} paths - Map from dancer ID to path
      * @param {Animator} animator - Animator instance for timing
+     * @param {Object} [neighbors] - Paths of the adjacent moves, used to blend smoothly
+     *   across move boundaries instead of changing direction abruptly
+     * @param {Map<string, import('./paths.js').Path>|null} [neighbors.previous] - Move just finished
+     * @param {Map<string, import('./paths.js').Path>|null} [neighbors.next] - Move coming up
      */
-    constructor(paths, animator) {
+    constructor(paths, animator, { previous = null, next = null } = {}) {
         if (!paths || paths.size === 0) {
             throw new Error('Must provide at least one path');
         }
@@ -135,6 +205,8 @@ export class AnimationState {
 
         this.paths = paths;
         this.animator = animator;
+        this.previousPaths = previous;
+        this.nextPaths = next;
         this.startTime = null;
         this.pausedTime = null;
         this.totalPausedDuration = 0;
@@ -198,15 +270,59 @@ export class AnimationState {
      * @returns {Map<string, import('./positions.js').Position>} Map from dancer ID to current position
      */
     getCurrentPositions(timestamp) {
-        const elapsedMs = this.getElapsedTime(timestamp);
+        const beat = this.animator.msToBeats(this.getElapsedTime(timestamp));
         const positions = new Map();
 
         this.paths.forEach((path, dancerId) => {
-            const position = this.animator.getPositionAtTime(path, elapsedMs);
-            positions.set(dancerId, position);
+            positions.set(dancerId, this.getBlendedPosition(dancerId, path, beat));
         });
 
         return positions;
+    }
+
+    /**
+     * Position of one dancer, blending into the adjacent move near each boundary
+     * @param {string} dancerId
+     * @param {import('./paths.js').Path} path - This dancer's path for the current move
+     * @param {number} beat - Beats elapsed in the current move
+     * @returns {import('./positions.js').Position}
+     */
+    getBlendedPosition(dancerId, path, beat) {
+        const previousPath = this.previousPaths?.get(dancerId);
+        if (previousPath && beat < blendHalfWidth(previousPath.beats, path.beats)) {
+            return blendAcrossBoundary(previousPath, path, beat);
+        }
+
+        const nextPath = this.nextPaths?.get(dancerId);
+        if (nextPath && beat > path.beats - blendHalfWidth(path.beats, nextPath.beats)) {
+            return blendAcrossBoundary(path, nextPath, beat - path.beats);
+        }
+
+        return path.getPositionAtBeat(beat);
+    }
+
+    /**
+     * Timestamp at which the animation completes (assuming it isn't paused again).
+     * Starting the next move at exactly this time keeps playback continuous.
+     * @returns {number}
+     */
+    getCompletionTime() {
+        if (this.startTime === null) {
+            throw new Error('Animation not started');
+        }
+        return this.startTime + this.totalPausedDuration + this.animator.beatsToMs(this.getDurationBeats());
+    }
+
+    /**
+     * Duration of the longest path in beats
+     * @returns {number}
+     */
+    getDurationBeats() {
+        let maxBeats = 0;
+        this.paths.forEach(path => {
+            maxBeats = Math.max(maxBeats, path.beats);
+        });
+        return maxBeats;
     }
 
     /**
@@ -217,14 +333,8 @@ export class AnimationState {
     isComplete(timestamp) {
         const elapsedMs = this.getElapsedTime(timestamp);
 
-        // Animation is complete when all paths are complete
-        // Find the longest path
-        let maxBeats = 0;
-        this.paths.forEach(path => {
-            maxBeats = Math.max(maxBeats, path.beats);
-        });
-
-        return this.animator.isComplete(elapsedMs, maxBeats);
+        // Animation is complete when the longest path is complete
+        return this.animator.isComplete(elapsedMs, this.getDurationBeats());
     }
 
     /**

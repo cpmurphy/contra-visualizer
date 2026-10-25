@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Position, toPixels, fromPixels, isInBounds, distance, lerp, center } from '../positions.js';
-import { Path, createStraightPath, createStationaryPath, createArcPath } from '../paths.js';
+import { Path, createStraightPath, createStationaryPath, createArcPath, createOutAndBackPath } from '../paths.js';
 
 // Position class tests
 
@@ -358,4 +358,66 @@ test('createArcPath maintains radius throughout', () => {
         const dist = distance(waypoint, center);
         assert(Math.abs(dist - radius) < 0.5, `Distance ${dist} should be close to ${radius}`);
     });
+});
+
+// Path timing tests
+
+test('Path moves at constant speed across segments of different lengths', () => {
+    // First segment is 10 long, second is 30 long
+    const path = new Path([new Position(0, 0), new Position(10, 0), new Position(40, 0)], 8);
+
+    assert(path.getPositionAt(0.25).equals(new Position(10, 0), 0.01));
+    assert(path.getPositionAt(0.5).equals(new Position(20, 0), 0.01));
+});
+
+test('Path follows explicit waypoint times', () => {
+    const path = new Path([new Position(0, 0), new Position(10, 0), new Position(40, 0)], 8, [0, 0.5, 1]);
+
+    assert(path.getPositionAt(0.5).equals(new Position(10, 0), 0.01));
+    assert(path.getPositionAt(0.75).equals(new Position(25, 0), 0.01));
+});
+
+test('Path rejects invalid times', () => {
+    const waypoints = [new Position(0, 0), new Position(10, 0), new Position(40, 0)];
+    assert.throws(() => new Path(waypoints, 8, [0, 1]), /match waypoint count/);
+    assert.throws(() => new Path(waypoints, 8, [0.1, 0.5, 1]), /start at 0 and end at 1/);
+    assert.throws(() => new Path(waypoints, 8, [0, 1.2, 1]), /non-decreasing/);
+});
+
+test('stationary Path stays put', () => {
+    const pos = new Position(30, 40);
+    const path = createStationaryPath(pos, 8);
+    assert(path.getPositionAt(0.5).equals(pos));
+    assert(path.getPositionAtBeat(10).equals(pos));
+    assert.deepStrictEqual(path.getVelocityAtBeat(4), { x: 0, y: 0 });
+});
+
+test('Path getPositionAtBeat and getVelocityAtBeat use beat time', () => {
+    // Two 10-unit legs over 4 beats: 5 units per beat throughout
+    const path = new Path([new Position(0, 0), new Position(10, 0), new Position(10, 10)], 4);
+
+    assert(path.getPositionAtBeat(1).equals(new Position(5, 0), 0.01));
+    assert(path.getPositionAtBeat(5).equals(new Position(10, 10), 0.01));
+    assert.deepStrictEqual(path.getVelocityAtBeat(1), { x: 5, y: 0 });
+    assert.deepStrictEqual(path.getVelocityAtBeat(3), { x: 0, y: 5 });
+    assert.deepStrictEqual(path.getVelocityAtBeat(4), { x: 0, y: 5 });
+});
+
+test('createOutAndBackPath reaches the turn point halfway and returns', () => {
+    const start = new Position(40, 50);
+    const turn = new Position(44, 50);
+    const path = createOutAndBackPath(start, turn, 8);
+
+    assert(path.start.equals(start));
+    assert(path.end.equals(start));
+    assert(path.getPositionAt(0.5).equals(turn, 0.01));
+});
+
+test('createOutAndBackPath eases in and out', () => {
+    const path = createOutAndBackPath(new Position(0, 0), new Position(10, 0), 8);
+
+    // Covers less ground in the first eighth than in the second eighth
+    const firstEighth = path.getPositionAt(0.125).x;
+    const secondEighth = path.getPositionAt(0.25).x - firstEighth;
+    assert(firstEighth < secondEighth);
 });

@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Set } from '../dancers.js';
-import { calculateMovePaths } from '../pathCalculator.js';
+import { calculateMovePaths, executeMove, withSetState } from '../pathCalculator.js';
 import { distance, isInBounds } from '../positions.js';
 
 // Helper to check if all waypoints are within bounds
@@ -119,18 +119,33 @@ test('long lines should approach center and retreat', () => {
     });
 });
 
-// Test do-si-do move (integer times)
-test('do-si-do once should create stationary paths', () => {
+// Test do-si-do move
+test('do-si-do should trace a full circle and return to start', () => {
     const set = new Set(4);
     const move = { type: 'do-si-do', beats: 8 };
 
     const paths = calculateMovePaths(move, set);
 
-    // All paths should be stationary (dancers return to start)
+    // All dancers should return to their starting position
     set.dancers.forEach(dancer => {
         const path = paths.get(dancer.id);
         assert(path.start.equals(path.end, 0.01),
-            `Dancer ${dancer.id} should return to start after do-si-do once`);
+            `Dancer ${dancer.id} should return to start after do-si-do`);
+    });
+
+    // Dancers should actually move (not stationary) - check midpoint differs from start
+    set.dancers.forEach(dancer => {
+        const path = paths.get(dancer.id);
+        const midPos = path.getPositionAt(0.5);
+        assert(!path.start.equals(midPos, 0.5),
+            `Dancer ${dancer.id} should move during do-si-do`);
+    });
+
+    // Should have more than 2 waypoints (circular path, not just start/end)
+    set.dancers.forEach(dancer => {
+        const path = paths.get(dancer.id);
+        assert(path.waypointCount > 2,
+            `Dancer ${dancer.id} should have circular path with multiple waypoints`);
     });
 });
 
@@ -196,7 +211,6 @@ test('paths should have no overlaps at any waypoint', () => {
     const moves = [
         { type: 'balance', beats: 4 },
         { type: 'long lines', beats: 8 },
-        { type: 'do-si-do', beats: 8 }
     ];
 
     moves.forEach(move => {
@@ -204,6 +218,15 @@ test('paths should have no overlaps at any waypoint', () => {
         assert(hasNoOverlaps(paths),
             `Paths for ${move.type} should have no overlaps`);
     });
+});
+
+// Test do-si-do overlaps (same threshold as swing, since it's a circular orbit)
+test('do-si-do paths should have no overlaps', () => {
+    const set = new Set(4);
+    const move = { type: 'do-si-do', beats: 8 };
+    const paths = calculateMovePaths(move, set);
+    assert(hasNoOverlaps(paths, 5.0),
+        'Do-si-do paths should have no overlaps');
 });
 
 // Test correct number of waypoints
@@ -785,4 +808,61 @@ test('chains should handle inactive dancers', () => {
                 `Inactive dancer ${dancer.id} should not move during chain`);
         }
     });
+});
+
+// ===== PROGRESSION AND SET STATE TESTS =====
+
+test('calculating paths for a progression move should not mutate the Set', () => {
+    const set = new Set(6);
+    const before = set.dancers.map(d => `${d.id}:${d.active}:${d.couple.coupleNumber}`);
+
+    calculateMovePaths({ type: 'do-si-do', beats: 8, progression: true }, set);
+
+    const after = set.dancers.map(d => `${d.id}:${d.active}:${d.couple.coupleNumber}`);
+    assert.deepStrictEqual(after, before);
+    assert.strictEqual(set.snapshots.length, 0);
+});
+
+test('withSetState restores the Set after reading', () => {
+    const set = new Set(6);
+    const before = set.dancers.map(d => d.id);
+
+    const changed = withSetState(set, s => s.progress(), s => s.dancers.map(d => d.id));
+
+    assert.notDeepStrictEqual(changed, before);
+    assert.deepStrictEqual(set.dancers.map(d => d.id), before);
+});
+
+test('progression move paths run from current positions to post-move positions', () => {
+    const set = new Set(6);
+    const move = { type: 'do-si-do', beats: 8, progression: true };
+    const startPositions = new Map(set.dancers.map((d, i) => [d.id, set.getPositions()[i]]));
+
+    const paths = calculateMovePaths(move, set);
+
+    executeMove(set, move);
+    set.dancers.forEach((dancer, i) => {
+        const path = paths.get(dancer.id);
+        assert(path.start.equals(startPositions.get(dancer.id), 0.01),
+            `${dancer.id} path should start where the dancer currently is`);
+        assert(path.end.equals(set.getPositions()[i], 0.01),
+            `${dancer.id} path should end where the dancer is after the move`);
+    });
+});
+
+test('couples crossing over at the ends stay apart', () => {
+    const set = new Set(6);
+    const paths = calculateMovePaths({ type: 'do-si-do', beats: 8, progression: true }, set);
+    assert(hasNoOverlaps(paths, 5.0), 'Progression paths should have no overlaps');
+});
+
+test('long lines should come close to the other line', () => {
+    const set = new Set(4);
+    const paths = calculateMovePaths({ type: 'long lines', beats: 8 }, set);
+
+    // Facing dancers in the top row end up nearly touching (40px diameter)
+    const left = paths.get(set.dancers[0].id).getPositionAt(0.5);
+    const right = paths.get(set.dancers[1].id).getPositionAt(0.5);
+    const gapPx = (right.x - left.x) * 8; // 800px wide SVG
+    assert(gapPx >= 40 && gapPx <= 55, `gap should be just over a dancer width (got ${gapPx.toFixed(1)}px)`);
 });

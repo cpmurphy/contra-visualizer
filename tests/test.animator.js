@@ -2,8 +2,8 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Animator, AnimationState } from '../animator.js';
-import { Position } from '../positions.js';
+import { Animator, AnimationState, blendHalfWidth } from '../animator.js';
+import { Position, distance } from '../positions.js';
 import { Path, createStraightPath, createStationaryPath } from '../paths.js';
 
 // ===== ANIMATOR CLASS TESTS =====
@@ -416,4 +416,94 @@ test('reset allows restarting animation', () => {
     state.start(2000);
 
     assert.strictEqual(state.getElapsedTime(2500), 500);
+});
+
+// ===== MOVE BLENDING TESTS =====
+
+// At 120 BPM one beat is 500ms
+function blendedMoves() {
+    const animator = new Animator(120);
+    // Move A heads right along y=0 and ends at the origin; move B heads down from there
+    const previous = new Map([['d1', createStraightPath(new Position(-8, 0), new Position(0, 0), 8)]]);
+    const current = new Map([['d1', createStraightPath(new Position(0, 0), new Position(0, 8), 8)]]);
+    const next = new Map([['d1', createStraightPath(new Position(0, 8), new Position(8, 8), 8)]]);
+    return { animator, previous, current, next };
+}
+
+test('blendHalfWidth is capped by a quarter of either move', () => {
+    assert.strictEqual(blendHalfWidth(8, 8), 1);
+    assert.strictEqual(blendHalfWidth(2, 8), 0.5);
+    assert.strictEqual(blendHalfWidth(8, 2), 0.5);
+});
+
+test('blended move rounds the corner near the boundary position', () => {
+    const { animator, previous, current } = blendedMoves();
+    const state = new AnimationState(current, animator, { previous });
+    state.start(0);
+
+    // Cuts inside the corner at (0, 0): already heading down, not yet at x = 0
+    const pos = state.getCurrentPositions(0).get('d1');
+    assert(pos.x < 0 && pos.y > 0);
+    assert(distance(pos, new Position(0, 0)) < 0.5);
+});
+
+test('blending out of a standstill never moves backwards', () => {
+    const animator = new Animator(120);
+    const still = new Map([['d1', createStationaryPath(new Position(0, 0), 8)]]);
+    const moving = new Map([['d1', createStraightPath(new Position(0, 0), new Position(8, 0), 8)]]);
+    const state = new AnimationState(still, animator, { next: moving });
+    state.start(0);
+
+    let lastX = 0;
+    for (let ms = 3000; ms <= 4000; ms += 50) {
+        const x = state.getCurrentPositions(ms).get('d1').x;
+        assert(x >= lastX - 1e-9, `x should not decrease (at ${ms}ms: ${x} < ${lastX})`);
+        lastX = x;
+    }
+});
+
+test('blending is continuous across a move boundary', () => {
+    const { animator, previous, current, next } = blendedMoves();
+
+    const before = new AnimationState(previous, animator, { next: current });
+    before.start(0);
+    const after = new AnimationState(current, animator, { previous });
+    after.start(before.getCompletionTime());
+
+    const boundary = before.getCompletionTime();
+    const epsilon = 1;
+    const justBefore = before.getCurrentPositions(boundary - epsilon).get('d1');
+    const atBoundary = after.getCurrentPositions(boundary).get('d1');
+    const justAfter = after.getCurrentPositions(boundary + epsilon).get('d1');
+
+    // No jump, and the velocity on either side matches
+    assert(justBefore.equals(atBoundary, 0.01));
+    const vBefore = { x: atBoundary.x - justBefore.x, y: atBoundary.y - justBefore.y };
+    const vAfter = { x: justAfter.x - atBoundary.x, y: justAfter.y - atBoundary.y };
+    assert(Math.abs(vBefore.x - vAfter.x) < 1e-4 && Math.abs(vBefore.y - vAfter.y) < 1e-4);
+
+    // Blending only touches the edges: mid-move is the plain path position
+    const mid = new AnimationState(current, animator, { previous, next });
+    mid.start(0);
+    assert(mid.getCurrentPositions(2000).get('d1').equals(new Position(0, 4), 0.0001));
+});
+
+test('blending starts moving toward the next move before the boundary', () => {
+    const { animator, current, next } = blendedMoves();
+    const state = new AnimationState(current, animator, { next });
+    state.start(0);
+
+    // Half a beat before the end the dancer is already drifting right
+    const pos = state.getCurrentPositions(3750).get('d1');
+    assert(pos.x > 0);
+});
+
+test('getCompletionTime accounts for duration and pauses', () => {
+    const { animator, current } = blendedMoves();
+    const state = new AnimationState(current, animator);
+    state.start(1000);
+    state.pause(2000);
+    state.resume(2500);
+
+    assert.strictEqual(state.getCompletionTime(), 1000 + 500 + 4000);
 });

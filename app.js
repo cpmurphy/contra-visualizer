@@ -1,7 +1,7 @@
 import { Set } from './dancers.js';
 import { toPixels } from './positions.js';
 import { Animator, AnimationState } from './animator.js';
-import { calculateMovePaths } from './pathCalculator.js';
+import { calculateMovePaths, executeMove, withSetState } from './pathCalculator.js';
 
 // Application state
 const state = {
@@ -76,59 +76,6 @@ function loadDance(dance) {
     updateMoveList();
     updateVisualization();
     updateControls();
-}
-
-// Execute a move on the dancer set
-function executeMove(dancerSet, move) {
-    if (!dancerSet) return;
-
-    const type = move.type.toLowerCase();
-
-    // Handle progression at the START of the move
-    if (move.progression) {
-        dancerSet.progress();
-    }
-
-    // Parse and execute the move
-    if (type.includes('circle left')) {
-        const match = type.match(/circle left (\d+)/);
-        if (match) {
-            dancerSet.circleLeft(parseInt(match[1]));
-        }
-    } else if (type.includes('circle right')) {
-        const match = type.match(/circle right (\d+)/);
-        if (match) {
-            dancerSet.circleRight(parseInt(match[1]));
-        }
-    } else if (type.includes('star left')) {
-        const match = type.match(/star left (\d+)/);
-        if (match) {
-            dancerSet.starLeft(parseInt(match[1]));
-        }
-    } else if (type.includes('star right')) {
-        const match = type.match(/star right (\d+)/);
-        if (match) {
-            dancerSet.starRight(parseInt(match[1]));
-        }
-    } else if (type === 'balance') {
-        dancerSet.balance();
-    } else if (type === 'swing') {
-        if (move.who === 'neighbor') {
-            dancerSet.swing('neighbor');
-        } else if (move.who === 'partner') {
-            dancerSet.swing('partner');
-        }
-    } else if (type.includes('long lines')) {
-        dancerSet.longLines();
-    } else if (type.includes('chain')) {
-        if (move.who === 'robins' || move.who === 'robin') {
-            dancerSet.chainRobins();
-        } else if (move.who === 'larks' || move.who === 'lark') {
-            dancerSet.chainLarks();
-        }
-    } else if (type === 'do-si-do' || type === 'dosido') {
-        dancerSet.doSiDo(1.0);
-    }
 }
 
 // Update dance information display
@@ -493,7 +440,45 @@ function createCacheKey(move, dancerSet) {
     return `${moveKey}::${positionKey}::${activeKey}`;
 }
 
-function startAnimation() {
+/**
+ * Get paths for a move from the given set state, using the cache when possible
+ * @param {Object} move - The move object
+ * @param {Set} dancerSet - The set state the move starts from
+ * @returns {Map<string, import('./paths.js').Path>}
+ */
+function getMovePaths(move, dancerSet) {
+    // Cache key is based on move properties and current positions
+    const cacheKey = createCacheKey(move, dancerSet);
+    let paths = state.pathCache.get(cacheKey);
+
+    if (!paths) {
+        paths = calculateMovePaths(move, dancerSet);
+        state.pathCache.set(cacheKey, paths);
+    }
+
+    return paths;
+}
+
+/**
+ * Get the move after the current one, wrapping around to the start of the dance
+ * @returns {Object}
+ */
+function getNextMove() {
+    const parts = state.dance.parts;
+    const currentPart = parts[state.currentPartIndex];
+    if (state.currentMoveIndex < currentPart.moves.length - 1) {
+        return currentPart.moves[state.currentMoveIndex + 1];
+    }
+    const nextPart = parts[(state.currentPartIndex + 1) % parts.length];
+    return nextPart.moves[0];
+}
+
+/**
+ * Start animating the current move
+ * @param {number} startTime - Timestamp at which the move begins; when continuing
+ *   from the previous move this is that move's completion time, so no time is lost
+ */
+function startAnimation(startTime = performance.now()) {
     if (!state.dance || !state.dancerSet) {
         console.warn('Cannot start animation: no dance or dancer set loaded');
         return;
@@ -512,25 +497,24 @@ function startAnimation() {
     }
 
     try {
-        // Create cache key based on move properties and current positions
-        const cacheKey = createCacheKey(currentMove, state.dancerSet);
+        // Paths of the move just finished (null when starting from a standstill)
+        const previousPaths = state.currentPaths;
 
-        // Check cache first
-        let paths = state.pathCache.get(cacheKey);
+        state.currentPaths = getMovePaths(currentMove, state.dancerSet);
 
-        if (!paths) {
-            // Calculate paths for the current move
-            paths = calculateMovePaths(currentMove, state.dancerSet);
+        // Paths of the upcoming move, computed from the set as it will be after this one
+        const nextPaths = withSetState(
+            state.dancerSet,
+            set => executeMove(set, currentMove),
+            set => getMovePaths(getNextMove(), set)
+        );
 
-            // Store in cache
-            state.pathCache.set(cacheKey, paths);
-        }
-
-        state.currentPaths = paths;
-
-        // Create animation state
-        state.animationState = new AnimationState(state.currentPaths, state.animator);
-        state.animationState.start(performance.now());
+        // Create animation state, blending into the adjacent moves at each end
+        state.animationState = new AnimationState(state.currentPaths, state.animator, {
+            previous: previousPaths,
+            next: nextPaths
+        });
+        state.animationState.start(startTime);
 
         // Start animation loop
         function animate(timestamp) {
@@ -546,8 +530,9 @@ function startAnimation() {
 
                 // Check if animation is complete
                 if (state.animationState.isComplete(timestamp)) {
-                    // Animation finished - advance to next move
-                    advanceToNextMove();
+                    // Animation finished - advance to next move, starting it exactly
+                    // where this one ended
+                    advanceToNextMove(state.animationState.getCompletionTime());
                 } else {
                     // Continue animation
                     state.animationId = requestAnimationFrame(animate);
@@ -583,7 +568,11 @@ function stopAnimation() {
     updateMoveList();
 }
 
-function advanceToNextMove() {
+/**
+ * Execute the current move and advance to the next one
+ * @param {number} startTime - Timestamp at which the next move's animation begins
+ */
+function advanceToNextMove(startTime) {
     if (!state.dance || !state.dancerSet) return;
 
     const currentPart = state.dance.parts[state.currentPartIndex];
@@ -614,7 +603,7 @@ function advanceToNextMove() {
 
     // If still playing, start animation for next move
     if (state.isPlaying) {
-        startAnimation();
+        startAnimation(startTime);
     } else {
         // Not playing anymore - just update visualization
         updateVisualization();

@@ -2,7 +2,7 @@
 // Computes paths for each dancer during a move
 
 import { Position, center, distance, toPixels, fromPixels } from './positions.js';
-import { Path, createStraightPath, createStationaryPath, createArcPath } from './paths.js';
+import { Path, createStraightPath, createStationaryPath, createArcPath, createOutAndBackPath } from './paths.js';
 
 // SVG layout constants (must match dancers.js getPositions)
 const SVG_WIDTH = 800;
@@ -19,27 +19,24 @@ const COLUMN_MIDPOINT_PX = 350;
  * @returns {Map<string, import('./paths.js').Path>} Map from dancer ID to Path
  */
 export function calculateMovePaths(move, dancerSet) {
+    if (move.progression) {
+        // Progression happens at the start of the move: compute the figure from the
+        // progressed set, then have the couples crossing over at the ends of the set
+        // travel there during the move instead of jumping.
+        const preProgressPosById = getPositionsById(dancerSet);
+        const figure = { ...move, progression: false };
+        return withSetState(dancerSet, set => set.progress(), set => {
+            const paths = calculateMovePaths(figure, set);
+            addCrossOverPaths(paths, preProgressPosById, getPositionsById(set));
+            return paths;
+        });
+    }
+
     const paths = new Map();
 
-    // Get current positions (before the move)
-    const startPositions = dancerSet.getPositions();
-
-    // Create a temporary clone to execute the move and get end positions
-    const endDancerSet = cloneSetState(dancerSet);
-    executeMoveSilently(endDancerSet, move);
-    const endPositions = endDancerSet.getPositions();
-
     // Map dancer IDs to their start and end positions
-    const startPosById = new Map();
-    const endPosById = new Map();
-
-    dancerSet.dancers.forEach((dancer, index) => {
-        startPosById.set(dancer.id, startPositions[index]);
-    });
-
-    endDancerSet.dancers.forEach((dancer, index) => {
-        endPosById.set(dancer.id, endPositions[index]);
-    });
+    const startPosById = getPositionsById(dancerSet);
+    const endPosById = withSetState(dancerSet, set => executeMove(set, move), getPositionsById);
 
     // Generate paths for each dancer
     const type = move.type.toLowerCase();
@@ -64,35 +61,8 @@ export function calculateMovePaths(move, dancerSet) {
         // Chain moves - dancers cross with arced paths
         createChainPaths(dancerSet, startPosById, endPosById, paths, beats);
     } else if (type === 'do-si-do' || type === 'dosido') {
-        // Check if it's an integer number of times (returns to start)
-        const times = 1.0; // Default from app.js
-
-        if (Number.isInteger(times)) {
-            // Returns to original position - stationary
-            dancerSet.dancers.forEach(dancer => {
-                const pos = startPosById.get(dancer.id);
-                paths.set(dancer.id, createStationaryPath(pos, beats));
-            });
-        } else {
-            // Swaps positions - create arc paths to avoid collisions
-            dancerSet.dancers.forEach(dancer => {
-                const start = startPosById.get(dancer.id);
-                const end = endPosById.get(dancer.id);
-
-                if (start.equals(end, 0.01)) {
-                    // Dancer doesn't move (inactive)
-                    paths.set(dancer.id, createStationaryPath(start, beats));
-                } else {
-                    // Create arc path to avoid collision
-                    // Use midpoint as center, offset to the side
-                    const mid = new Position(
-                        (start.x + end.x) / 2 + 5, // Offset to avoid collision
-                        (start.y + end.y) / 2
-                    );
-                    paths.set(dancer.id, createArcPath(start, end, mid, beats, 8, false));
-                }
-            });
-        }
+        // Neighbor pairs trace a wide counter-clockwise circle around their shared center
+        createDoSiDoPaths(dancerSet, startPosById, paths, beats);
     } else {
         // For any other move, create straight paths
         dancerSet.dancers.forEach(dancer => {
@@ -144,17 +114,8 @@ function createBalancePaths(dancerSet, startPosById, paths, beats) {
             const midY1 = pos1.y + (pos2.y - pos1.y) * maxApproach / 2;
             const midY2 = pos2.y + (pos1.y - pos2.y) * maxApproach / 2;
 
-            paths.set(d1.id, new Path([
-                pos1.clone(),
-                new Position(pos1.x, midY1),
-                pos1.clone()
-            ], beats));
-
-            paths.set(d2.id, new Path([
-                pos2.clone(),
-                new Position(pos2.x, midY2),
-                pos2.clone()
-            ], beats));
+            paths.set(d1.id, createOutAndBackPath(pos1, new Position(pos1.x, midY1), beats));
+            paths.set(d2.id, createOutAndBackPath(pos2, new Position(pos2.x, midY2), beats));
         }
     }
 
@@ -171,6 +132,116 @@ function createBalancePaths(dancerSet, startPosById, paths, beats) {
     if (remainder > 0) {
         for (let i = dancerSet.dancers.length - remainder; i < dancerSet.dancers.length; i++) {
             const d = dancerSet.dancers[i];
+            paths.set(d.id, createStationaryPath(startPosById.get(d.id), beats));
+        }
+    }
+}
+
+/**
+ * Create do-si-do paths - neighbor pairs trace a wide counter-clockwise circle.
+ * Unlike swing (tight orbit with approach/depart, clockwise, multi-revolution),
+ * the do-si-do is a clean single-revolution loop at a wider radius, counter-clockwise.
+ * @param {import('./dancers.js').Set} dancerSet
+ * @param {Map<string, Position>} startPosById
+ * @param {Map<string, import('./paths.js').Path>} paths
+ * @param {number} beats
+ */
+function createDoSiDoPaths(dancerSet, startPosById, paths, beats) {
+    const startIndex = dancerSet.dancers[0].active ? 0 : 2;
+
+    for (let i = startIndex; i < dancerSet.dancers.length; i += 4) {
+        if (dancerSet.dancers.length - i < 4) break;
+
+        const minorSetDancers = [
+            dancerSet.dancers[i],
+            dancerSet.dancers[i + 1],
+            dancerSet.dancers[i + 2],
+            dancerSet.dancers[i + 3]
+        ];
+
+        // Neighbor pairs: same column, lark with robin
+        const leftDancers = [minorSetDancers[0], minorSetDancers[2]];
+        const rightDancers = [minorSetDancers[1], minorSetDancers[3]];
+
+        const neighborPairs = [
+            [leftDancers.find(d => d.role === 'lark'), leftDancers.find(d => d.role === 'robin')],
+            [rightDancers.find(d => d.role === 'lark'), rightDancers.find(d => d.role === 'robin')]
+        ];
+
+        for (const [dancer1, dancer2] of neighborPairs) {
+            if (!dancer1 || !dancer2) continue;
+
+            if (!dancer1.active || !dancer2.active) {
+                if (!dancer1.active) {
+                    paths.set(dancer1.id, createStationaryPath(startPosById.get(dancer1.id), beats));
+                }
+                if (!dancer2.active) {
+                    paths.set(dancer2.id, createStationaryPath(startPosById.get(dancer2.id), beats));
+                }
+                continue;
+            }
+
+            const start1 = startPosById.get(dancer1.id);
+            const start2 = startPosById.get(dancer2.id);
+
+            // Work in pixel space for proper circular geometry
+            const s1px = toPixels(start1, SVG_WIDTH, SVG_HEIGHT);
+            const s2px = toPixels(start2, SVG_WIDTH, SVG_HEIGHT);
+            const centerPx = { x: (s1px.x + s2px.x) / 2, y: (s1px.y + s2px.y) / 2 };
+
+            // Use bounding rectangle to constrain radius (same as swing)
+            const side = centerPx.x < COLUMN_MIDPOINT_PX ? 'left' : 'right';
+            const rectangle = computeSwingRectangle(i, dancerSet.dancers.length, side, false);
+            const radius = computeSwingRadius(centerPx, rectangle);
+
+            // Each dancer traces a full 360° counter-clockwise circle from their start
+            // back to their start (CCW = negative angle in SVG y-down coords)
+            const entryAngle1 = Math.atan2(s1px.y - centerPx.y, s1px.x - centerPx.x);
+            const entryAngle2 = entryAngle1 + Math.PI;
+
+            const steps = 8;
+            const fullCircle = -2 * Math.PI; // counter-clockwise
+
+            // Step in from the start position onto the circle, and back out at the end
+            const waypoints1 = [start1.clone()];
+            const waypoints2 = [start2.clone()];
+            for (let j = 0; j <= steps; j++) {
+                const progress = j / steps;
+                const angle1 = entryAngle1 + fullCircle * progress;
+                const angle2 = entryAngle2 + fullCircle * progress;
+                waypoints1.push(fromPixels(
+                    centerPx.x + radius * Math.cos(angle1),
+                    centerPx.y + radius * Math.sin(angle1),
+                    SVG_WIDTH, SVG_HEIGHT
+                ));
+                waypoints2.push(fromPixels(
+                    centerPx.x + radius * Math.cos(angle2),
+                    centerPx.y + radius * Math.sin(angle2),
+                    SVG_WIDTH, SVG_HEIGHT
+                ));
+            }
+
+            waypoints1.push(start1.clone());
+            waypoints2.push(start2.clone());
+
+            paths.set(dancer1.id, new Path(waypoints1, beats));
+            paths.set(dancer2.id, new Path(waypoints2, beats));
+        }
+    }
+
+    // Handle inactive dancers at the beginning
+    if (startIndex === 2) {
+        for (let j = 0; j < 2; j++) {
+            const d = dancerSet.dancers[j];
+            paths.set(d.id, createStationaryPath(startPosById.get(d.id), beats));
+        }
+    }
+
+    // Handle inactive dancers at the end
+    const remainder = (dancerSet.dancers.length - startIndex) % 4;
+    if (remainder > 0) {
+        for (let j = dancerSet.dancers.length - remainder; j < dancerSet.dancers.length; j++) {
+            const d = dancerSet.dancers[j];
             paths.set(d.id, createStationaryPath(startPosById.get(d.id), beats));
         }
     }
@@ -277,8 +348,8 @@ function createLongLinesPaths(dancerSet, startPosById, paths, beats) {
         .filter(d => d.active)
         .map(d => startPosById.get(d.id));
     const minDistToCenter = Math.min(...activePositions.map(p => Math.abs(p.x - centerX)));
-    // Leave a gap of at least 2 dancer radii in normalized coords on each side
-    const minGap = (2 * DANCER_RADIUS_PX / SVG_WIDTH) * 100;
+    // Come right up to the other line, stopping just short of touching
+    const minGap = ((DANCER_RADIUS_PX + 5) / SVG_WIDTH) * 100;
     const maxApproach = Math.max(0, (minDistToCenter - minGap) / minDistToCenter);
 
     dancerSet.dancers.forEach(dancer => {
@@ -292,13 +363,7 @@ function createLongLinesPaths(dancerSet, startPosById, paths, beats) {
         const approachX = start.x + (centerX - start.x) * maxApproach;
         const approachPos = new Position(approachX, start.y);
 
-        // 3 waypoints: start → approach → return to start
-        const waypoints = [
-            start.clone(),
-            approachPos,
-            start.clone()
-        ];
-        paths.set(dancer.id, new Path(waypoints, beats));
+        paths.set(dancer.id, createOutAndBackPath(start, approachPos, beats));
     });
 }
 
@@ -618,82 +683,120 @@ function createChainPaths(dancerSet, startPosById, endPosById, paths, beats) {
 }
 
 /**
- * Clone the dancer set state for simulation
+ * Map each dancer ID to its current position
  * @param {import('./dancers.js').Set} dancerSet
- * @returns {import('./dancers.js').Set}
+ * @returns {Map<string, Position>}
  */
-function cloneSetState(dancerSet) {
-    // Create a shallow clone by manipulating the dancers array
-    // We can't easily deep clone the Set, so we'll work with the existing one
-    // This is a temporary solution - in production we'd need proper cloning
-    const clonedSet = Object.create(Object.getPrototypeOf(dancerSet));
-    clonedSet.dancers = [...dancerSet.dancers];
-    clonedSet.dancerMap = dancerSet.dancerMap;
-    clonedSet.snapshots = [];
-
-    return clonedSet;
+function getPositionsById(dancerSet) {
+    const positions = dancerSet.getPositions();
+    const posById = new Map();
+    dancerSet.dancers.forEach((dancer, index) => {
+        posById.set(dancer.id, positions[index]);
+    });
+    return posById;
 }
 
 /**
- * Execute a move without taking snapshots (for simulation)
+ * Temporarily change the set, read something from it, then restore it exactly
+ * (dancer order, active states and couple numbers) using the set's undo history.
+ * @template T
+ * @param {import('./dancers.js').Set} dancerSet
+ * @param {(set: import('./dancers.js').Set) => void} change - Mutation to apply
+ * @param {(set: import('./dancers.js').Set) => T} read - Called with the changed set
+ * @returns {T}
+ */
+export function withSetState(dancerSet, change, read) {
+    const depth = dancerSet.snapshots.length;
+    // Explicit snapshot so the set is restored even if the change takes none
+    dancerSet.snapshot();
+    try {
+        change(dancerSet);
+        return read(dancerSet);
+    } finally {
+        while (dancerSet.snapshots.length > depth) {
+            dancerSet.undo();
+        }
+    }
+}
+
+/**
+ * Give dancers whose position was changed by the progression (the couples crossing
+ * over at the ends of the set) a path from their old position to their new one.
+ * Partners circle around their shared midpoint, so they stay opposite each other,
+ * bulging away from the rest of the set.
+ * @param {Map<string, import('./paths.js').Path>} paths
+ * @param {Map<string, Position>} preProgressPosById
+ * @param {Map<string, Position>} postProgressPosById
+ */
+function addCrossOverPaths(paths, preProgressPosById, postProgressPosById) {
+    const setCenterY = center([...preProgressPosById.values()]).y;
+
+    paths.forEach((path, dancerId) => {
+        const from = preProgressPosById.get(dancerId);
+        if (from.equals(postProgressPosById.get(dancerId), 0.01)) return;
+
+        if (!path.start.equals(path.end, 0.01)) {
+            throw new Error(`Dancer ${dancerId} both progresses and moves; cannot animate cross-over`);
+        }
+        const to = path.end;
+        const midpoint = new Position((from.x + to.x) / 2, (from.y + to.y) / 2);
+        // Clockwise arcs pass over the top (y-down), counter-clockwise under the bottom
+        const overTheTop = midpoint.y < setCenterY;
+        paths.set(dancerId, createArcPath(from, to, midpoint, path.beats, 9, overTheTop));
+    });
+}
+
+/**
+ * Execute a move on the set (each move records its own undo snapshot)
  * @param {import('./dancers.js').Set} dancerSet
  * @param {Object} move
  */
-function executeMoveSilently(dancerSet, move) {
+export function executeMove(dancerSet, move) {
     const type = move.type.toLowerCase();
 
-    // Override snapshot to do nothing during simulation
-    const originalSnapshot = dancerSet.snapshot;
-    dancerSet.snapshot = () => {};
+    // Handle progression at the START of the move
+    if (move.progression) {
+        dancerSet.progress();
+    }
 
-    try {
-        // Handle progression at the START of the move
-        if (move.progression) {
-            dancerSet.progress();
+    // Parse and execute the move
+    if (type.includes('circle left')) {
+        const match = type.match(/circle left (\d+)/);
+        if (match) {
+            dancerSet.circleLeft(parseInt(match[1]));
         }
-
-        // Parse and execute the move (copied from app.js)
-        if (type.includes('circle left')) {
-            const match = type.match(/circle left (\d+)/);
-            if (match) {
-                dancerSet.circleLeft(parseInt(match[1]));
-            }
-        } else if (type.includes('circle right')) {
-            const match = type.match(/circle right (\d+)/);
-            if (match) {
-                dancerSet.circleRight(parseInt(match[1]));
-            }
-        } else if (type.includes('star left')) {
-            const match = type.match(/star left (\d+)/);
-            if (match) {
-                dancerSet.starLeft(parseInt(match[1]));
-            }
-        } else if (type.includes('star right')) {
-            const match = type.match(/star right (\d+)/);
-            if (match) {
-                dancerSet.starRight(parseInt(match[1]));
-            }
-        } else if (type === 'balance') {
-            dancerSet.balance();
-        } else if (type === 'swing') {
-            if (move.who === 'neighbor') {
-                dancerSet.swing('neighbor');
-            } else if (move.who === 'partner') {
-                dancerSet.swing('partner');
-            }
-        } else if (type.includes('long lines')) {
-            dancerSet.longLines();
-        } else if (type.includes('chain')) {
-            if (move.who === 'robins' || move.who === 'robin') {
-                dancerSet.chainRobins();
-            } else if (move.who === 'larks' || move.who === 'lark') {
-                dancerSet.chainLarks();
-            }
-        } else if (type === 'do-si-do' || type === 'dosido') {
-            dancerSet.doSiDo(1.0);
+    } else if (type.includes('circle right')) {
+        const match = type.match(/circle right (\d+)/);
+        if (match) {
+            dancerSet.circleRight(parseInt(match[1]));
         }
-    } finally {
-        // Restore original snapshot function
-        dancerSet.snapshot = originalSnapshot;
+    } else if (type.includes('star left')) {
+        const match = type.match(/star left (\d+)/);
+        if (match) {
+            dancerSet.starLeft(parseInt(match[1]));
+        }
+    } else if (type.includes('star right')) {
+        const match = type.match(/star right (\d+)/);
+        if (match) {
+            dancerSet.starRight(parseInt(match[1]));
+        }
+    } else if (type === 'balance') {
+        dancerSet.balance();
+    } else if (type === 'swing') {
+        if (move.who === 'neighbor') {
+            dancerSet.swing('neighbor');
+        } else if (move.who === 'partner') {
+            dancerSet.swing('partner');
+        }
+    } else if (type.includes('long lines')) {
+        dancerSet.longLines();
+    } else if (type.includes('chain')) {
+        if (move.who === 'robins' || move.who === 'robin') {
+            dancerSet.chainRobins();
+        } else if (move.who === 'larks' || move.who === 'lark') {
+            dancerSet.chainLarks();
+        }
+    } else if (type === 'do-si-do' || type === 'dosido') {
+        dancerSet.doSiDo(1.0);
     }
 }
