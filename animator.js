@@ -249,6 +249,14 @@ export class AnimationState {
     }
 
     /**
+     * Check whether the animation is paused
+     * @returns {boolean}
+     */
+    isPaused() {
+        return this.pausedTime !== null;
+    }
+
+    /**
      * Get elapsed time since animation start (excluding paused time)
      * @param {number} timestamp - Current timestamp in milliseconds
      * @returns {number} Elapsed time in milliseconds

@@ -13,6 +13,7 @@ const state = {
     animationId: null,
     animator: new Animator(120), // 120 BPM
     animationState: null,
+    lastFrameTime: null, // Timestamp of the most recently drawn frame
     currentPaths: null,
     pathCache: new Map() // Cache paths by move signature for performance
 };
@@ -62,6 +63,7 @@ elements.fileInput.addEventListener('change', (e) => {
 
 // Load dance data
 function loadDance(dance) {
+    stopAnimation();
     state.dance = dance;
     state.currentPartIndex = 0;
     state.currentMoveIndex = 0;
@@ -334,9 +336,15 @@ elements.playPauseBtn.addEventListener('click', () => {
     updateControls();
 
     if (state.isPlaying) {
-        startAnimation();
+        if (state.animationState) {
+            // Resume a paused move (on the next frame) where it left off
+            state.animationId = requestAnimationFrame(animate);
+            updateMoveList();
+        } else {
+            startAnimation();
+        }
     } else {
-        stopAnimation();
+        pauseAnimation();
     }
 });
 
@@ -516,35 +524,6 @@ function startAnimation(startTime = performance.now()) {
         });
         state.animationState.start(startTime);
 
-        // Start animation loop
-        function animate(timestamp) {
-            // Check if animation should stop (user may have stopped it)
-            if (!state.isPlaying || !state.animationState) return;
-
-            try {
-                // Get current positions
-                const currentPositions = state.animationState.getCurrentPositions(timestamp);
-
-                // Update visualization with interpolated positions
-                updateVisualization(currentPositions);
-
-                // Check if animation is complete
-                if (state.animationState.isComplete(timestamp)) {
-                    // Animation finished - advance to next move, starting it exactly
-                    // where this one ended
-                    advanceToNextMove(state.animationState.getCompletionTime());
-                } else {
-                    // Continue animation
-                    state.animationId = requestAnimationFrame(animate);
-                }
-            } catch (error) {
-                console.error('Animation error:', error);
-                stopAnimation();
-                state.isPlaying = false;
-                updateControls();
-            }
-        }
-
         state.animationId = requestAnimationFrame(animate);
 
         // Update move list to show animating state
@@ -554,6 +533,63 @@ function startAnimation(startTime = performance.now()) {
         state.isPlaying = false;
         updateControls();
     }
+}
+
+/**
+ * Animation loop: draw the current frame and schedule the next one
+ * @param {number} timestamp - Frame timestamp from requestAnimationFrame
+ */
+function animate(timestamp) {
+    // Check if animation should stop (user may have stopped it)
+    if (!state.isPlaying || !state.animationState) return;
+
+    try {
+        // Resuming after a pause: the clock picks up from the last frame drawn
+        if (state.animationState.isPaused()) {
+            state.animationState.resume(timestamp);
+        }
+
+        // Get current positions
+        const currentPositions = state.animationState.getCurrentPositions(timestamp);
+
+        // Update visualization with interpolated positions
+        updateVisualization(currentPositions);
+        state.lastFrameTime = timestamp;
+
+        // Check if animation is complete
+        if (state.animationState.isComplete(timestamp)) {
+            // Animation finished - advance to next move, starting it exactly
+            // where this one ended
+            advanceToNextMove(state.animationState.getCompletionTime());
+        } else {
+            // Continue animation
+            state.animationId = requestAnimationFrame(animate);
+        }
+    } catch (error) {
+        console.error('Animation error:', error);
+        stopAnimation();
+        state.isPlaying = false;
+        updateControls();
+    }
+}
+
+/**
+ * Pause mid-move, keeping the animation state so play continues from here
+ */
+function pauseAnimation() {
+    if (state.animationId) {
+        cancelAnimationFrame(state.animationId);
+        state.animationId = null;
+    }
+
+    // Freeze at the last frame drawn, so resuming continues from what's on screen
+    // (or at the start, if this move hasn't drawn a frame yet)
+    const animationState = state.animationState;
+    if (animationState && !animationState.isPaused()) {
+        animationState.pause(Math.max(state.lastFrameTime ?? -Infinity, animationState.startTime));
+    }
+
+    updateMoveList();
 }
 
 function stopAnimation() {

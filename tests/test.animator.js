@@ -507,3 +507,31 @@ test('getCompletionTime accounts for duration and pauses', () => {
 
     assert.strictEqual(state.getCompletionTime(), 1000 + 500 + 4000);
 });
+
+test('isPaused reflects pause and resume', () => {
+    const animator = new Animator(120);
+    const paths = new Map([['d1', createStationaryPath(new Position(50, 50), 8)]]);
+    const state = new AnimationState(paths, animator);
+    state.start(0);
+
+    assert.strictEqual(state.isPaused(), false);
+    state.pause(1000);
+    assert.strictEqual(state.isPaused(), true);
+    state.resume(5000);
+    assert.strictEqual(state.isPaused(), false);
+});
+
+test('resuming continues from the paused position', () => {
+    const animator = new Animator(120);
+    const paths = new Map([['d1', createStraightPath(new Position(0, 0), new Position(8, 0), 8)]]);
+    const state = new AnimationState(paths, animator);
+    state.start(0);
+
+    const atPause = state.getCurrentPositions(1000).get('d1');
+    state.pause(1000);
+    // Still frozen while paused
+    assert(state.getCurrentPositions(3000).get('d1').equals(atPause));
+    state.resume(7000);
+    assert(state.getCurrentPositions(7000).get('d1').equals(atPause));
+    assert(state.getCurrentPositions(7500).get('d1').equals(new Position(3, 0), 0.0001));
+});
