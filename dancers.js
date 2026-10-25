@@ -408,8 +408,8 @@ export class Set {
      * be used for animation.
      *
      * Layout: 2 columns, rows centered vertically in dance floor
-     * - Left column: x ≈ 37.5 (300/800)
-     * - Right column: x ≈ 50.0 (400/800)
+     * - Left column: x ≈ 33.75 (270/800)
+     * - Right column: x ≈ 53.75 (430/800)
      * - Vertical spacing scaled proportionally
      *
      * @returns {import('./positions.js').Position[]} Array of Position objects
@@ -422,8 +422,8 @@ export class Set {
         const danceFloorHeight = svgHeight - stageHeight;
 
         // Layout parameters (in pixels)
-        const startX = 300;
-        const horizontalSpacing = 100;
+        const startX = 270;
+        const horizontalSpacing = 160;
         const verticalSpacing = 120;
         const dancerRadius = 20;
 

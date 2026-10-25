@@ -86,7 +86,8 @@ export function calculateMovePaths(move, dancerSet) {
                type.includes('star left') || type.includes('star right')) {
         // Circular moves - arc paths around minor set centers
         const isClockwise = type.includes('right');
-        createCircularPaths(dancerSet, startPosById, endPosById, paths, beats, isClockwise);
+        const places = parseInt(type.match(/(?:circle|star) (?:left|right) (\d+)/)[1]);
+        createCircularPaths(dancerSet, startPosById, paths, beats, places, isClockwise);
     } else if (type === 'swing') {
         // Swing moves - dancers rotate around common center
         const swingWho = move.who || 'neighbor';
@@ -290,12 +291,12 @@ function createDoSiDoPaths(dancerSet, startPosById, paths, beats) {
  * Create circular arc paths for dancers during circle/star moves
  * @param {import('./dancers.js').Set} dancerSet
  * @param {Map<string, Position>} startPosById
- * @param {Map<string, Position>} endPosById
  * @param {Map<string, import('./paths.js').Path>} paths
  * @param {number} beats
- * @param {boolean} isClockwise
+ * @param {number} places - Number of places (quarter turns) to travel
+ * @param {boolean} isClockwise - Decreasing angle (circle right) rather than increasing
  */
-function createCircularPaths(dancerSet, startPosById, endPosById, paths, beats, isClockwise) {
+function createCircularPaths(dancerSet, startPosById, paths, beats, places, isClockwise) {
     // Determine starting index based on active state
     const startIndex = dancerSet.dancers[0].active ? 0 : 2;
 
@@ -319,34 +320,16 @@ function createCircularPaths(dancerSet, startPosById, endPosById, paths, beats, 
         // Calculate center point of this minor set
         const centerPos = center(minorSetStartPositions);
 
-        // Create arc paths for each dancer in this minor set
+        // Each dancer travels around an ellipse through the four corners of the minor
+        // set, so a wide set doesn't bulge into the minor sets above and below
         minorSetDancers.forEach(dancer => {
             const start = startPosById.get(dancer.id);
-            const end = endPosById.get(dancer.id);
 
             if (!dancer.active) {
                 // Dancer is inactive - create stationary path
                 paths.set(dancer.id, createStationaryPath(start, beats));
-            } else if (start.equals(end, 0.01)) {
-                // Full rotation (e.g., star left 4 places) - dancer returns to start
-                // Generate explicit 360° circle animation
-                const radius = distance(start, centerPos);
-                const startAngle = Math.atan2(start.y - centerPos.y, start.x - centerPos.x);
-
-                const waypoints = [];
-                for (let i = 0; i <= 7; i++) {
-                    const progress = i / 7;
-                    const angleDelta = isClockwise ? -2 * Math.PI : 2 * Math.PI;
-                    const angle = startAngle + angleDelta * progress;
-                    waypoints.push(new Position(
-                        centerPos.x + radius * Math.cos(angle),
-                        centerPos.y + radius * Math.sin(angle)
-                    ));
-                }
-                paths.set(dancer.id, new Path(waypoints, beats));
             } else {
-                // Partial rotation - create normal arc path
-                paths.set(dancer.id, createArcPath(start, end, centerPos, beats, 8, isClockwise));
+                paths.set(dancer.id, createEllipticalPath(start, centerPos, places, beats, isClockwise));
             }
         });
     }
@@ -366,6 +349,41 @@ function createCircularPaths(dancerSet, startPosById, endPosById, paths, beats, 
             paths.set(dancer.id, createStationaryPath(startPosById.get(dancer.id), beats));
         }
     }
+}
+
+// Waypoints per place travelled in a circle or star
+const CIRCLE_SAMPLES_PER_PLACE = 6;
+
+/**
+ * Create a path around an axis-aligned ellipse centered on the minor set, through the
+ * dancer's start position and shaped like the minor set's rectangle (each axis is
+ * sqrt(2) times the dancer's offset from the center along it), so the corners of the
+ * minor set are a quarter turn apart.
+ * @param {Position} start
+ * @param {Position} centerPos
+ * @param {number} places - Number of quarter turns to travel
+ * @param {number} beats
+ * @param {boolean} isClockwise - Decreasing angle rather than increasing
+ * @returns {Path}
+ */
+function createEllipticalPath(start, centerPos, places, beats, isClockwise) {
+    const dx = start.x - centerPos.x;
+    const dy = start.y - centerPos.y;
+    const a = Math.abs(dx) * Math.SQRT2;
+    const b = Math.abs(dy) * Math.SQRT2;
+    if (a === 0 || b === 0) {
+        return createStationaryPath(start, beats);
+    }
+
+    const startAngle = Math.atan2(dy / b, dx / a);
+    const sweep = (isClockwise ? -1 : 1) * places * Math.PI / 2;
+    const count = Math.max(1, places) * CIRCLE_SAMPLES_PER_PLACE;
+    const waypoints = [];
+    for (let i = 0; i <= count; i++) {
+        const angle = startAngle + sweep * i / count;
+        waypoints.push(new Position(centerPos.x + a * Math.cos(angle), centerPos.y + b * Math.sin(angle)));
+    }
+    return new Path(waypoints, beats);
 }
 
 /**

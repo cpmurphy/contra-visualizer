@@ -380,19 +380,19 @@ test('star left 4 places should animate (not stationary)', () => {
 
     const paths = calculateMovePaths(move, set);
 
-    // All active dancers should have arc paths with 8 waypoints (not stationary)
+    // All active dancers should have arc paths (not stationary)
     set.dancers.forEach(dancer => {
         if (dancer.active) {
             const path = paths.get(dancer.id);
 
-            // Path should have 8 waypoints (full animated arc)
-            assert.strictEqual(path.waypointCount, 8,
-                `Active dancer ${dancer.id} should have 8-waypoint arc path for full rotation`);
+            // Path should have enough waypoints to trace a full animated loop
+            assert(path.waypointCount >= 8,
+                `Active dancer ${dancer.id} should have an animated arc path for full rotation`);
 
             // Verify it's truly animating through all waypoints
             // For a full rotation, waypoints should vary in position
             const firstWaypoint = path.waypoints[0];
-            const midWaypoint = path.waypoints[3]; // Quarter turn point
+            const midWaypoint = path.waypoints[Math.floor(path.waypointCount / 4)]; // Quarter turn point
 
             // Mid-waypoint should be significantly different from start
             const midDistance = distance(firstWaypoint, midWaypoint);
