@@ -288,6 +288,19 @@ export class Set {
     }
 
     /**
+     * A right and left through across the set: each dancer passes the one straight
+     * across by the right shoulder, and the two who arrive on the same side courtesy
+     * turn, so everyone ends in the place diagonally across the minor set from them
+     */
+    rightAndLeftThrough() {
+        this.snapshot();
+        for (const i of this.minorSetStarts()) {
+            const [a, b, c, d] = this.dancers.slice(i, i + 4);
+            this.dancers.splice(i, 4, d, c, b, a);
+        }
+    }
+
+    /**
      * Half a hey for four, started by the robins passing right shoulders in the
      * middle. The four dancers are in a line (see heyLine) and travel half way
      * around a figure eight along it, so the line ends up reversed: each lark ends in

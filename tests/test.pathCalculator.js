@@ -1037,7 +1037,7 @@ test('robins chain: robins pull by clockwise around the middle, passing right sh
 test('moves we cannot animate yet should be unsupported', () => {
     const improper = new Set(6);
     const proper = new Set(6, 'proper');
-    assert(!isMoveSupported({ type: 'right and left through', who: 'neighbor', beats: 8 }, improper));
+    assert(!isMoveSupported({ type: 'go down outside', who: 'ones', beats: 8 }, improper));
     assert(!isMoveSupported({ type: 'turn contra corners', who: 'ones', beats: 16 }, improper));
     assert(!isMoveSupported({ type: 'balance', who: 'partner', beats: 4 }, improper));
     assert(!isMoveSupported({ type: 'swing', who: 'neighbor', beats: 12 }, proper));
@@ -1342,4 +1342,53 @@ test('in half a hey everyone should travel', () => {
 test('half a hey with the robins starting in the other diagonal should say it is not animated', () => {
     const set = new Set(6); // R1 above L2 on the left
     assert.throws(() => calculateMovePaths(HALF_HEY, set), /not animated yet/);
+});
+
+// Right and left through
+
+const RIGHT_AND_LEFT = { type: 'right and left through', who: 'neighbor', beats: 8 };
+
+/** Jefferson and Liberty's B2: a proper set after the ones cast off, the larks on the
+ * left and the robins on the right */
+function afterCastOff() {
+    const set = new Set(6, 'proper');
+    for (const move of [ONES_DOWN, ONES_TURN, ONES_UP, ONES_CAST]) {
+        executeMove(set, move);
+    }
+    return set;
+}
+
+test('a right and left through should put everyone diagonally across the minor set', () => {
+    const set = afterCastOff();
+    assert.deepEqual(set.dancers.slice(0, 4).map(d => d.getLabel()), ['L2', 'R2', 'L1', 'R1']);
+    executeMove(set, RIGHT_AND_LEFT);
+    assert.deepEqual(set.dancers.slice(0, 4).map(d => d.getLabel()), ['R1', 'L1', 'R2', 'L2']);
+    executeMove(set, RIGHT_AND_LEFT);
+    assert.deepEqual(set.dancers.slice(0, 4).map(d => d.getLabel()), ['L2', 'R2', 'L1', 'R1'],
+        'over and back should return everyone home');
+});
+
+test('right and left through paths should not collide, and should start and end where the set says', () => {
+    for (const set of [afterCastOff(), new Set(6)]) {
+        const start = set.getPositions();
+        const ids = set.dancers.map(d => d.id);
+        const paths = calculateMovePaths(RIGHT_AND_LEFT, set);
+        assert(hasNoOverlaps(paths), `${set.formation} right and left through should have no overlaps`);
+        assert(allWaypointsInBounds(paths), `${set.formation} right and left through should stay in bounds`);
+        executeMove(set, RIGHT_AND_LEFT);
+        const end = new Map(set.dancers.map((d, i) => [d.id, set.getPositions()[i]]));
+        ids.forEach((id, index) => {
+            assert(paths.get(id).start.equals(start[index]), `${id} should start in place`);
+            assert(paths.get(id).end.equals(end.get(id)), `${id} should end in place`);
+        });
+    }
+});
+
+test('in a right and left through the dancers should pass right shoulders', () => {
+    const set = afterCastOff();
+    const paths = calculateMovePaths(RIGHT_AND_LEFT, set);
+    // L2 crosses from the left to the right, R2 from the right to the left
+    const [l2, r2] = [set.dancers[0], set.dancers[1]];
+    const quarter = [paths.get(l2.id).getPositionAt(0.25), paths.get(r2.id).getPositionAt(0.25)];
+    assert(quarter[0].y < quarter[1].y, 'heading right, L2 should keep R2 on the right (below)');
 });

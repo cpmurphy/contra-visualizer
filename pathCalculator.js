@@ -65,6 +65,14 @@ const HEY_ROUTES = {
 // Waypoints between each point of a route through a hey
 const HEY_SAMPLES_PER_STEP = 8;
 
+// In a right and left through, how far dancers bear to their left to pass the one
+// coming across the other way by the right shoulder, and how close together the
+// two who courtesy turn come as they turn
+const PASS_THROUGH_BULGE_PX = 26;
+const COURTESY_TURN_RADIUS_PX = 25;
+// Waypoints for each half of a right and left through
+const RIGHT_AND_LEFT_SAMPLES = 16;
+
 // Figures for one couple ('ones' or 'twos') to dance, in either formation
 const COUPLE_FIGURES = ['down the center', 'up the center', 'turn alone', 'cast off', 'balance', 'swing'];
 const COUPLES = ['ones', 'twos'];
@@ -88,6 +96,7 @@ export function isMoveSupported(move, dancerSet) {
     if (/(circle|star) (left|right) \d+/.test(type)) return true;
     if (type.includes('long lines')) return true;
     if (COUPLE_FIGURES.includes(type) && COUPLES.includes(who)) return true;
+    if (type === 'right and left through') return ['neighbor', 'partner'].includes(who);
 
     // Everything else is worked out for improper minor sets only
     if (!dancerSet.isImproper()) return false;
@@ -172,6 +181,8 @@ export function calculateMovePaths(move, dancerSet) {
         createDoSiDoPaths(dancerSet, startPosById, paths, beats);
     } else if (type === 'half hey') {
         createHalfHeyPaths(dancerSet, startPosById, endPosById, paths, beats);
+    } else if (type === 'right and left through') {
+        createRightAndLeftThroughPaths(dancerSet, startPosById, endPosById, paths, beats);
     } else if (type === 'down the center' || type === 'up the center') {
         createCenterTravelPaths(dancerSet, startPosById, endPosById, paths, beats);
     } else if (type === 'turn alone') {
@@ -535,6 +546,70 @@ function createHalfHeyPaths(dancerSet, startPosById, endPosById, paths, beats) {
                 }
             }
             paths.set(dancer.id, new Path(waypoints, beats, times));
+        }
+    }
+}
+
+/**
+ * Create right and left through paths. For the first half everyone passes straight
+ * across the set, bearing left to pass the dancer coming the other way by the right
+ * shoulder. For the second half the two who arrived on each side courtesy turn:
+ * they come close together, turn half way around counter-clockwise (as seen from
+ * above, with the music at the top) about the middle of their side of the minor set,
+ * and spread back out into the places there.
+ * @param {import('./dancers.js').Set} dancerSet
+ * @param {Map<string, Position>} startPosById
+ * @param {Map<string, Position>} endPosById
+ * @param {Map<string, import('./paths.js').Path>} paths
+ * @param {number} beats
+ */
+function createRightAndLeftThroughPaths(dancerSet, startPosById, endPosById, paths, beats) {
+    dancerSet.dancers.forEach(dancer => {
+        paths.set(dancer.id, createStationaryPath(startPosById.get(dancer.id), beats));
+    });
+    // Ease in and out of each half
+    const ease = u => (1 - Math.cos(Math.PI * u)) / 2;
+
+    for (const i of dancerSet.minorSetStarts()) {
+        const minorSet = dancerSet.dancers.slice(i, i + 4);
+        for (const dancer of minorSet) {
+            const start = toPixels(startPosById.get(dancer.id), SVG_WIDTH, SVG_HEIGHT);
+            const end = toPixels(endPosById.get(dancer.id), SVG_WIDTH, SVG_HEIGHT);
+            // Across the set at their own row, then turning about the middle of the far side
+            const arrival = { x: end.x, y: start.y };
+            const pivot = { x: end.x, y: (start.y + end.y) / 2 };
+            const heading = Math.sign(arrival.x - start.x);
+            // Bearing left: heading right across the screen, that's up
+            const bulge = { x: (start.x + arrival.x) / 2, y: start.y - heading * PASS_THROUGH_BULGE_PX };
+
+            const waypoints = [];
+            const times = [];
+            for (let k = 0; k <= RIGHT_AND_LEFT_SAMPLES; k++) {
+                const u = ease(k / RIGHT_AND_LEFT_SAMPLES);
+                // Quadratic curve through the bulge halfway across
+                const control = { x: 2 * bulge.x - (start.x + arrival.x) / 2, y: 2 * bulge.y - (start.y + arrival.y) / 2 };
+                waypoints.push({
+                    x: (1 - u) ** 2 * start.x + 2 * (1 - u) * u * control.x + u ** 2 * arrival.x,
+                    y: (1 - u) ** 2 * start.y + 2 * (1 - u) * u * control.y + u ** 2 * arrival.y
+                });
+                times.push(k / RIGHT_AND_LEFT_SAMPLES / 2);
+            }
+
+            // Counter-clockwise from above is anticlockwise on screen: decreasing
+            // angle in y-down coordinates
+            const startAngle = Math.atan2(arrival.y - pivot.y, arrival.x - pivot.x);
+            const outerRadius = Math.hypot(arrival.x - pivot.x, arrival.y - pivot.y);
+            for (let k = 1; k <= RIGHT_AND_LEFT_SAMPLES; k++) {
+                const u = ease(k / RIGHT_AND_LEFT_SAMPLES);
+                const angle = startAngle - Math.PI * u;
+                const radius = outerRadius - (outerRadius - COURTESY_TURN_RADIUS_PX) * Math.sin(Math.PI * u);
+                waypoints.push({ x: pivot.x + radius * Math.cos(angle), y: pivot.y + radius * Math.sin(angle) });
+                times.push(0.5 + k / RIGHT_AND_LEFT_SAMPLES / 2);
+            }
+
+            const normalized = waypoints.map(point => fromPixels(point.x, point.y, SVG_WIDTH, SVG_HEIGHT));
+            normalized[normalized.length - 1] = endPosById.get(dancer.id).clone();
+            paths.set(dancer.id, new Path(normalized, beats, times));
         }
     }
 }
@@ -1514,5 +1589,7 @@ function executePlaceFigure(dancerSet, move, type) {
         dancerSet.doSiDo(1.0);
     } else if (type === 'half hey') {
         dancerSet.halfHey();
+    } else if (type === 'right and left through') {
+        dancerSet.rightAndLeftThrough();
     }
 }
