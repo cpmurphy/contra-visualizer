@@ -925,3 +925,107 @@ test('path cache key matches for the same arrangement', () => {
     const move = { type: 'balance', beats: 4 };
     assert.strictEqual(pathCacheKey(move, new Set(6)), pathCacheKey(move, new Set(6)));
 });
+
+// ===== ROBINS CHAIN COURTESY TURN TESTS =====
+
+// Simplicity Swing up to B1's chain: the left-hand couple of the top minor set is
+// L2 at the top with R1 crossing over to finish below him (and vice versa on the right)
+function chainFromSimplicitySwingB1() {
+    const set = new Set(6);
+    [
+        { type: 'balance', beats: 4, who: 'neighbor' },
+        { type: 'swing', beats: 12, who: 'neighbor' },
+        { type: 'circle left 3/4', beats: 6 },
+        { type: 'swing', beats: 10, who: 'partner' },
+        { type: 'Long lines, forward and back', beats: 8 }
+    ].forEach(move => executeMove(set, move));
+
+    const move = { type: 'chain to neighbor', beats: 8, who: 'robins' };
+    const paths = calculateMovePaths(move, set);
+    const startPositions = new Map(set.dancers.map((d, i) => [d.id, set.getPositions()[i]]));
+
+    // Pair each crossing robin with the lark whose side she finishes on
+    executeMove(set, move);
+    const endPositions = new Map(set.dancers.map((d, i) => [d.id, set.getPositions()[i]]));
+    const couples = set.dancers.slice(0, 4)
+        .filter(d => d.role === 'robin')
+        .map(robin => ({
+            robin: robin.id,
+            lark: set.dancers.slice(0, 4).find(d =>
+                d.role === 'lark' && Math.abs(endPositions.get(d.id).x - endPositions.get(robin.id).x) < 0.01).id
+        }));
+    return { paths, couples, startPositions, endPositions };
+}
+
+// Angle of b as seen from a, in pixel space (y down)
+function pixelAngle(a, b) {
+    return Math.atan2((b.y - a.y) * 9, (b.x - a.x) * 8);
+}
+
+test('robins chain: couple courtesy turns counter-clockwise as a unit', () => {
+    const { paths, couples } = chainFromSimplicitySwingB1();
+
+    for (const { robin, lark } of couples) {
+        // Over the turn (beats 3-7 of 8), the robin's bearing from the lark only
+        // decreases: counter-clockwise on screen, since y points down
+        let total = 0;
+        let previous = pixelAngle(paths.get(lark).getPositionAt(3 / 8), paths.get(robin).getPositionAt(3 / 8));
+        for (let k = 1; k <= 40; k++) {
+            const progress = 3 / 8 + (k / 40) * (4 / 8);
+            const angle = pixelAngle(paths.get(lark).getPositionAt(progress), paths.get(robin).getPositionAt(progress));
+            let step = angle - previous;
+            if (step > Math.PI) step -= 2 * Math.PI;
+            if (step < -Math.PI) step += 2 * Math.PI;
+            assert(step <= 1e-6, `${robin} should turn counter-clockwise around ${lark} (step ${step})`);
+            total += step;
+            previous = angle;
+        }
+        assert(total < -Math.PI, `${robin} and ${lark} should turn more than half way round (got ${total})`);
+    }
+});
+
+test('robins chain: turn ends with the robin on the lark\'s right, facing in', () => {
+    const { paths, couples, endPositions } = chainFromSimplicitySwingB1();
+
+    for (const { robin, lark } of couples) {
+        // At the end of the turn the robin is on the same side of the lark as her place
+        const larkAtTurnEnd = paths.get(lark).getPositionAt(7 / 8);
+        const robinAtTurnEnd = paths.get(robin).getPositionAt(7 / 8);
+        const expected = pixelAngle(endPositions.get(lark), endPositions.get(robin));
+        const actual = pixelAngle(larkAtTurnEnd, robinAtTurnEnd);
+        assert(Math.abs(Math.atan2(Math.sin(actual - expected), Math.cos(actual - expected))) < 0.05,
+            `${robin} should finish the turn lined up with her place beside ${lark}`);
+
+        // ...and has eased to a stop there
+        const justBefore = paths.get(robin).getPositionAt(7 / 8 - 0.01);
+        assert(distance(justBefore, robinAtTurnEnd) < 0.05, `${robin} should slow to a stop at the end of the turn`);
+    }
+});
+
+test('robins chain: the lark stays near his place as the pivot', () => {
+    const { paths, couples, startPositions } = chainFromSimplicitySwingB1();
+
+    for (const { lark } of couples) {
+        const place = startPositions.get(lark);
+        for (let k = 0; k <= 80; k++) {
+            const pos = paths.get(lark).getPositionAt(k / 80);
+            const offsetPx = Math.hypot((pos.x - place.x) * 8, (pos.y - place.y) * 9);
+            assert(offsetPx < 50, `${lark} should stay near his place (got ${offsetPx.toFixed(1)}px away)`);
+        }
+    }
+});
+
+test('robins chain: robins pull by clockwise around the middle, passing right shoulders', () => {
+    const { paths, couples } = chainFromSimplicitySwingB1();
+    const [first, second] = couples.map(c => c.robin);
+
+    // While the robins are in the middle (beat 1.5 of 8), each is on the other's right
+    const p1 = paths.get(first).getPositionAt(1.5 / 8);
+    const p2 = paths.get(second).getPositionAt(1.5 / 8);
+    const v1 = paths.get(first).getVelocityAtBeat(1.5);
+    const toOther = { x: (p2.x - p1.x) * 8, y: (p2.y - p1.y) * 9 };
+    // Right of travel in y-down coordinates is (-vy, vx)
+    const rightOfTravel = { x: -v1.y * 9, y: v1.x * 8 };
+    assert(toOther.x * rightOfTravel.x + toOther.y * rightOfTravel.y > 0,
+        'the other robin should be on the right while pulling by');
+});

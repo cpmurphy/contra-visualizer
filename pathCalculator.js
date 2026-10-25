@@ -58,8 +58,13 @@ export function calculateMovePaths(move, dancerSet) {
         const swingWho = move.who || 'neighbor';
         createSwingPaths(dancerSet, startPosById, endPosById, paths, beats, swingWho);
     } else if (type.includes('chain')) {
-        // Chain moves - dancers cross with arced paths
-        createChainPaths(dancerSet, startPosById, endPosById, paths, beats);
+        if (move.who === 'robins' || move.who === 'robin') {
+            // Robins pull by in the middle, then courtesy turn with the lark on the far side
+            createRobinsChainPaths(dancerSet, startPosById, endPosById, paths, beats);
+        } else {
+            // Other chains - dancers cross with arced paths
+            createChainPaths(dancerSet, startPosById, endPosById, paths, beats);
+        }
     } else if (type === 'do-si-do' || type === 'dosido') {
         // Neighbor pairs trace a wide counter-clockwise circle around their shared center
         createDoSiDoPaths(dancerSet, startPosById, paths, beats);
@@ -629,6 +634,235 @@ function createSwingPaths(dancerSet, startPosById, endPosById, paths, beats, swi
             paths.set(dancer.id, createStationaryPath(startPosById.get(dancer.id), beats));
         }
     }
+}
+
+// Robins chain geometry (pixels). The robins pull by right hands, swinging briefly
+// clockwise around each other at the center of the minor set; each then courtesy
+// turns counter-clockwise around a pivot beside the lark she meets, the lark close
+// to the pivot and the robin around him.
+const CHAIN_PULL_BY_RADIUS_PX = 28;
+const COURTESY_PIVOT_START_FRACTION = 0.1;
+const COURTESY_PIVOT_START_INWARD_PX = 0;
+const COURTESY_PIVOT_END_FRACTION = 0.35;
+const COURTESY_LARK_RADIUS_PX = 18;
+const COURTESY_ROBIN_RADIUS_PX = 38;
+// Phases of the chain, as fractions of its duration: for 8 beats, cross in 3,
+// courtesy turn in 4, release into place in 1
+const CHAIN_ARRIVAL_END = 3 / 8;
+const CHAIN_TURN_END = 7 / 8;
+// Waypoints per beat when sampling the chain paths
+const CHAIN_SAMPLES_PER_BEAT = 12;
+
+/**
+ * Create robins chain paths: the robins pull by right hands in the middle of the
+ * minor set, each meets the lark on the far side, and the couple courtesy turns
+ * counter-clockwise as a unit (lark backing, robin walking forward around him),
+ * coming to rest facing in with the robin on the lark's right. They then release
+ * into their places.
+ * @param {import('./dancers.js').Set} dancerSet
+ * @param {Map<string, Position>} startPosById
+ * @param {Map<string, Position>} endPosById
+ * @param {Map<string, import('./paths.js').Path>} paths
+ * @param {number} beats
+ */
+function createRobinsChainPaths(dancerSet, startPosById, endPosById, paths, beats) {
+    const startIndex = dancerSet.dancers[0].active ? 0 : 2;
+
+    for (let i = startIndex; i + 4 <= dancerSet.dancers.length; i += 4) {
+        const minorSetDancers = dancerSet.dancers.slice(i, i + 4);
+        const setCenterPx = toPixels(center(minorSetDancers.map(d => startPosById.get(d.id))),
+            SVG_WIDTH, SVG_HEIGHT);
+
+        const robins = minorSetDancers.filter(d =>
+            d.active && d.role === 'robin' && !startPosById.get(d.id).equals(endPosById.get(d.id), 0.01));
+
+        for (const robin of robins) {
+            const robinEnd = endPosById.get(robin.id);
+            // The robin turns with the lark already standing on the side she ends on
+            const lark = minorSetDancers.find(d =>
+                d.role === 'lark' && Math.abs(startPosById.get(d.id).x - robinEnd.x) < 0.01);
+            if (!lark) {
+                throw new Error(`No lark for ${robin.id} to courtesy turn with`);
+            }
+
+            const [robinWaypoints, larkWaypoints, times] = courtesyTurnChainWaypoints(
+                toPixels(startPosById.get(robin.id), SVG_WIDTH, SVG_HEIGHT),
+                toPixels(robinEnd, SVG_WIDTH, SVG_HEIGHT),
+                toPixels(startPosById.get(lark.id), SVG_WIDTH, SVG_HEIGHT),
+                setCenterPx,
+                beats
+            );
+            paths.set(robin.id, new Path(robinWaypoints, beats, times));
+            paths.set(lark.id, new Path(larkWaypoints, beats, times));
+        }
+    }
+
+    // Everyone else (other active dancers, inactive couples) stays put
+    dancerSet.dancers.forEach(dancer => {
+        if (!paths.has(dancer.id)) {
+            paths.set(dancer.id, createStationaryPath(startPosById.get(dancer.id), beats));
+        }
+    });
+}
+
+/**
+ * Sample the paths of one robin and her courtesy-turn lark through a chain.
+ * The robin's arrival is built from tangent lines and arcs: straight onto the
+ * pull-by circle (clockwise), around it, then along the inner tangent onto the
+ * courtesy-turn circle (counter-clockwise), so her path never has a corner.
+ * All inputs are in pixels; returns normalized waypoints and their shared times.
+ * @param {{x: number, y: number}} robinStart
+ * @param {{x: number, y: number}} robinEnd
+ * @param {{x: number, y: number}} larkPlace - Lark's place (start and end)
+ * @param {{x: number, y: number}} setCenter - Center of the minor set
+ * @param {number} beats
+ * @returns {[Position[], Position[], number[]]}
+ */
+function courtesyTurnChainWaypoints(robinStart, robinEnd, larkPlace, setCenter, beats) {
+    const add = (a, b, k = 1) => ({ x: a.x + k * b.x, y: a.y + k * b.y });
+    const sub = (a, b) => ({ x: a.x - b.x, y: a.y - b.y });
+    const dot = (a, b) => a.x * b.x + a.y * b.y;
+    const length = a => Math.hypot(a.x, a.y);
+    const unit = a => { const l = length(a); return { x: a.x / l, y: a.y / l }; };
+    const angleOf = a => Math.atan2(a.y, a.x);
+    const onCircle = (angle, radius) => ({ x: radius * Math.cos(angle), y: radius * Math.sin(angle) });
+    const fullTurn = 2 * Math.PI;
+    const positiveAngle = a => ((a % fullTurn) + fullTurn) % fullTurn;
+    // Direction of travel at an angle on a circle (y-down: clockwise = increasing angle)
+    const clockwiseHeading = angle => ({ x: -Math.sin(angle), y: Math.cos(angle) });
+    const counterClockwiseHeading = angle => ({ x: Math.sin(angle), y: -Math.cos(angle) });
+    const smoothstep = x => x * x * (3 - 2 * x);
+
+    // Courtesy turn pivot: just beside the lark, toward the robin's place and the
+    // center, drifting a little further toward her place as they turn
+    const larkToRobinEnd = sub(robinEnd, larkPlace);
+    const endDirection = unit(larkToRobinEnd);
+    const larkToCenter = sub(setCenter, larkPlace);
+    const inward = unit(add(larkToCenter, endDirection, -dot(larkToCenter, endDirection)));
+    const robinRadius = COURTESY_ROBIN_RADIUS_PX;
+    const larkRadius = COURTESY_LARK_RADIUS_PX;
+    const pullByRadius = CHAIN_PULL_BY_RADIUS_PX;
+    let pivot = add(add(larkPlace, endDirection, COURTESY_PIVOT_START_FRACTION * length(larkToRobinEnd)),
+        inward, COURTESY_PIVOT_START_INWARD_PX);
+    // The pull-by and courtesy circles mustn't overlap, or there's no tangent between them
+    const minPivotDistance = pullByRadius + robinRadius + 4;
+    const pivotFromCenter = sub(pivot, setCenter);
+    if (length(pivotFromCenter) < minPivotDistance) {
+        pivot = add(setCenter, unit(pivotFromCenter), minPivotDistance);
+    }
+    const pivotEnd = add(larkPlace, endDirection, COURTESY_PIVOT_END_FRACTION * length(larkToRobinEnd));
+
+    // 1. Straight from her start onto the pull-by circle, joining it clockwise
+    const startFromCenter = sub(robinStart, setCenter);
+    const tangentOffset = Math.acos(Math.min(1, pullByRadius / length(startFromCenter)));
+    const pullByEntryAngle = [angleOf(startFromCenter) + tangentOffset, angleOf(startFromCenter) - tangentOffset]
+        .find(angle => dot(clockwiseHeading(angle), sub(add(setCenter, onCircle(angle, pullByRadius)), robinStart)) > 0);
+    const pullByEntry = add(setCenter, onCircle(pullByEntryAngle, pullByRadius));
+
+    // 2. Leave the pull-by circle along the inner tangent that joins the courtesy
+    // circle counter-clockwise: the pivot must lie on the left of the line, robinRadius away
+    const tangentError = angle => {
+        const from = add(setCenter, onCircle(angle, pullByRadius));
+        const heading = clockwiseHeading(angle);
+        return dot(sub(pivot, from), { x: heading.y, y: -heading.x }) - robinRadius;
+    };
+    const ahead = angle => dot(sub(pivot, add(setCenter, onCircle(angle, pullByRadius))), clockwiseHeading(angle)) > 0;
+    let pullBySweep = null;
+    const steps = 720;
+    for (let k = 0; k < steps && pullBySweep === null; k++) {
+        const a = pullByEntryAngle + fullTurn * k / steps;
+        const b = pullByEntryAngle + fullTurn * (k + 1) / steps;
+        if (tangentError(a) * tangentError(b) <= 0 && ahead(a)) {
+            let lo = a, hi = b;
+            for (let n = 0; n < 40; n++) {
+                const m = (lo + hi) / 2;
+                if (tangentError(lo) * tangentError(m) <= 0) hi = m; else lo = m;
+            }
+            pullBySweep = (lo + hi) / 2 - pullByEntryAngle;
+        }
+    }
+    if (pullBySweep === null) {
+        throw new Error('No path from the pull-by into the courtesy turn');
+    }
+    const pullByExitAngle = pullByEntryAngle + pullBySweep;
+    const pullByExit = add(setCenter, onCircle(pullByExitAngle, pullByRadius));
+    const exitHeading = clockwiseHeading(pullByExitAngle);
+    const turnEntry = add(pullByExit, exitHeading, dot(sub(pivot, pullByExit), exitHeading));
+
+    // 3. Courtesy turn: counter-clockwise from where she joins to facing in, with the
+    // robin on the lark's right
+    const turnStartAngle = angleOf(sub(turnEntry, pivot));
+    const turnSweep = positiveAngle(turnStartAngle - angleOf(endDirection));
+
+    // Arrival as a sequence of pieces, each a function of distance along it
+    const pieces = [
+        { length: length(sub(pullByEntry, robinStart)),
+          at: d => add(robinStart, unit(sub(pullByEntry, robinStart)), d) },
+        { length: pullBySweep * pullByRadius,
+          at: d => add(setCenter, onCircle(pullByEntryAngle + d / pullByRadius, pullByRadius)) },
+        { length: length(sub(turnEntry, pullByExit)),
+          at: d => add(pullByExit, exitHeading, d) }
+    ];
+    const arrivalLength = pieces.reduce((sum, piece) => sum + piece.length, 0);
+    const arrivalAt = fraction => {
+        let d = fraction * arrivalLength;
+        for (const piece of pieces) {
+            if (d <= piece.length) return piece.at(d);
+            d -= piece.length;
+        }
+        return turnEntry;
+    };
+
+    // The turn starts at her arrival pace and eases to a stop (the lark's cue that
+    // the turn is over): Hermite profile with initial slope matched to that pace
+    const arrivalBeats = CHAIN_ARRIVAL_END * beats;
+    const turnBeats = (CHAIN_TURN_END - CHAIN_ARRIVAL_END) * beats;
+    const arrivalSpeed = arrivalLength / arrivalBeats;
+    const initialSlope = Math.min(3, arrivalSpeed * turnBeats / (turnSweep * robinRadius));
+    const turnProgress = x => (x * x * x - 2 * x * x + x) * initialSlope + (3 * x * x - 2 * x * x * x);
+
+    const larkTurnStart = add(pivot, onCircle(turnStartAngle, larkRadius), -1);
+    const robinTurnEnd = add(pivotEnd, endDirection, robinRadius);
+    const larkTurnEnd = add(pivotEnd, endDirection, -larkRadius);
+
+    const robinWaypoints = [];
+    const larkWaypoints = [];
+    const times = [];
+    const sampleCount = Math.max(16, Math.round(CHAIN_SAMPLES_PER_BEAT * beats));
+    for (let k = 0; k <= sampleCount; k++) {
+        const progress = k / sampleCount;
+        let robin, lark;
+        if (progress <= CHAIN_ARRIVAL_END) {
+            // Robin crosses at a steady pace; lark steps up beside the pivot to meet her
+            const x = progress / CHAIN_ARRIVAL_END;
+            robin = arrivalAt(x);
+            lark = add(larkPlace, sub(larkTurnStart, larkPlace), smoothstep(x));
+        } else if (progress <= CHAIN_TURN_END) {
+            // Rotate together about the pivot, the lark opposite the robin
+            const x = (progress - CHAIN_ARRIVAL_END) / (CHAIN_TURN_END - CHAIN_ARRIVAL_END);
+            const angle = turnStartAngle - turnSweep * turnProgress(x);
+            const turnPivot = add(pivot, sub(pivotEnd, pivot), smoothstep(x));
+            robin = add(turnPivot, onCircle(angle, robinRadius));
+            lark = add(turnPivot, onCircle(angle, larkRadius), -1);
+        } else {
+            // Release: both ease out into their places
+            const x = smoothstep((progress - CHAIN_TURN_END) / (1 - CHAIN_TURN_END));
+            robin = add(robinTurnEnd, sub(robinEnd, robinTurnEnd), x);
+            lark = add(larkTurnEnd, sub(larkPlace, larkTurnEnd), x);
+        }
+        robinWaypoints.push(fromPixels(robin.x, robin.y, SVG_WIDTH, SVG_HEIGHT));
+        larkWaypoints.push(fromPixels(lark.x, lark.y, SVG_WIDTH, SVG_HEIGHT));
+        times.push(progress);
+    }
+
+    // Land exactly on the places
+    robinWaypoints[0] = fromPixels(robinStart.x, robinStart.y, SVG_WIDTH, SVG_HEIGHT);
+    robinWaypoints[robinWaypoints.length - 1] = fromPixels(robinEnd.x, robinEnd.y, SVG_WIDTH, SVG_HEIGHT);
+    larkWaypoints[0] = fromPixels(larkPlace.x, larkPlace.y, SVG_WIDTH, SVG_HEIGHT);
+    larkWaypoints[larkWaypoints.length - 1] = fromPixels(larkPlace.x, larkPlace.y, SVG_WIDTH, SVG_HEIGHT);
+    times[times.length - 1] = 1;
+
+    return [robinWaypoints, larkWaypoints, times];
 }
 
 /**
