@@ -12,8 +12,9 @@ const DANCER_RADIUS_PX = 20;
 const VERTICAL_SPACING_PX = 120;
 const COLUMN_MIDPOINT_PX = 350;
 
-// How far down the hall a couple goes down the center
+// How far down the hall a couple goes down the center, and down the outside
 const DOWN_THE_CENTER_PX = 120;
+const DOWN_THE_OUTSIDE_PX = 180;
 // Size of the little loop a dancer turning alone makes: narrow, since there's not
 // much room between their partner and the line
 const TURN_ALONE_ACROSS_PX = 5;
@@ -74,7 +75,8 @@ const COURTESY_TURN_RADIUS_PX = 25;
 const RIGHT_AND_LEFT_SAMPLES = 16;
 
 // Figures for one couple ('ones' or 'twos') to dance, in either formation
-const COUPLE_FIGURES = ['down the center', 'up the center', 'turn alone', 'cast off', 'balance', 'swing'];
+const COUPLE_FIGURES = ['down the center', 'up the center', 'turn alone', 'cast off', 'balance', 'swing',
+    'down the outside', 'up the outside'];
 const COUPLES = ['ones', 'twos'];
 
 // "who" values that mean each dancer's neighbor (moves that don't say mean neighbors)
@@ -183,7 +185,9 @@ export function calculateMovePaths(move, dancerSet) {
         createHalfHeyPaths(dancerSet, startPosById, endPosById, paths, beats);
     } else if (type === 'right and left through') {
         createRightAndLeftThroughPaths(dancerSet, startPosById, endPosById, paths, beats);
-    } else if (type === 'down the center' || type === 'up the center') {
+    } else if (type === 'up the outside') {
+        createReturnUpOutsidePaths(dancerSet, startPosById, endPosById, paths, beats);
+    } else if (type === 'down the center' || type === 'up the center' || type === 'down the outside') {
         createCenterTravelPaths(dancerSet, startPosById, endPosById, paths, beats);
     } else if (type === 'turn alone') {
         createTurnAlonePaths(dancerSet, dancerSet.placesOf(move.who), startPosById, paths, beats);
@@ -670,8 +674,35 @@ function createCouplePairPaths(dancerSet, who, startPosById, paths, beats, addPa
 }
 
 /**
- * Create paths for a couple going down or coming up the center: they move across
- * into the middle of the set first (if they aren't there already), then along it.
+ * Create paths for dancers coming back up the outside of the set to their places:
+ * up the outside, then in to their places.
+ * @param {import('./dancers.js').Set} dancerSet
+ * @param {Map<string, Position>} startPosById
+ * @param {Map<string, Position>} endPosById
+ * @param {Map<string, import('./paths.js').Path>} paths
+ * @param {number} beats
+ */
+function createReturnUpOutsidePaths(dancerSet, startPosById, endPosById, paths, beats) {
+    dancerSet.dancers.forEach(dancer => {
+        const start = startPosById.get(dancer.id);
+        const end = endPosById.get(dancer.id);
+        if (start.equals(end, 0.01)) {
+            paths.set(dancer.id, createStationaryPath(start, beats));
+        } else {
+            paths.set(dancer.id, createBezierPath([
+                start,
+                new Position(start.x, (start.y + end.y) / 2),
+                new Position(start.x, end.y),
+                end
+            ], beats));
+        }
+    });
+}
+
+/**
+ * Create paths for dancers going down or coming up the center, or going down the
+ * outside: they move across into the lane they travel along first (if they aren't
+ * in it already), then along it.
  * @param {import('./dancers.js').Set} dancerSet
  * @param {Map<string, Position>} startPosById
  * @param {Map<string, Position>} endPosById
@@ -1529,6 +1560,10 @@ function executeMoveSteps(dancerSet, move) {
         dancerSet.downTheCenter(move.who, DOWN_THE_CENTER_PX);
     } else if (type === 'up the center') {
         dancerSet.upTheCenter(move.who, DOWN_THE_CENTER_PX);
+    } else if (type === 'down the outside') {
+        dancerSet.downTheOutside(move.who, DOWN_THE_OUTSIDE_PX);
+    } else if (type === 'up the outside') {
+        dancerSet.upTheOutside(move.who);
     } else if (type === 'turn alone' || (type === 'balance' && COUPLES.includes(move.who))) {
         // Everyone ends where they started
     } else if (type === 'swing' && COUPLES.includes(move.who)) {

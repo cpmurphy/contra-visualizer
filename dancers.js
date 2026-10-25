@@ -13,6 +13,8 @@ const VERTICAL_SPACING = 120;
 const DANCER_RADIUS = 20;
 // A couple going down or up the center walks this far either side of the middle
 const CENTER_LANE_OFFSET_PX = 30;
+// Dancers going down or up the outside walk this far outside the lines
+const OUTSIDE_LANE_OFFSET_PX = 50;
 
 const COLOR_PALETTE = [
     '#1b9e77',
@@ -356,6 +358,38 @@ export class Set {
     }
 
     /**
+     * The couple separate to the nearest outside of the set and walk down it
+     * @param {string} who - 'ones' or 'twos'
+     * @param {number} distancePx - How far down the hall to go, in pixels
+     */
+    downTheOutside(who, distancePx) {
+        this.snapshot();
+        const places = this.getPlacePositions();
+        const positions = this.getPositions();
+        for (const index of this.placesOf(who)) {
+            const dancer = this.dancers[index];
+            const onLeft = positions[index].x < this.middleX();
+            const outsideX = (onLeft ? START_X - OUTSIDE_LANE_OFFSET_PX
+                : START_X + HORIZONTAL_SPACING + OUTSIDE_LANE_OFFSET_PX) / SVG_WIDTH * 100;
+            this.offsets.set(dancer.id, {
+                x: outsideX - places[index].x,
+                y: this.getOffset(dancer).y + distancePx / SVG_HEIGHT * 100
+            });
+        }
+    }
+
+    /**
+     * The couple come back up the outside of the set to their places
+     * @param {string} who - 'ones' or 'twos'
+     */
+    upTheOutside(who) {
+        this.snapshot();
+        for (const index of this.placesOf(who)) {
+            this.offsets.delete(this.dancers[index].id);
+        }
+    }
+
+    /**
      * The couple comes back up the center of the set
      * @param {string} who - 'ones' or 'twos'
      * @param {number} distancePx - How far up the hall to come, in pixels
@@ -524,6 +558,8 @@ export class Set {
         this.snapshot();
         this.progressFirstCouple();
         this.progressLastCouple();
+        // Couples waiting out at the ends stand in their places
+        this.dancers.filter(dancer => !dancer.active).forEach(dancer => this.offsets.delete(dancer.id));
     }
 
     progressFirstCouple() {

@@ -974,3 +974,14 @@ test('progressing a proper set should not cross over the couples waiting out at 
 test('creating a set in an unknown formation should throw', () => {
     assert.throws(() => new Set(6, 'becket'), /Unsupported formation/);
 });
+
+test('couples who wait out at the ends after progressing should stand in their places', () => {
+    const set = new Set(6, 'proper');
+    // Everyone a little off their places
+    set.dancers.forEach(dancer => set.offsets.set(dancer.id, { x: 2, y: 1 }));
+    set.progress();
+    set.dancers.forEach(dancer => {
+        assert.equal(set.offsets.has(dancer.id), dancer.active,
+            `${dancer.getLabel()} should ${dancer.active ? 'keep' : 'lose'} their offset`);
+    });
+});

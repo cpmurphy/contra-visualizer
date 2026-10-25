@@ -1037,7 +1037,7 @@ test('robins chain: robins pull by clockwise around the middle, passing right sh
 test('moves we cannot animate yet should be unsupported', () => {
     const improper = new Set(6);
     const proper = new Set(6, 'proper');
-    assert(!isMoveSupported({ type: 'go down outside', who: 'ones', beats: 8 }, improper));
+    assert(!isMoveSupported({ type: 'turn contra corners', who: 'twos', beats: 16 }, improper));
     assert(!isMoveSupported({ type: 'turn contra corners', who: 'ones', beats: 16 }, improper));
     assert(!isMoveSupported({ type: 'balance', who: 'partner', beats: 4 }, improper));
     assert(!isMoveSupported({ type: 'swing', who: 'neighbor', beats: 12 }, proper));
@@ -1391,4 +1391,46 @@ test('in a right and left through the dancers should pass right shoulders', () =
     const [l2, r2] = [set.dancers[0], set.dancers[1]];
     const quarter = [paths.get(l2.id).getPositionAt(0.25), paths.get(r2.id).getPositionAt(0.25)];
     assert(quarter[0].y < quarter[1].y, 'heading right, L2 should keep R2 on the right (below)');
+});
+
+// Down and up the outside
+
+const ONES_DOWN_OUTSIDE = { type: 'down the outside', who: 'ones', beats: 8 };
+const ONES_UP_OUTSIDE = { type: 'up the outside', who: 'ones', beats: 8 };
+
+test('going down the outside should take the ones outside the lines and down the hall', () => {
+    const set = properSet();
+    const before = set.getPositions();
+    executeMove(set, ONES_DOWN_OUTSIDE);
+    const after = set.getPositions();
+    set.dancers.forEach((dancer, index) => {
+        if (dancer.couple.coupleNumber === 1) {
+            assert(after[index].y > before[index].y + 10, `${dancer.getLabel()} should go down`);
+            const outward = index % 2 === 0 ? before[index].x - after[index].x : after[index].x - before[index].x;
+            assert(outward > 3, `${dancer.getLabel()} should be outside the line`);
+        } else {
+            assert(after[index].equals(before[index]), `${dancer.getLabel()} should stay put`);
+        }
+    });
+});
+
+test('coming up the outside should return the ones to their places', () => {
+    const set = properSet();
+    const before = set.getPositions();
+    executeMove(set, ONES_DOWN_OUTSIDE);
+    executeMove(set, ONES_UP_OUTSIDE);
+    assert.deepEqual(set.getPositions(), before);
+});
+
+test('down and up the outside paths should not collide, and should end where the set says', () => {
+    const set = properSet();
+    for (const move of [ONES_DOWN_OUTSIDE, ONES_UP_OUTSIDE]) {
+        const paths = calculateMovePaths(move, set);
+        assert(hasNoOverlaps(paths), `${move.type} should have no overlaps`);
+        assert(allWaypointsInBounds(paths), `${move.type} should stay in bounds`);
+        executeMove(set, move);
+        set.dancers.forEach((dancer, index) => {
+            assert(paths.get(dancer.id).end.equals(set.getPositions()[index]), `${move.type}: ${dancer.id} end`);
+        });
+    }
 });
