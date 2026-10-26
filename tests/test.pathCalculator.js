@@ -628,13 +628,14 @@ test('swing paths should have correct waypoint count for 8-beat swing', () => {
 
     const paths = calculateMovePaths(move, set);
 
-    // For 8-beat swing: totalRotation = 3pi, rotationSteps = 12
-    // Waypoints: 1 (start) + 1 (entry) + 12 (rotation) + 1 (end) = 15
+    // For 8-beat swing: 6 beats turning, once every 2 beats is 3 turns, adjusted to
+    // 3.5 to leave on the side facing the end position, so rotationSteps = 84
+    // Waypoints: 1 (start) + 1 (entry) + 84 (rotation) + 1 (end) = 87
     set.dancers.forEach(dancer => {
         if (dancer.active) {
             const path = paths.get(dancer.id);
-            assert.strictEqual(path.waypointCount, 15,
-                `Active dancer ${dancer.id} should have 15 waypoints for 8-beat swing`);
+            assert.strictEqual(path.waypointCount, 87,
+                `Active dancer ${dancer.id} should have 87 waypoints for 8-beat swing`);
         }
     });
 });
@@ -672,6 +673,52 @@ test('swing pair dancers should remain separated during rotation', () => {
                 `Pair ${id1}/${id2} should stay separated at progress ${progress} (got ${dist.toFixed(2)})`);
         }
     });
+});
+
+// The two swinging hold each other: between stepping in and out (a beat each),
+// they turn steadily about a fixed point, just about touching, closer together
+// than in an allemande
+test('swing pairs should turn close together, steadily opposite each other', () => {
+    const setups = [
+        [],
+        [{ type: 'swing', who: 'neighbor', beats: 12 }, { type: 'circle left 3/4', beats: 6 }]
+    ];
+    for (const setup of setups) {
+        for (const who of ['neighbor', 'partner']) {
+            const set = new Set(6);
+            setup.forEach(move => executeMove(set, move));
+            const beats = 8;
+            const paths = calculateMovePaths({ type: 'swing', who, beats }, set);
+            const px = (id, beat) => toPixels(paths.get(id).getPositionAtBeat(beat), 800, 1000);
+            const apart = (id1, id2, beat) => {
+                const [p1, p2] = [px(id1, beat), px(id2, beat)];
+                return Math.hypot(p1.x - p2.x, p1.y - p2.y);
+            };
+            // Pair up the swingers by who is close to whom half way through
+            const ids = [...paths.keys()].filter(id => !paths.get(id).start.equals(paths.get(id).end));
+            const partnerOf = new Map();
+            for (const id of ids) {
+                const other = ids.find(otherId => otherId !== id && apart(id, otherId, beats / 2) < 50);
+                if (other) partnerOf.set(id, other);
+            }
+            assert(partnerOf.size >= 4, `${who} swing: swinging pairs should be close at the half way point`);
+
+            for (const [id1, id2] of partnerOf) {
+                const centers = [];
+                for (let beat = 1; beat <= beats - 1; beat += 0.25) {
+                    const [p1, p2] = [px(id1, beat), px(id2, beat)];
+                    const dist = apart(id1, id2, beat);
+                    assert(dist >= 40 && dist <= 44,
+                        `${who} swing: ${id1}/${id2} should be about touching at beat ${beat} (got ${dist.toFixed(1)})`);
+                    centers.push({ x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 });
+                }
+                for (const c of centers) {
+                    assert(Math.hypot(c.x - centers[0].x, c.y - centers[0].y) < 1,
+                        `${who} swing: ${id1}/${id2} should turn about a fixed point`);
+                }
+            }
+        }
+    }
 });
 
 // ===== CHAIN MOVES TESTS =====
@@ -1186,7 +1233,9 @@ test('down the center, turn alone, up the center and cast off paths should not c
     for (const set of [properSet(), new Set(6)]) {
         for (const move of [ONES_DOWN, ONES_TURN, ONES_UP, ONES_CAST]) {
             const paths = calculateMovePaths(move, set);
-            assert(hasNoOverlaps(paths), `${set.formation} ${move.type} should have no overlaps`);
+            // The ones hold each other in the swing, so they come closer than in the rest
+            const minDistance = move === ONES_SWING ? 40 : 44;
+            assert(hasNoOverlaps(paths, minDistance), `${set.formation} ${move.type} should have no overlaps`);
             assert(allWaypointsInBounds(paths), `${set.formation} ${move.type} should stay in bounds`);
             executeMove(set, move);
         }
@@ -1284,7 +1333,9 @@ test('the ones\' balance and swing should not collide and should end where the s
     for (const set of [afterNeighborSwing(), new Set(6, 'proper')]) {
         for (const move of [ONES_BALANCE, ONES_SWING, ONES_DOWN, ONES_TURN, ONES_UP, ONES_CAST]) {
             const paths = calculateMovePaths(move, set);
-            assert(hasNoOverlaps(paths), `${set.formation} ${move.type} should have no overlaps`);
+            // The ones hold each other in the swing, so they come closer than in the rest
+            const minDistance = move === ONES_SWING ? 40 : 44;
+            assert(hasNoOverlaps(paths, minDistance), `${set.formation} ${move.type} should have no overlaps`);
             assert(allWaypointsInBounds(paths), `${set.formation} ${move.type} should stay in bounds`);
             executeMove(set, move);
             set.dancers.forEach((dancer, index) => {

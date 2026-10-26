@@ -74,6 +74,16 @@ const COURTESY_TURN_RADIUS_PX = 25;
 // Waypoints for each half of a right and left through
 const RIGHT_AND_LEFT_SAMPLES = 16;
 
+// Swings: the two swinging hold each other, so they turn closer together than in
+// any other figure, just about touching. They step in to each other and out again
+// over a beat at each end, and in between turn steadily, about once every 2 beats
+// (a buzz-step swing)
+const SWING_RADIUS_PX = DANCER_RADIUS_PX + 1;
+const SWING_LEG_BEATS = 1;
+const SWING_BEATS_PER_TURN = 2;
+// Waypoints per revolution of a swing
+const SWING_STEPS_PER_TURN = 24;
+
 // Allemandes: how far apart the two turning are (twice the radius they turn at)
 const ALLEMANDE_RADIUS_PX = 25;
 // Contra corners, as fractions of the figure (sixteenths, for a 16-beat figure):
@@ -177,7 +187,7 @@ export function calculateMovePaths(move, dancerSet) {
     } else if (type === 'swing' && COUPLES.includes(move.who)) {
         // Partners in the couple swing in the middle of the set
         createCouplePairPaths(dancerSet, move.who, startPosById, paths, beats, (d1, d2, i) =>
-            addSwingPairPaths(dancerSet, i, d1, d2, startPosById, endPosById, paths, beats));
+            addSwingPairPaths(d1, d2, startPosById, endPosById, paths, beats));
     } else if (type === 'balance') {
         // Neighbor pairs approach each other vertically and retreat
         createBalancePaths(dancerSet, startPosById, paths, beats);
@@ -311,7 +321,8 @@ function addBalancePairPaths(d1, d2, startPosById, paths, beats) {
 /**
  * Create do-si-do paths - neighbor pairs trace a wide counter-clockwise circle.
  * Unlike swing (tight orbit with approach/depart, clockwise, multi-revolution),
- * the do-si-do is a clean single-revolution loop at a wider radius, counter-clockwise.
+ * the do-si-do is a clean single-revolution loop, as wide as there's room for,
+ * counter-clockwise.
  * @param {import('./dancers.js').Set} dancerSet
  * @param {Map<string, Position>} startPosById
  * @param {Map<string, import('./paths.js').Path>} paths
@@ -360,10 +371,10 @@ function createDoSiDoPaths(dancerSet, startPosById, paths, beats) {
             const s2px = toPixels(start2, SVG_WIDTH, SVG_HEIGHT);
             const centerPx = { x: (s1px.x + s2px.x) / 2, y: (s1px.y + s2px.y) / 2 };
 
-            // Use bounding rectangle to constrain radius (same as swing)
+            // As wide as fits in this pair's half of the minor set
             const side = centerPx.x < COLUMN_MIDPOINT_PX ? 'left' : 'right';
-            const rectangle = computeSwingRectangle(i, dancerSet.dancers.length, side, false);
-            const radius = computeSwingRadius(centerPx, rectangle);
+            const rectangle = computeDoSiDoRectangle(i, dancerSet.dancers.length, side);
+            const radius = computeDoSiDoRadius(centerPx, rectangle);
 
             // Each dancer traces a full 360° counter-clockwise circle from their start
             // back to their start (CCW = negative angle in SVG y-down coords)
@@ -1003,14 +1014,14 @@ function createLongLinesPaths(dancerSet, startPosById, paths, beats) {
 }
 
 /**
- * Compute the bounding rectangle (in pixels) for one swing pair.
+ * Compute the bounding rectangle (in pixels) for one do-si-do pair: their half of
+ * the minor set, split at the column midpoint.
  * @param {number} minorSetStart - Dancer array index where the minor set begins
  * @param {number} totalDancers - Total number of dancers in the set
- * @param {string} side - 'left'/'right' for same-column, 'top'/'bottom' for cross-column
- * @param {boolean} isCrossColumn - Whether dancers start in different columns
+ * @param {string} side - 'left' or 'right'
  * @returns {{left: number, right: number, top: number, bottom: number}}
  */
-function computeSwingRectangle(minorSetStart, totalDancers, side, isCrossColumn) {
+function computeDoSiDoRectangle(minorSetStart, totalDancers, side) {
     const numRows = Math.ceil(totalDancers / 2);
     const totalDancerHeight = (numRows - 1) * VERTICAL_SPACING_PX + 2 * DANCER_RADIUS_PX;
     const danceFloorHeight = SVG_HEIGHT - STAGE_HEIGHT;
@@ -1018,54 +1029,24 @@ function computeSwingRectangle(minorSetStart, totalDancers, side, isCrossColumn)
 
     const topRow = minorSetStart / 2;
     const bottomRow = topRow + 1;
-    const topRowY = startY + topRow * VERTICAL_SPACING_PX;
-    const bottomRowY = startY + bottomRow * VERTICAL_SPACING_PX;
 
     // Vertical boundaries: midpoints between adjacent minor sets (or stage/floor edges)
-    let top, bottom;
-    if (topRow === 0) {
-        top = STAGE_HEIGHT;
-    } else {
-        top = startY + (topRow - 0.5) * VERTICAL_SPACING_PX;
-    }
-    if (bottomRow >= numRows - 1) {
-        bottom = SVG_HEIGHT;
-    } else {
-        bottom = startY + (bottomRow + 0.5) * VERTICAL_SPACING_PX;
-    }
+    const top = topRow === 0 ? STAGE_HEIGHT : startY + (topRow - 0.5) * VERTICAL_SPACING_PX;
+    const bottom = bottomRow >= numRows - 1 ? SVG_HEIGHT : startY + (bottomRow + 0.5) * VERTICAL_SPACING_PX;
 
-    let left, right;
-    if (!isCrossColumn) {
-        // Same-column pairs: split at column midpoint
-        if (side === 'left') {
-            left = 0;
-            right = COLUMN_MIDPOINT_PX;
-        } else {
-            left = COLUMN_MIDPOINT_PX;
-            right = SVG_WIDTH;
-        }
-    } else {
-        // Cross-column pairs: full width, split vertically within minor set
-        left = 0;
-        right = SVG_WIDTH;
-        const midY = (topRowY + bottomRowY) / 2;
-        if (side === 'top') {
-            bottom = midY;
-        } else {
-            top = midY;
-        }
-    }
+    const left = side === 'left' ? 0 : COLUMN_MIDPOINT_PX;
+    const right = side === 'left' ? COLUMN_MIDPOINT_PX : SVG_WIDTH;
 
     return { left, right, top, bottom };
 }
 
 /**
- * Compute swing radius that fits within the bounding rectangle.
+ * Compute a do-si-do radius that fits within the bounding rectangle.
  * @param {{x: number, y: number}} centerPx - Swing center in pixels
  * @param {{left: number, right: number, top: number, bottom: number}} rectangle
  * @returns {number} Radius in pixels
  */
-function computeSwingRadius(centerPx, rectangle) {
+function computeDoSiDoRadius(centerPx, rectangle) {
     const distToLeft = centerPx.x - rectangle.left;
     const distToRight = rectangle.right - centerPx.x;
     const distToTop = centerPx.y - rectangle.top;
@@ -1083,7 +1064,17 @@ function computeSwingRadius(centerPx, rectangle) {
 }
 
 /**
- * Choose how far a swing rotates: close to the nominal (beats/4 - 0.5) revolutions,
+ * How long the step in to a swing takes, and the step out (less in a short swing)
+ * @param {number} beats - Duration of the swing in beats
+ * @returns {number} Beats
+ */
+function swingLegBeats(beats) {
+    return Math.min(SWING_LEG_BEATS, beats / 8);
+}
+
+/**
+ * Choose how far a swing rotates: close to one revolution every
+ * SWING_BEATS_PER_TURN beats between stepping in and stepping out,
  * but adjusted so the dancer leaves the circle on the side facing their end
  * position. Otherwise the straight exit leg can cut through the circle's center,
  * straight through their swing partner.
@@ -1094,7 +1085,8 @@ function computeSwingRadius(centerPx, rectangle) {
  */
 function computeSwingRotation(beats, entryAngle, exitAngle) {
     const fullTurn = 2 * Math.PI;
-    const nominal = (beats / 4 - 0.5) * fullTurn;
+    const turningBeats = beats - 2 * swingLegBeats(beats);
+    const nominal = turningBeats / SWING_BEATS_PER_TURN * fullTurn;
 
     // Clockwise angle from entry to exit, in [0, 2π)
     const baseRotation = ((exitAngle - entryAngle) % fullTurn + fullTurn) % fullTurn;
@@ -1105,48 +1097,49 @@ function computeSwingRotation(beats, entryAngle, exitAngle) {
 }
 
 /**
- * Generate swing waypoints in pixel space, converted to normalized coords.
+ * Generate swing waypoints in pixel space, converted to normalized coords: in to
+ * the circle, around it, and out to the end position.
  * @param {Position} startPos - Dancer's start position (normalized)
  * @param {Position} endPos - Dancer's end position (normalized)
  * @param {{x: number, y: number}} centerPx - Swing center in pixels
- * @param {number} radius - Swing radius in pixels
  * @param {number} entryAngle - Angle at which dancer enters the circle
  * @param {number} totalRotation - Clockwise rotation around the circle (radians)
+ * @param {number} rotationSteps - Number of steps around the circle
  * @returns {Position[]} Array of waypoint positions (normalized)
  */
-function generateSwingWaypoints(startPos, endPos, centerPx, radius, entryAngle, totalRotation) {
-    // Number of rotation steps (8 waypoints per revolution)
-    const rotationSteps = Math.round(Math.abs(totalRotation) * 4 / Math.PI);
-
-    const waypoints = [];
-
-    // Waypoint 0: start position
-    waypoints.push(startPos.clone());
-
-    // Waypoint 1: entry point on circle
-    const entryX = centerPx.x + radius * Math.cos(entryAngle);
-    const entryY = centerPx.y + radius * Math.sin(entryAngle);
-    waypoints.push(fromPixels(entryX, entryY, SVG_WIDTH, SVG_HEIGHT));
-
-    // Waypoints 2..rotationSteps+1: rotation steps around circle
-    for (let j = 1; j <= rotationSteps; j++) {
+function generateSwingWaypoints(startPos, endPos, centerPx, entryAngle, totalRotation, rotationSteps) {
+    const waypoints = [startPos.clone()];
+    for (let j = 0; j <= rotationSteps; j++) {
         const angle = entryAngle + totalRotation * j / rotationSteps;
-        const x = centerPx.x + radius * Math.cos(angle);
-        const y = centerPx.y + radius * Math.sin(angle);
+        const x = centerPx.x + SWING_RADIUS_PX * Math.cos(angle);
+        const y = centerPx.y + SWING_RADIUS_PX * Math.sin(angle);
         waypoints.push(fromPixels(x, y, SVG_WIDTH, SVG_HEIGHT));
     }
-
-    // Final waypoint: end position
     waypoints.push(endPos.clone());
-
     return waypoints;
 }
 
 /**
- * Create swing paths for one pair of dancers in a minor set: they rotate clockwise
- * around their shared center, within the part of the minor set that is theirs.
- * @param {import('./dancers.js').Set} dancerSet
- * @param {number} i - Index of the first place of the minor set
+ * Times for swing waypoints: the step in and the step out (see swingLegBeats), and
+ * the turn between at a steady pace. Both dancers share
+ * these times, so they stay opposite each other all the way around.
+ * @param {number} beats - Duration in beats
+ * @param {number} rotationSteps - Number of steps around the circle
+ * @returns {number[]}
+ */
+function swingTimes(beats, rotationSteps) {
+    const leg = swingLegBeats(beats) / beats;
+    const times = [0];
+    for (let j = 0; j <= rotationSteps; j++) {
+        times.push(leg + (1 - 2 * leg) * j / rotationSteps);
+    }
+    times.push(1);
+    return times;
+}
+
+/**
+ * Create swing paths for one pair of dancers in a minor set: they come together
+ * and rotate clockwise, close, around the point midway between them.
  * @param {import('./dancers.js').Dancer} dancer1
  * @param {import('./dancers.js').Dancer} dancer2
  * @param {Map<string, Position>} startPosById
@@ -1154,7 +1147,7 @@ function generateSwingWaypoints(startPos, endPos, centerPx, radius, entryAngle, 
  * @param {Map<string, import('./paths.js').Path>} paths
  * @param {number} beats
  */
-function addSwingPairPaths(dancerSet, i, dancer1, dancer2, startPosById, endPosById, paths, beats) {
+function addSwingPairPaths(dancer1, dancer2, startPosById, endPosById, paths, beats) {
     const start1 = startPosById.get(dancer1.id);
     const start2 = startPosById.get(dancer2.id);
     const end1 = endPosById.get(dancer1.id);
@@ -1165,27 +1158,6 @@ function addSwingPairPaths(dancerSet, i, dancer1, dancer2, startPosById, endPosB
     const s2px = toPixels(start2, SVG_WIDTH, SVG_HEIGHT);
     const centerPx = { x: (s1px.x + s2px.x) / 2, y: (s1px.y + s2px.y) / 2 };
 
-    // Determine if cross-column
-    const isCrossColumn = Math.abs(start1.x - start2.x) > 5.0;
-
-    // Determine side for rectangle splitting
-    let side;
-    if (!isCrossColumn) {
-        side = centerPx.x < COLUMN_MIDPOINT_PX ? 'left' : 'right';
-    } else {
-        const numRows = Math.ceil(dancerSet.dancers.length / 2);
-        const totalDancerHeight = (numRows - 1) * VERTICAL_SPACING_PX + 2 * DANCER_RADIUS_PX;
-        const danceFloorHeight = SVG_HEIGHT - STAGE_HEIGHT;
-        const startYpx = STAGE_HEIGHT + (danceFloorHeight - totalDancerHeight) / 2 + DANCER_RADIUS_PX;
-        const topRowY = startYpx + (i / 2) * VERTICAL_SPACING_PX;
-        const bottomRowY = startYpx + (i / 2 + 1) * VERTICAL_SPACING_PX;
-        const minorSetMidY = (topRowY + bottomRowY) / 2;
-        side = centerPx.y < minorSetMidY ? 'top' : 'bottom';
-    }
-
-    const rectangle = computeSwingRectangle(i, dancerSet.dancers.length, side, isCrossColumn);
-    const radius = computeSwingRadius(centerPx, rectangle);
-
     // Entry angle from dancer 1's start direction relative to center
     const entryAngle1 = Math.atan2(s1px.y - centerPx.y, s1px.x - centerPx.x);
     const entryAngle2 = entryAngle1 + Math.PI;
@@ -1194,17 +1166,19 @@ function addSwingPairPaths(dancerSet, i, dancer1, dancer2, startPosById, endPosB
     const e1px = toPixels(end1, SVG_WIDTH, SVG_HEIGHT);
     const exitAngle1 = Math.atan2(e1px.y - centerPx.y, e1px.x - centerPx.x);
     const totalRotation = computeSwingRotation(beats, entryAngle1, exitAngle1);
+    const rotationSteps = Math.max(1, Math.round(totalRotation / (2 * Math.PI) * SWING_STEPS_PER_TURN));
 
-    const waypoints1 = generateSwingWaypoints(start1, end1, centerPx, radius, entryAngle1, totalRotation);
-    const waypoints2 = generateSwingWaypoints(start2, end2, centerPx, radius, entryAngle2, totalRotation);
+    const times = swingTimes(beats, rotationSteps);
+    const waypoints1 = generateSwingWaypoints(start1, end1, centerPx, entryAngle1, totalRotation, rotationSteps);
+    const waypoints2 = generateSwingWaypoints(start2, end2, centerPx, entryAngle2, totalRotation, rotationSteps);
 
-    paths.set(dancer1.id, new Path(waypoints1, beats));
-    paths.set(dancer2.id, new Path(waypoints2, beats));
+    paths.set(dancer1.id, new Path(waypoints1, beats, times));
+    paths.set(dancer2.id, new Path(waypoints2, beats, times));
 }
 
 /**
  * Create swing paths for dancers.
- * Two dancers rotate around their shared center point within a bounding rectangle.
+ * Two dancers come together and rotate around the point midway between them.
  * - Neighbor swing: L1 with R2, L2 with R1
  * - Partner swing: L1 with R1, L2 with R2
  *
@@ -1262,7 +1236,7 @@ function createSwingPaths(dancerSet, startPosById, endPosById, paths, beats, swi
                 return;
             }
 
-            addSwingPairPaths(dancerSet, i, dancer1, dancer2, startPosById, endPosById, paths, beats);
+            addSwingPairPaths(dancer1, dancer2, startPosById, endPosById, paths, beats);
         });
     }
 
