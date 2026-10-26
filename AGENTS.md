@@ -45,6 +45,19 @@ The tempo slider (70-130 BPM) defaults to 100 BPM, slower than most
 dances, for learners; it is remembered too. Changing it mid-move keeps
 the dancers' place in the figure (`AnimationState.changeTempo`).
 
+## Music
+
+The "Music" menu plays a tune under the dance, synthesized in the browser
+(`music.js`), so it follows the tempo exactly: a fiddle plays the melody
+over a boom-chuck accompaniment (bass on the beat, a chord between beats),
+and before a practice session the fiddle plays the potatoes. Tunes are in
+`library/tunes.json` as ABC notation, read by `abc.js`, which understands
+the common subset used for dance tunes (repeats, endings, chord symbols
+like `"D"`, broken rhythms, triplets) but not pickup notes or inline
+fields. A tune for the built-in dances should be 64 beats long (AABB).
+The metronome and music share `BeatScheduler` (`scheduler.js`), which
+schedules sounds ahead on the audio clock.
+
 ## Calls
 
 `calls.js` times the calls for practising calling. Moves carry their

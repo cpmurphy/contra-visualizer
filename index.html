@@ -392,6 +392,18 @@
             font-variant-numeric: tabular-nums;
         }
 
+        #music-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+
+        #music-select {
+            font-size: 14px;
+            padding: 6px;
+        }
+
         #metronome-label {
             display: flex;
             align-items: center;
@@ -505,6 +517,12 @@
                 Tempo
                 <input type="range" id="tempo-slider" min="70" max="130" step="2" value="100">
                 <span id="tempo-value">100 BPM</span>
+            </label>
+            <label id="music-label">
+                Music
+                <select id="music-select">
+                    <option value="">None</option>
+                </select>
             </label>
             <label id="metronome-label">
                 <input type="checkbox" id="metronome-toggle" checked>

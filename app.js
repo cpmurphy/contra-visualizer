@@ -6,6 +6,7 @@ import { dances, danceSlug, findDance } from './library.js';
 import { Metronome, beatAccent, danceBeats, locateBeat, moveStartBeat } from './metronome.js';
 import { INTRO_BEATS, PRACTICE_ROUNDS, callSchedule, displayCall, judgeCall } from './calls.js';
 import { createStationaryPath } from './paths.js';
+import { MusicPlayer, findTune, tunes } from './music.js';
 
 const APP_TITLE = document.title;
 
@@ -32,12 +33,21 @@ const state = {
 /** Beats a finished call stays lit before the next one replaces it */
 const CALL_HOLD_BEATS = 1;
 
+// The metronome and the music share one audio context, made on first use
+let audioContext = null;
+const createContext = () => (audioContext ??= new AudioContext());
+
 // Clicks on the beat while playing, accented by where the beat falls in its part
 const metronome = new Metronome({
+    createContext,
     accentOf: beat => beatAccent(locateBeat(state.dance, beat).beatInPart)
 });
 
+// A tune played under the dance, if one is chosen
+const music = new MusicPlayer({ createContext });
+
 const METRONOME_SETTING = 'metronome';
+const MUSIC_SETTING = 'music';
 
 // DOM elements
 const elements = {
@@ -51,6 +61,7 @@ const elements = {
     prevMoveBtn: document.getElementById('prev-move-btn'),
     nextMoveBtn: document.getElementById('next-move-btn'),
     metronomeToggle: document.getElementById('metronome-toggle'),
+    musicSelect: document.getElementById('music-select'),
     tempoSlider: document.getElementById('tempo-slider'),
     tempoValue: document.getElementById('tempo-value'),
     practiceBtn: document.getElementById('practice-btn'),
@@ -453,7 +464,7 @@ elements.playPauseBtn.addEventListener('click', () => {
 
     if (state.isPlaying) {
         // Audio may only start in response to a click like this one
-        metronome.unlock();
+        unlockAudio();
         if (state.animationState) {
             // Resume a paused move (on the next frame) where it left off
             state.animationId = requestAnimationFrame(animate);
@@ -572,10 +583,11 @@ function getNextMove() {
 
 /**
  * Start animating the current move
- * @param {number} startTime - Timestamp at which the move begins; when continuing
- *   from the previous move this is that move's completion time, so no time is lost
+ * @param {number} [startTime] - Timestamp at which the move begins; when continuing
+ *   from the previous move this is that move's completion time, so no time is lost.
+ *   Otherwise it begins now, once its paths are worked out.
  */
-function startAnimation(startTime = performance.now()) {
+function startAnimation(startTime = null) {
     if (!state.dance || !state.dancerSet) {
         console.warn('Cannot start animation: no dance or dancer set loaded');
         return;
@@ -611,7 +623,7 @@ function startAnimation(startTime = performance.now()) {
             previous: previousPaths,
             next: nextPaths
         });
-        state.animationState.start(startTime);
+        state.animationState.start(startTime ?? performance.now());
 
         state.animationId = requestAnimationFrame(animate);
 
@@ -619,7 +631,7 @@ function startAnimation(startTime = performance.now()) {
         updateMoveList();
     } catch (error) {
         console.error('Failed to start animation:', error);
-        metronome.stop();
+        stopAudio();
         state.isPlaying = false;
         updateControls();
     }
@@ -639,9 +651,9 @@ function animate(timestamp) {
             state.animationState.resume(timestamp);
         }
 
-        // Start the clicks on the first frame after play or resume
+        // Start the clicks and music on the first frame after play or resume
         if (!metronome.isRunning()) {
-            startMetronome(timestamp);
+            startAudio(timestamp);
         }
 
         // Get current positions
@@ -675,11 +687,28 @@ function animate(timestamp) {
 }
 
 /**
- * Start the metronome in time with the current move
+ * Start the metronome and music in time with the current move
  * @param {number} timestamp - Frame timestamp from requestAnimationFrame
  */
-function startMetronome(timestamp) {
-    metronome.start(currentBeat(timestamp), timestamp, state.animator.getTempo());
+function startAudio(timestamp) {
+    const beat = currentBeat(timestamp);
+    const tempo = state.animator.getTempo();
+    metronome.start(beat, timestamp, tempo);
+    music.start(beat, timestamp, tempo);
+}
+
+function stopAudio() {
+    metronome.stop();
+    music.stop();
+}
+
+/**
+ * Make (or wake) the audio context; browsers only allow this in response to a
+ * click or key press
+ */
+function unlockAudio() {
+    metronome.unlock();
+    music.unlock();
 }
 
 /**
@@ -703,7 +732,7 @@ function currentBeat(timestamp) {
  * Pause mid-move, keeping the animation state so play continues from here
  */
 function pauseAnimation() {
-    metronome.stop();
+    stopAudio();
     if (state.animationId) {
         cancelAnimationFrame(state.animationId);
         state.animationId = null;
@@ -720,7 +749,7 @@ function pauseAnimation() {
 }
 
 function stopAnimation() {
-    metronome.stop();
+    stopAudio();
     if (state.animationId) {
         cancelAnimationFrame(state.animationId);
         state.animationId = null;
@@ -822,7 +851,7 @@ function startSession(mode) {
         shown: null // The call (or attempt) on the call line
     };
     state.isPlaying = true;
-    metronome.unlock();
+    unlockAudio();
 
     elements.callFeedback.replaceChildren();
     elements.callNext.textContent = '';
@@ -833,14 +862,14 @@ function startSession(mode) {
 
 /**
  * Play the intro: the dancers wait in place through the potatoes
- * @param {number} [startTime]
  */
-function startIntro(startTime = performance.now()) {
+function startIntro() {
     const firstPaths = getMovePaths(state.dance.parts[0].moves[0], state.dancerSet);
     state.currentPaths = new Map([...firstPaths].map(([id, path]) =>
         [id, createStationaryPath(path.getPositionAtBeat(0), INTRO_BEATS)]));
     state.animationState = new AnimationState(state.currentPaths, state.animator, { next: firstPaths });
-    state.animationState.start(startTime);
+    // Starting now, after the paths are worked out, so the first beat isn't missed
+    state.animationState.start(performance.now());
     state.animationId = requestAnimationFrame(animate);
     updateMoveList();
 }
@@ -1092,7 +1121,7 @@ metronome.setEnabled(elements.metronomeToggle.checked);
 elements.metronomeToggle.addEventListener('change', () => {
     const enabled = elements.metronomeToggle.checked;
     if (enabled) {
-        metronome.unlock();
+        unlockAudio();
     }
     metronome.setEnabled(enabled);
     try {
@@ -1109,14 +1138,40 @@ elements.metronomeToggle.addEventListener('change', () => {
 function setTempo(tempo) {
     if (state.animationState) {
         state.animationState.changeTempo(tempo, performance.now());
-        // The metronome restarts at the new tempo on the next frame
-        metronome.stop();
+        // The metronome and music restart at the new tempo on the next frame
+        stopAudio();
     } else {
         state.animator.setTempo(tempo);
     }
     elements.tempoSlider.value = tempo;
     elements.tempoValue.textContent = `${tempo} BPM`;
 }
+
+// The tune is remembered too
+for (const tune of tunes) {
+    const option = document.createElement('option');
+    option.value = tune.title;
+    option.textContent = `${tune.title} (${tune.type})`;
+    elements.musicSelect.append(option);
+}
+try {
+    const saved = localStorage.getItem(MUSIC_SETTING);
+    elements.musicSelect.value = findTune(saved) ? saved : '';
+} catch {
+    // No storage: no music to start with
+}
+music.setTune(findTune(elements.musicSelect.value) ?? null);
+
+elements.musicSelect.addEventListener('change', () => {
+    const title = elements.musicSelect.value;
+    unlockAudio();
+    music.setTune(findTune(title) ?? null);
+    try {
+        localStorage.setItem(MUSIC_SETTING, title);
+    } catch {
+        // No storage: the choice lasts until the page is reloaded
+    }
+});
 
 // The tempo is remembered between visits too
 try {

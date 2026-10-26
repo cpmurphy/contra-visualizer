@@ -1,0 +1,14 @@
+[
+    {
+        "title": "Soldier's Joy",
+        "type": "reel",
+        "source": "Traditional. Melody from The Session, setting 1356 (https://thesession.org/tunes/1356#setting1356); chords added.",
+        "abc": "X:1\nT:Soldier's Joy\nM:4/4\nL:1/8\nK:D\n|:\"D\"AFDF AFDF|\"D\"A2 d2 d2 cB|\"D\"AFDF AFDF|\"A\"G2E2 E2 FG|\n\"D\"AFDF AFDF|\"D\"A2 d2 d2 de|\"D\"fafd \"A\"egec|\"D\"d2 d2 d4:|\n|:\"D\"fdfd fagf|\"A\"edcd efge|\"D\"fdfd fagf|\"A\"edcB A2 de|\n\"D\"fdfd fagf|\"A\"ecAc efge|\"D\"fafd \"A\"egec|\"D\"d2 d2 d4:|\n"
+    },
+    {
+        "title": "Haste to the Wedding",
+        "type": "jig",
+        "source": "Traditional. Melody from The Session, setting 582 (https://thesession.org/tunes/582#setting582); chords added.",
+        "abc": "X:1\nT:Haste to the Wedding\nM:6/8\nL:1/8\nK:D\n|:\"D\"AFA Agf|\"G\"ede fdB|\"D\"AFA dAF|\"A\"EFE EFG|\n\"D\"AFA Agf|\"G\"ede fdB|\"A\"A2g \"D\"faf|\"D\"ded d3:|\n|:\"D\"afa afa|\"G\"bgb bgb|\"D\"afa agf|\"A\"ede efg|\n\"D\"a3 f3|\"G\"ede fdB|\"A\"A2g \"D\"faf|\"D\"ded d3:|\n"
+    }
+]

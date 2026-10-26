@@ -181,3 +181,10 @@ test('Metronome muted keeps time but schedules nothing, and picks up on the next
     assert.deepStrictEqual(context.oscillators.map(o => o.startTime), [11]);
     metronome.stop();
 });
+
+test('Metronome started just after a beat still plays it, straight away', t => {
+    const { metronome, context } = makeMetronome(t);
+    // The first frame came 20ms after the move started on beat 0
+    metronome.start(0.04, 5000, 120, 5000);
+    assert.deepStrictEqual(context.oscillators.map(o => o.startTime), [10]);
+});
