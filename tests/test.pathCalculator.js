@@ -721,6 +721,94 @@ test('swing pairs should turn close together, steadily opposite each other', () 
     }
 });
 
+// ===== STAR TESTS =====
+
+/** Pixel position of each dancer in a minor set, and its center, at a beat */
+function minorSetPixels(paths, ids, beat) {
+    const points = ids.map(id => toPixels(paths.get(id).getPositionAtBeat(beat), 800, 1000));
+    const center = {
+        x: points.reduce((sum, p) => sum + p.x, 0) / 4,
+        y: points.reduce((sum, p) => sum + p.y, 0) / 4
+    };
+    return { points, center };
+}
+
+test('stars should turn close around the middle, closer than a circle, evenly spaced', () => {
+    const set = new Set(6);
+    const ids = set.dancers.slice(0, 4).map(d => d.id);
+    const star = calculateMovePaths({ type: 'star right 4 places', beats: 8 }, set);
+    const circle = calculateMovePaths({ type: 'circle left 4 places', beats: 8 }, set);
+    const { center } = minorSetPixels(star, ids, 0);
+
+    for (let beat = 1; beat <= 7; beat += 0.25) {
+        const { points } = minorSetPixels(star, ids, beat);
+        const circlePoints = minorSetPixels(circle, ids, beat).points;
+        points.forEach((p, j) => {
+            const r = Math.hypot(p.x - center.x, p.y - center.y);
+            assert(Math.abs(r - 40) < 1, `at beat ${beat}, ${ids[j]} should be 40px from the middle (got ${r.toFixed(1)})`);
+            const circleR = Math.hypot(circlePoints[j].x - center.x, circlePoints[j].y - center.y);
+            assert(r < circleR / 2, `at beat ${beat}, ${ids[j]} should be much closer in than in a circle`);
+        });
+        // Each is a quarter turn from the next: the diagonals are equal
+        const diagonal1 = Math.hypot(points[0].x - points[3].x, points[0].y - points[3].y);
+        const diagonal2 = Math.hypot(points[1].x - points[2].x, points[1].y - points[2].y);
+        assert(Math.abs(diagonal1 - diagonal2) < 1, `at beat ${beat}, the four should be evenly spaced`);
+    }
+});
+
+test('a star right should turn clockwise and a star left counter-clockwise', () => {
+    for (const [type, sign] of [['star right 4 places', 1], ['star left 4 places', -1]]) {
+        const set = new Set(6);
+        const ids = set.dancers.slice(0, 4).map(d => d.id);
+        const paths = calculateMovePaths({ type, beats: 8 }, set);
+        const before = minorSetPixels(paths, ids, 2);
+        const after = minorSetPixels(paths, ids, 2.25);
+        before.points.forEach((p, j) => {
+            const q = after.points[j];
+            // Cross product of position (from the middle) and motion: positive is
+            // clockwise on screen, with y down
+            const cross = (p.x - before.center.x) * (q.y - p.y) - (p.y - before.center.y) * (q.x - p.x);
+            assert(Math.sign(cross) === sign, `${type}: ${ids[j]} should turn ${sign > 0 ? 'clockwise' : 'counter-clockwise'}`);
+        });
+    }
+});
+
+test('stars should end where the set says, without collisions, for any number of places', () => {
+    for (const hand of ['left', 'right']) {
+        for (const places of [1, 2, 3, 4]) {
+            const set = new Set(6);
+            const move = { type: `star ${hand} ${places} places`, beats: 8 };
+            const paths = calculateMovePaths(move, set);
+            assert(hasNoOverlaps(paths), `${move.type} should have no overlaps`);
+            assert(allWaypointsInBounds(paths), `${move.type} should stay in bounds`);
+            executeMove(set, move);
+            set.dancers.forEach((dancer, index) => {
+                assert(paths.get(dancer.id).end.equals(set.getPositions()[index]), `${move.type}: ${dancer.id} end`);
+            });
+            // The step out goes straight from the circle to the new corner: it
+            // shouldn't be longer than the step in
+            for (const dancer of set.dancers) {
+                const waypoints = paths.get(dancer.id).getWaypoints().map(w => toPixels(w, 800, 1000));
+                if (waypoints.length < 4) continue;
+                const stepIn = Math.hypot(waypoints[1].x - waypoints[0].x, waypoints[1].y - waypoints[0].y);
+                const stepOut = Math.hypot(waypoints.at(-1).x - waypoints.at(-2).x, waypoints.at(-1).y - waypoints.at(-2).y);
+                assert(Math.abs(stepIn - stepOut) < 1, `${move.type}: ${dancer.id} should step out as far as in`);
+            }
+        }
+    }
+});
+
+test('stars should hold hands in the middle of each minor set while they turn', () => {
+    const set = new Set(6);
+    const paths = calculateMovePaths({ type: 'star left 4 places', beats: 8 }, set);
+    assert.deepStrictEqual(paths.holds, set.minorSetStarts().map(i => ({
+        ids: set.dancers.slice(i, i + 4).map(d => d.id),
+        from: 1,
+        to: 7
+    })));
+    assert.equal(calculateMovePaths({ type: 'circle left 4 places', beats: 8 }, set).holds, undefined);
+});
+
 // ===== CHAIN MOVES TESTS =====
 
 // Test robin chain

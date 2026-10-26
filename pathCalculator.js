@@ -74,15 +74,23 @@ const COURTESY_TURN_RADIUS_PX = 25;
 // Waypoints for each half of a right and left through
 const RIGHT_AND_LEFT_SAMPLES = 16;
 
+// Swings and stars: the dancers step in over a beat (less in a short figure), turn
+// steadily, and step out over a beat
+const STEP_IN_BEATS = 1;
+
 // Swings: the two swinging hold each other, so they turn closer together than in
-// any other figure, just about touching. They step in to each other and out again
-// over a beat at each end, and in between turn steadily, about once every 2 beats
-// (a buzz-step swing)
+// any other figure, just about touching, about once every 2 beats (a buzz-step
+// swing)
 const SWING_RADIUS_PX = DANCER_RADIUS_PX + 1;
-const SWING_LEG_BEATS = 1;
 const SWING_BEATS_PER_TURN = 2;
 // Waypoints per revolution of a swing
 const SWING_STEPS_PER_TURN = 24;
+
+// Stars: how far from the middle the four turn, hands joined there; closer than in
+// a circle, which is as wide as the minor set
+const STAR_RADIUS_PX = 40;
+// Waypoints per place travelled in a star
+const STAR_STEPS_PER_PLACE = 8;
 
 // Allemandes: how far apart the two turning are (twice the radius they turn at)
 const ALLEMANDE_RADIUS_PX = 25;
@@ -142,7 +150,10 @@ export function isMoveSupported(move, dancerSet) {
 }
 
 /**
- * Calculate paths for all dancers during a move
+ * Calculate paths for all dancers during a move. The map may also have a `holds`
+ * property listing groups of dancers who join hands in the middle of them, as
+ * {ids, from, to} with the beats of the move during which they hold on (see
+ * createStarPaths).
  * @param {Object} move - The move object with type, beats, etc.
  * @param {import('./dancers.js').Set} dancerSet - The current set state
  * @returns {Map<string, import('./paths.js').Path>} Map from dancer ID to Path
@@ -194,12 +205,15 @@ export function calculateMovePaths(move, dancerSet) {
     } else if (type.includes('long lines')) {
         // Two lines approach each other and retreat
         createLongLinesPaths(dancerSet, startPosById, paths, beats);
-    } else if (type.includes('circle left') || type.includes('circle right') ||
-               type.includes('star left') || type.includes('star right')) {
-        // Circular moves - arc paths around minor set centers
+    } else if (type.includes('circle left') || type.includes('circle right')) {
+        // Circles - arc paths around minor set centers
         const isClockwise = type.includes('right');
-        const places = parseInt(type.match(/(?:circle|star) (?:left|right) (\d+)/)[1]);
+        const places = parseInt(type.match(/circle (?:left|right) (\d+)/)[1]);
         createCircularPaths(dancerSet, startPosById, paths, beats, places, isClockwise);
+    } else if (type.includes('star left') || type.includes('star right')) {
+        // Stars - the four step in and turn close around the middle of the minor set
+        const places = parseInt(type.match(/star (?:left|right) (\d+)/)[1]);
+        createStarPaths(dancerSet, startPosById, endPosById, paths, beats, places, type.includes('right'));
     } else if (type === 'swing') {
         // Swing moves - dancers rotate around common center
         const swingWho = move.who || 'neighbor';
@@ -430,7 +444,7 @@ function createDoSiDoPaths(dancerSet, startPosById, paths, beats) {
 }
 
 /**
- * Create circular arc paths for dancers during circle/star moves
+ * Create circular arc paths for dancers during circles
  * @param {import('./dancers.js').Set} dancerSet
  * @param {Map<string, Position>} startPosById
  * @param {Map<string, import('./paths.js').Path>} paths
@@ -493,7 +507,54 @@ function createCircularPaths(dancerSet, startPosById, paths, beats, places, isCl
     }
 }
 
-// Waypoints per place travelled in a circle or star
+/**
+ * Create star paths: in each minor set the four step in towards the middle, join
+ * hands there, and turn steadily, a quarter turn apart, then step out to their
+ * new corners. A star right turns clockwise (seen from above), a star left
+ * counter-clockwise. Each star is added to paths.holds while they turn.
+ * @param {import('./dancers.js').Set} dancerSet
+ * @param {Map<string, Position>} startPosById
+ * @param {Map<string, Position>} endPosById
+ * @param {Map<string, import('./paths.js').Path>} paths
+ * @param {number} beats
+ * @param {number} places - Number of places (quarter turns) to travel
+ * @param {boolean} isRight - Star right rather than star left
+ */
+function createStarPaths(dancerSet, startPosById, endPosById, paths, beats, places, isRight) {
+    dancerSet.dancers.forEach(dancer => {
+        paths.set(dancer.id, createStationaryPath(startPosById.get(dancer.id), beats));
+    });
+
+    const totalRotation = (isRight ? 1 : -1) * places * Math.PI / 2;
+    const rotationSteps = Math.max(1, places * STAR_STEPS_PER_PLACE);
+    const times = turnTimes(beats, rotationSteps);
+    const holds = [];
+
+    for (const i of dancerSet.minorSetStarts()) {
+        const minorSet = dancerSet.dancers.slice(i, i + 4);
+        const corners = minorSet.map(dancer => toPixels(startPosById.get(dancer.id), SVG_WIDTH, SVG_HEIGHT));
+        const centerPx = {
+            x: corners.reduce((sum, p) => sum + p.x, 0) / 4,
+            y: corners.reduce((sum, p) => sum + p.y, 0) / 4
+        };
+
+        minorSet.forEach((dancer, j) => {
+            // Each takes the diagonal towards their corner, so the four are evenly
+            // spaced around the middle even though the minor set isn't square
+            const entryAngle = Math.atan2(Math.sign(corners[j].y - centerPx.y), Math.sign(corners[j].x - centerPx.x));
+            const waypoints = generateTurnWaypoints(startPosById.get(dancer.id), endPosById.get(dancer.id),
+                centerPx, STAR_RADIUS_PX, entryAngle, totalRotation, rotationSteps);
+            paths.set(dancer.id, new Path(waypoints, beats, times));
+        });
+
+        const leg = stepInBeats(beats);
+        holds.push({ ids: minorSet.map(dancer => dancer.id), from: leg, to: beats - leg });
+    }
+
+    paths.holds = holds;
+}
+
+// Waypoints per place travelled in a circle
 const CIRCLE_SAMPLES_PER_PLACE = 6;
 
 /**
@@ -1064,12 +1125,13 @@ function computeDoSiDoRadius(centerPx, rectangle) {
 }
 
 /**
- * How long the step in to a swing takes, and the step out (less in a short swing)
- * @param {number} beats - Duration of the swing in beats
+ * How long the step in to a swing or star takes, and the step out (less in a short
+ * figure)
+ * @param {number} beats - Duration of the figure in beats
  * @returns {number} Beats
  */
-function swingLegBeats(beats) {
-    return Math.min(SWING_LEG_BEATS, beats / 8);
+function stepInBeats(beats) {
+    return Math.min(STEP_IN_BEATS, beats / 8);
 }
 
 /**
@@ -1085,7 +1147,7 @@ function swingLegBeats(beats) {
  */
 function computeSwingRotation(beats, entryAngle, exitAngle) {
     const fullTurn = 2 * Math.PI;
-    const turningBeats = beats - 2 * swingLegBeats(beats);
+    const turningBeats = beats - 2 * stepInBeats(beats);
     const nominal = turningBeats / SWING_BEATS_PER_TURN * fullTurn;
 
     // Clockwise angle from entry to exit, in [0, 2π)
@@ -1097,22 +1159,24 @@ function computeSwingRotation(beats, entryAngle, exitAngle) {
 }
 
 /**
- * Generate swing waypoints in pixel space, converted to normalized coords: in to
- * the circle, around it, and out to the end position.
+ * Generate waypoints for a swing or star in pixel space, converted to normalized
+ * coords: in to the circle, around it, and out to the end position.
  * @param {Position} startPos - Dancer's start position (normalized)
  * @param {Position} endPos - Dancer's end position (normalized)
- * @param {{x: number, y: number}} centerPx - Swing center in pixels
+ * @param {{x: number, y: number}} centerPx - Center of the turn in pixels
+ * @param {number} radius - Radius of the turn in pixels
  * @param {number} entryAngle - Angle at which dancer enters the circle
- * @param {number} totalRotation - Clockwise rotation around the circle (radians)
+ * @param {number} totalRotation - Clockwise rotation around the circle (radians;
+ *   negative for counter-clockwise)
  * @param {number} rotationSteps - Number of steps around the circle
  * @returns {Position[]} Array of waypoint positions (normalized)
  */
-function generateSwingWaypoints(startPos, endPos, centerPx, entryAngle, totalRotation, rotationSteps) {
+function generateTurnWaypoints(startPos, endPos, centerPx, radius, entryAngle, totalRotation, rotationSteps) {
     const waypoints = [startPos.clone()];
     for (let j = 0; j <= rotationSteps; j++) {
         const angle = entryAngle + totalRotation * j / rotationSteps;
-        const x = centerPx.x + SWING_RADIUS_PX * Math.cos(angle);
-        const y = centerPx.y + SWING_RADIUS_PX * Math.sin(angle);
+        const x = centerPx.x + radius * Math.cos(angle);
+        const y = centerPx.y + radius * Math.sin(angle);
         waypoints.push(fromPixels(x, y, SVG_WIDTH, SVG_HEIGHT));
     }
     waypoints.push(endPos.clone());
@@ -1120,15 +1184,15 @@ function generateSwingWaypoints(startPos, endPos, centerPx, entryAngle, totalRot
 }
 
 /**
- * Times for swing waypoints: the step in and the step out (see swingLegBeats), and
- * the turn between at a steady pace. Both dancers share
- * these times, so they stay opposite each other all the way around.
+ * Times for the waypoints of a swing or star: the step in and the step out (see
+ * stepInBeats), and the turn between at a steady pace. Everyone turning shares
+ * these times, so they keep their places around the circle.
  * @param {number} beats - Duration in beats
  * @param {number} rotationSteps - Number of steps around the circle
  * @returns {number[]}
  */
-function swingTimes(beats, rotationSteps) {
-    const leg = swingLegBeats(beats) / beats;
+function turnTimes(beats, rotationSteps) {
+    const leg = stepInBeats(beats) / beats;
     const times = [0];
     for (let j = 0; j <= rotationSteps; j++) {
         times.push(leg + (1 - 2 * leg) * j / rotationSteps);
@@ -1168,9 +1232,9 @@ function addSwingPairPaths(dancer1, dancer2, startPosById, endPosById, paths, be
     const totalRotation = computeSwingRotation(beats, entryAngle1, exitAngle1);
     const rotationSteps = Math.max(1, Math.round(totalRotation / (2 * Math.PI) * SWING_STEPS_PER_TURN));
 
-    const times = swingTimes(beats, rotationSteps);
-    const waypoints1 = generateSwingWaypoints(start1, end1, centerPx, entryAngle1, totalRotation, rotationSteps);
-    const waypoints2 = generateSwingWaypoints(start2, end2, centerPx, entryAngle2, totalRotation, rotationSteps);
+    const times = turnTimes(beats, rotationSteps);
+    const waypoints1 = generateTurnWaypoints(start1, end1, centerPx, SWING_RADIUS_PX, entryAngle1, totalRotation, rotationSteps);
+    const waypoints2 = generateTurnWaypoints(start2, end2, centerPx, SWING_RADIUS_PX, entryAngle2, totalRotation, rotationSteps);
 
     paths.set(dancer1.id, new Path(waypoints1, beats, times));
     paths.set(dancer2.id, new Path(waypoints2, beats, times));

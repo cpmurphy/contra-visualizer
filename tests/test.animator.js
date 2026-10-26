@@ -585,3 +585,25 @@ test('changeTempo before starting just sets the tempo', () => {
     assert.strictEqual(state.animator.getTempo(), 90);
     assert.strictEqual(state.startTime, null);
 });
+
+test('getCurrentHolds fades hands in as they join and out as they let go', () => {
+    const animator = new Animator(60); // a beat a second
+    const paths = new Map([['d1', createStationaryPath(new Position(10, 10), 8)]]);
+    paths.holds = [{ ids: ['d1'], from: 1, to: 7 }];
+    const state = new AnimationState(paths, animator);
+    state.start(0);
+    const strengthAt = beat => state.getCurrentHolds(beat * 1000)[0]?.strength ?? 0;
+    assert.equal(strengthAt(0), 0);
+    assert.equal(strengthAt(0.75), 0.5);
+    assert.equal(strengthAt(1), 1);
+    assert.equal(strengthAt(4), 1);
+    assert.equal(strengthAt(7.25), 0.5);
+    assert.equal(strengthAt(8), 0);
+});
+
+test('getCurrentHolds is empty for a move without holds', () => {
+    const paths = new Map([['d1', createStationaryPath(new Position(10, 10), 8)]]);
+    const state = new AnimationState(paths, new Animator(60));
+    state.start(0);
+    assert.deepStrictEqual(state.getCurrentHolds(4000), []);
+});

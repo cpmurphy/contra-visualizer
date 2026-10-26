@@ -157,11 +157,12 @@ export class Set {
     }
 
     /**
-     * In terms of the result, a star left is the same as a circle left.
+     * A star left: left hands in the middle, walking forward, so the dancers turn
+     * counter-clockwise (seen from above), the same way as a circle right.
      * @param {number} numberOfPlaces - The number of places to rotate
      */
     starLeft(numberOfPlaces) {
-        this.circleLeft(numberOfPlaces);
+        this.circleRight(numberOfPlaces);
     }
 
     /**
@@ -189,11 +190,12 @@ export class Set {
     }
 
     /**
-     * In terms of the result, a star right is the same as a circle right.
+     * A star right: right hands in the middle, walking forward, so the dancers turn
+     * clockwise (seen from above), the same way as a circle left.
      * @param {number} numberOfPlaces - The number of places to rotate
      */
     starRight(numberOfPlaces) {
-        this.circleRight(numberOfPlaces);
+        this.circleLeft(numberOfPlaces);
     }
 
     balance() {

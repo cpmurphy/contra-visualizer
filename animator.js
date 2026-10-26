@@ -10,6 +10,12 @@ import { Position } from './positions.js';
 export const MAX_BLEND_BEATS = 1;
 
 /**
+ * How long (in beats) dancers take to join hands, or let go, at either end of a
+ * hold (see calculateMovePaths)
+ */
+export const HOLD_FADE_BEATS = 0.5;
+
+/**
  * Half-width in beats of the blend window around the boundary between two moves.
  * Capped at a quarter of either move so short moves keep their shape.
  * @param {number} beatsBefore - Duration of the earlier move
@@ -300,6 +306,24 @@ export class AnimationState {
         });
 
         return positions;
+    }
+
+    /**
+     * Groups of dancers holding hands now, each with how firmly (0 to 1), fading
+     * in as they join hands and out as they let go
+     * @param {number} timestamp - Current timestamp in milliseconds
+     * @returns {{ids: string[], strength: number}[]}
+     */
+    getCurrentHolds(timestamp) {
+        const beat = this.animator.msToBeats(this.getElapsedTime(timestamp));
+        return (this.paths.holds || [])
+            .map(hold => ({
+                ids: hold.ids,
+                strength: Math.max(0, Math.min(1,
+                    (beat - hold.from) / HOLD_FADE_BEATS + 1,
+                    (hold.to - beat) / HOLD_FADE_BEATS + 1))
+            }))
+            .filter(hold => hold.strength > 0);
     }
 
     /**

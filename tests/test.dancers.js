@@ -413,11 +413,12 @@ test('a partner swing should move active dancers to the correct positions', () =
     ]);
 });
 
-test('star right should move dancers the same as circle right', () => {
+// A star right turns clockwise (right hands in, walking forward), like a circle left
+test('star right should move dancers the same as circle left', () => {
     for (let i = 1; i <= 4; i++) {
         const circleSet = new Set(4);
         const starSet = new Set(4);
-        circleSet.circleRight(i);
+        circleSet.circleLeft(i);
         starSet.starRight(i);
         assert.deepStrictEqual(circleSet.dancers.map((dancer) => {
             return dancer.id;
@@ -427,11 +428,12 @@ test('star right should move dancers the same as circle right', () => {
     }
 });
 
-test('star left should move dancers the same as circle left', () => {
+// A star left turns counter-clockwise, like a circle right
+test('star left should move dancers the same as circle right', () => {
     for (let i = 1; i <= 4; i++) {
         const circleSet = new Set(4);
         const starSet = new Set(4);
-        circleSet.circleLeft(i);
+        circleSet.circleRight(i);
         starSet.starLeft(i);
         assert.deepStrictEqual(circleSet.dancers.map((dancer) => {
             return dancer.id;
