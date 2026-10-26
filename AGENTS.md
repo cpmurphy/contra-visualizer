@@ -32,6 +32,15 @@ Figures the path calculator can't animate yet (see `isMoveSupported`
 in `pathCalculator.js`) are shown as "not animated yet", and the dancers
 hold their places during them.
 
+## Metronome
+
+While a dance plays, `metronome.js` clicks on every beat using the Web
+Audio API (the sound only; nothing is drawn). The first beat of each
+8-beat phrase is accented most, then the other odd-numbered beats. Clicks
+are scheduled ahead on the audio clock, lined up with the animation clock
+when play starts or resumes. The "Metronome" checkbox mutes it, and the
+choice is remembered in `localStorage`.
+
 ## Dance Data Structure
 
 Dances are stored as JSON with the following structure:

@@ -3,6 +3,7 @@ import { toPixels } from './positions.js';
 import { Animator, AnimationState } from './animator.js';
 import { calculateMovePaths, executeMove, withSetState, pathCacheKey, isMoveSupported } from './pathCalculator.js';
 import { dances, danceSlug, findDance } from './library.js';
+import { Metronome, beatAccent, locateBeat, moveStartBeat } from './metronome.js';
 
 const APP_TITLE = document.title;
 
@@ -21,6 +22,13 @@ const state = {
     pathCache: new Map() // Cache paths by move signature for performance
 };
 
+// Clicks on the beat while playing, accented by where the beat falls in its part
+const metronome = new Metronome({
+    accentOf: beat => beatAccent(locateBeat(state.dance, beat).beatInPart)
+});
+
+const METRONOME_SETTING = 'metronome';
+
 // DOM elements
 const elements = {
     danceTitle: document.getElementById('dance-title'),
@@ -32,6 +40,7 @@ const elements = {
     playPauseBtn: document.getElementById('play-pause-btn'),
     prevMoveBtn: document.getElementById('prev-move-btn'),
     nextMoveBtn: document.getElementById('next-move-btn'),
+    metronomeToggle: document.getElementById('metronome-toggle'),
     menuView: document.getElementById('menu-view'),
     danceMenu: document.getElementById('dance-menu'),
     danceView: document.getElementById('dance-view'),
@@ -421,6 +430,8 @@ elements.playPauseBtn.addEventListener('click', () => {
     updateControls();
 
     if (state.isPlaying) {
+        // Audio may only start in response to a click like this one
+        metronome.unlock();
         if (state.animationState) {
             // Resume a paused move (on the next frame) where it left off
             state.animationId = requestAnimationFrame(animate);
@@ -586,6 +597,7 @@ function startAnimation(startTime = performance.now()) {
         updateMoveList();
     } catch (error) {
         console.error('Failed to start animation:', error);
+        metronome.stop();
         state.isPlaying = false;
         updateControls();
     }
@@ -603,6 +615,11 @@ function animate(timestamp) {
         // Resuming after a pause: the clock picks up from the last frame drawn
         if (state.animationState.isPaused()) {
             state.animationState.resume(timestamp);
+        }
+
+        // Start the clicks on the first frame after play or resume
+        if (!metronome.isRunning()) {
+            startMetronome(timestamp);
         }
 
         // Get current positions
@@ -630,9 +647,21 @@ function animate(timestamp) {
 }
 
 /**
+ * Start the metronome in time with the current move
+ * @param {number} timestamp - Frame timestamp from requestAnimationFrame
+ */
+function startMetronome(timestamp) {
+    const animationState = state.animationState;
+    const elapsedBeats = state.animator.msToBeats(animationState.getElapsedTime(timestamp));
+    const beat = moveStartBeat(state.dance, state.currentPartIndex, state.currentMoveIndex) + elapsedBeats;
+    metronome.start(beat, timestamp, state.animator.getTempo());
+}
+
+/**
  * Pause mid-move, keeping the animation state so play continues from here
  */
 function pauseAnimation() {
+    metronome.stop();
     if (state.animationId) {
         cancelAnimationFrame(state.animationId);
         state.animationId = null;
@@ -649,6 +678,7 @@ function pauseAnimation() {
 }
 
 function stopAnimation() {
+    metronome.stop();
     if (state.animationId) {
         cancelAnimationFrame(state.animationId);
         state.animationId = null;
@@ -708,6 +738,27 @@ function updateControls() {
     elements.nextMoveBtn.disabled = !state.dancerSet;
     elements.playPauseBtn.disabled = !state.dancerSet;
 }
+
+// The metronome setting is remembered between visits (where storage is allowed)
+try {
+    elements.metronomeToggle.checked = localStorage.getItem(METRONOME_SETTING) !== 'off';
+} catch {
+    // No storage: keep the default (on)
+}
+metronome.setEnabled(elements.metronomeToggle.checked);
+
+elements.metronomeToggle.addEventListener('change', () => {
+    const enabled = elements.metronomeToggle.checked;
+    if (enabled) {
+        metronome.unlock();
+    }
+    metronome.setEnabled(enabled);
+    try {
+        localStorage.setItem(METRONOME_SETTING, enabled ? 'on' : 'off');
+    } catch {
+        // No storage: the setting lasts until the page is reloaded
+    }
+});
 
 // Initialize
 buildMenu();
