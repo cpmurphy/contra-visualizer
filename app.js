@@ -797,7 +797,7 @@ function updateControls() {
 }
 
 // ===== PRACTICE SESSIONS =====
-// A session plays an intro and then the dance PRACTICE_ROUNDS times from the top,
+// A session plays an intro (the potatoes) and then the dance PRACTICE_ROUNDS times from the top,
 // with the calls: shown as they're said ('karaoke'), or made by the trainee, who
 // presses Call when they would start each one ('test').
 
@@ -832,7 +832,7 @@ function startSession(mode) {
 }
 
 /**
- * Play the intro: the dancers wait in place while the music starts
+ * Play the intro: the dancers wait in place through the potatoes
  * @param {number} [startTime]
  */
 function startIntro(startTime = performance.now()) {
@@ -897,7 +897,7 @@ function showIdleCallPanel() {
 function beatLabel(beat) {
     const whole = Math.floor(beat + 1e-6);
     if (whole < 0) {
-        return `Intro · ${whole + INTRO_BEATS + 1}`;
+        return `Potatoes · ${whole + INTRO_BEATS + 1}`;
     }
     const { partIndex, beatInPart } = locateBeat(state.dance, whole);
     return `${state.dance.parts[partIndex].name} · ${beatInPart + 1}`;

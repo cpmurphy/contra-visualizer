@@ -57,10 +57,13 @@ the swing after a balance whose call covers both) is not called.
 Stressed syllables land on strong beats (odd-numbered beats of the
 music), with the others on half beats between. A call's last stress comes
 2 beats before its figure, or 4 for a call longer than 4 beats; where
-calls crowd together, a call moves earlier to finish before the next.
+calls crowd together, a call moves earlier to finish before the next;
+where a call has no room at all, its short call is used instead.
 
-A practice session plays an 8-beat intro and then the dance twice from
-the top, with full calls the first time and short ones the second.
+A practice session plays 4 beats of "potatoes" (the lead fiddle's
+introduction) and then the dance twice from the top, with full calls the
+first time and short ones the second. The first call is made over the
+potatoes, so it is usually the short call.
 "Practice Calls" shows them karaoke-style; "Test Me" has the trainee
 press Call (or the space bar, or the dancers) when they'd start each
 call, and says how early or late they were.

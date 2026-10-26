@@ -9,8 +9,9 @@
 
 import { danceBeats, moveStartBeat } from './metronome.js';
 
-/** Beats of music before the dance starts, during which the first call is made */
-export const INTRO_BEATS = 8;
+/** Beats of music before the dance starts (the lead fiddle's "potatoes"), during
+ * which the first call is made */
+export const INTRO_BEATS = 4;
 
 /** Times through the dance in a practice session */
 export const PRACTICE_ROUNDS = 2;
@@ -167,8 +168,10 @@ function delayCall(call, beats) {
 /**
  * All the calls for a practice session: the full calls the first time through,
  * and the short ones (where a move has one) after that. Where calls come thick
- * and fast, a call moves earlier to finish before the next one starts; only if
- * that would take it back before the music starts does it move later instead.
+ * and fast, a call moves earlier to finish before the next one starts. If that
+ * would take it back before the music starts or into the call before, the short
+ * call is used instead if it fits (as for the first call, over the potatoes);
+ * failing that, the call moves later.
  * @param {Object} dance
  * @param {number} [rounds] - Times through the dance
  * @returns {Object[]} Calls in order (as from placeCall), each also giving its
@@ -183,7 +186,7 @@ export function callSchedule(dance, rounds = PRACTICE_ROUNDS) {
                 const text = round > 0 && move.shortCall ? move.shortCall : move.call;
                 if (!text) return;
                 const figureBeat = round * danceBeats(dance) + moveStartBeat(dance, partIndex, moveIndex);
-                wanted.push({ text, figureBeat, round, partIndex, moveIndex });
+                wanted.push({ text, shortText: move.shortCall, figureBeat, round, partIndex, moveIndex });
             });
         });
     }
@@ -191,13 +194,20 @@ export function callSchedule(dance, rounds = PRACTICE_ROUNDS) {
     // Place from the last call back, each finishing before the next starts...
     const calls = new Array(wanted.length);
     for (let i = wanted.length - 1; i >= 0; i--) {
-        const { text, figureBeat, ...where } = wanted[i];
+        const { text, shortText, figureBeat, ...where } = wanted[i];
         calls[i] = { ...placeCall(text, figureBeat, calls[i + 1]?.start), ...where };
     }
 
     // ...then forward, so none starts before the music or overlaps the one before
     let earliest = -INTRO_BEATS;
     for (let i = 0; i < calls.length; i++) {
+        const { text, shortText, figureBeat, ...where } = wanted[i];
+        if (calls[i].start < earliest - 1e-9 && shortText && shortText !== text) {
+            const short = placeCall(shortText, figureBeat, calls[i + 1]?.start);
+            if (short.start >= earliest - 1e-9) {
+                calls[i] = { ...short, ...where };
+            }
+        }
         while (calls[i].start < earliest - 1e-9) {
             calls[i] = delayCall(calls[i], STRONG_BEAT_SPACING);
         }

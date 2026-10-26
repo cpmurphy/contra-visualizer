@@ -81,14 +81,26 @@ test('callSchedule calls in full the first time through, then short', () => {
     const calls = callSchedule(dance);
     const first = calls.filter(c => c.round === 0);
     const second = calls.filter(c => c.round === 1);
-    assert.strictEqual(first[0].text, 'NEIGH.bors BAL.ance and SWING');
+    assert.strictEqual(first[1].text, 'CIR.cle LEFT three QUAR.ters');
+    assert.strictEqual(second[1].text, 'CIR.cle LEFT');
+    // The second time round there's room for the neighbor call in full, but the
+    // short call is used because the dancers know it by then
     assert.strictEqual(second[0].text, 'BAL.ance and SWING');
     // A move with no short call is called in full both times
     assert.strictEqual(second[2].text, 'PART.ners SWING');
     assert.strictEqual(second[0].figureBeat, danceBeats(dance));
 });
 
-test('callSchedule makes the first call in the intro', () => {
+test('callSchedule uses the short call when the full one has no room', () => {
+    const dance = dances.find(d => d.title === 'Simplicity Swing');
+    const [first] = callSchedule(dance);
+    // "Neighbors balance and swing" needs six beats; the potatoes are four
+    assert.strictEqual(first.text, 'BAL.ance and SWING');
+    assert.strictEqual(first.start, -4);
+    assert.strictEqual(first.syllables.at(-1).beat, -2);
+});
+
+test('callSchedule makes the first call over the potatoes', () => {
     for (const dance of dances) {
         const [first] = callSchedule(dance);
         assert.ok(first.start >= -INTRO_BEATS, dance.title);
