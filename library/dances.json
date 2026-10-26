@@ -14,7 +14,9 @@
                     {
                         "type": "balance",
                         "beats": 4,
-                        "who": "neighbor"
+                        "who": "neighbor",
+                        "call": "NEIGH.bors BAL.ance and SWING",
+                        "shortCall": "BAL.ance and SWING"
                     },
                     {
                         "type": "swing",
@@ -30,12 +32,15 @@
                     {
                         "type": "circle left 3/4",
                         "beats": 6,
-                        "who": "all"
+                        "who": "all",
+                        "call": "CIR.cle LEFT three QUAR.ters",
+                        "shortCall": "CIR.cle LEFT"
                     },
                     {
                         "type": "swing",
                         "beats": 10,
-                        "who": "partner"
+                        "who": "partner",
+                        "call": "PART.ners SWING"
                     }
                 ]
             },
@@ -46,12 +51,16 @@
                     {
                         "type": "Long lines, forward and back",
                         "beats": 8,
-                        "who": "all"
+                        "who": "all",
+                        "call": "long LINES go FOR.ward and BACK",
+                        "shortCall": "long LINES"
                     },
                     {
                         "type": "chain to neighbor",
                         "beats": 8,
-                        "who": "robins"
+                        "who": "robins",
+                        "call": "RO.bins CHAIN a.CROSS",
+                        "shortCall": "RO.bins CHAIN"
                     }
                 ]
             },
@@ -62,13 +71,17 @@
                     {
                         "type": "star left 4 places",
                         "beats": 8,
-                        "who": "all"
+                        "who": "all",
+                        "call": "STAR by the LEFT, ONCE a.ROUND",
+                        "shortCall": "STAR LEFT"
                     },
                     {
                         "progression": true,
                         "type": "do-si-do",
                         "beats": 8,
-                        "who": "new neighbor"
+                        "who": "new neighbor",
+                        "call": "new NEIGH.bor, do-si-DO",
+                        "shortCall": "do-si-DO"
                     }
                 ]
             }
@@ -90,12 +103,16 @@
                         "type": "down the outside",
                         "beats": 8,
                         "who": "ones",
-                        "progression": true
+                        "progression": true,
+                        "call": "ONES go DOWN the OUT.side",
+                        "shortCall": "DOWN the OUT.side"
                     },
                     {
                         "type": "up the outside",
                         "beats": 8,
-                        "who": "ones"
+                        "who": "ones",
+                        "call": "COME back UP the OUT.side",
+                        "shortCall": "COME back UP"
                     }
                 ]
             },
@@ -106,22 +123,27 @@
                     {
                         "type": "down the center",
                         "beats": 4,
-                        "who": "ones"
+                        "who": "ones",
+                        "call": "ONES down the CEN.ter",
+                        "shortCall": "DOWN the CEN.ter"
                     },
                     {
                         "type": "turn alone",
                         "beats": 4,
-                        "who": "ones"
+                        "who": "ones",
+                        "call": "TURN a.LONE"
                     },
                     {
                         "type": "up the center",
                         "beats": 4,
-                        "who": "ones"
+                        "who": "ones",
+                        "call": "COME back UP"
                     },
                     {
                         "type": "cast off",
                         "beats": 4,
-                        "who": "ones"
+                        "who": "ones",
+                        "call": "cast OFF"
                     }
                 ]
             },
@@ -132,7 +154,9 @@
                     {
                         "type": "turn contra corners",
                         "beats": 16,
-                        "who": "ones"
+                        "who": "ones",
+                        "call": "turn CON.tra COR.ners",
+                        "shortCall": "CON.tra COR.ners"
                     }
                 ]
             },
@@ -143,7 +167,9 @@
                     {
                         "type": "balance",
                         "beats": 4,
-                        "who": "ones"
+                        "who": "ones",
+                        "call": "ONES BAL.ance and SWING in the CEN.ter",
+                        "shortCall": "BAL.ance and SWING"
                     },
                     {
                         "type": "swing",
@@ -172,12 +198,16 @@
                         "type": "circle left 4 places",
                         "beats": 8,
                         "who": "all",
-                        "progression": true
+                        "progression": true,
+                        "call": "CIR.cle LEFT, ONCE a.ROUND",
+                        "shortCall": "CIR.cle LEFT"
                     },
                     {
                         "type": "circle right 4 places",
                         "beats": 8,
-                        "who": "all"
+                        "who": "all",
+                        "call": "BACK to the RIGHT",
+                        "shortCall": "CIR.cle RIGHT"
                     }
                 ]
             },
@@ -188,12 +218,14 @@
                     {
                         "type": "star right 4 places",
                         "beats": 8,
-                        "who": "all"
+                        "who": "all",
+                        "call": "RIGHT hand STAR"
                     },
                     {
                         "type": "star left 4 places",
                         "beats": 8,
-                        "who": "all"
+                        "who": "all",
+                        "call": "LEFT hand BACK"
                     }
                 ]
             },
@@ -204,22 +236,27 @@
                     {
                         "type": "down the center",
                         "beats": 4,
-                        "who": "ones"
+                        "who": "ones",
+                        "call": "ONES down the CEN.ter",
+                        "shortCall": "DOWN the CEN.ter"
                     },
                     {
                         "type": "turn alone",
                         "beats": 4,
-                        "who": "ones"
+                        "who": "ones",
+                        "call": "TURN a.LONE"
                     },
                     {
                         "type": "up the center",
                         "beats": 4,
-                        "who": "ones"
+                        "who": "ones",
+                        "call": "COME back UP"
                     },
                     {
                         "type": "cast off",
                         "beats": 4,
-                        "who": "ones"
+                        "who": "ones",
+                        "call": "cast OFF"
                     }
                 ]
             },
@@ -231,13 +268,15 @@
                         "type": "right and left through",
                         "beats": 8,
                         "who": "neighbor",
-                        "detail": "same role"
+                        "detail": "same role",
+                        "call": "RIGHT and left THROUGH"
                     },
                     {
                         "type": "right and left through",
                         "beats": 8,
                         "who": "neighbor",
-                        "detail": "same role"
+                        "detail": "same role",
+                        "call": "RIGHT and left BACK"
                     }
                 ]
             }
@@ -260,7 +299,9 @@
                         "type": "balance",
                         "beats": 4,
                         "who": "neighbor",
-                        "progression": true
+                        "progression": true,
+                        "call": "NEIGH.bors BAL.ance and SWING",
+                        "shortCall": "BAL.ance and SWING"
                     },
                     {
                         "type": "swing",
@@ -276,7 +317,9 @@
                     {
                         "type": "balance",
                         "beats": 4,
-                        "who": "ones"
+                        "who": "ones",
+                        "call": "ONES BAL.ance and SWING in the CEN.ter",
+                        "shortCall": "ONES BAL.ance and SWING"
                     },
                     {
                         "type": "swing",
@@ -294,22 +337,27 @@
                     {
                         "type": "down the center",
                         "beats": 4,
-                        "who": "ones"
+                        "who": "ones",
+                        "call": "ONES down the CEN.ter",
+                        "shortCall": "DOWN the CEN.ter"
                     },
                     {
                         "type": "turn alone",
                         "beats": 4,
-                        "who": "ones"
+                        "who": "ones",
+                        "call": "TURN a.LONE"
                     },
                     {
                         "type": "up the center",
                         "beats": 4,
-                        "who": "ones"
+                        "who": "ones",
+                        "call": "COME back UP"
                     },
                     {
                         "type": "cast off",
                         "beats": 4,
-                        "who": "ones"
+                        "who": "ones",
+                        "call": "cast OFF"
                     }
                 ]
             },
@@ -320,12 +368,15 @@
                     {
                         "type": "chain to partner",
                         "beats": 8,
-                        "who": "robins"
+                        "who": "robins",
+                        "call": "RO.bins CHAIN a.CROSS",
+                        "shortCall": "RO.bins CHAIN"
                     },
                     {
                         "type": "chain to neighbor",
                         "beats": 8,
-                        "who": "robins"
+                        "who": "robins",
+                        "call": "CHAIN them BACK"
                     }
                 ]
             }
@@ -347,7 +398,9 @@
                         "type": "balance",
                         "beats": 4,
                         "who": "neighbor",
-                        "progression": true
+                        "progression": true,
+                        "call": "NEIGH.bors BAL.ance and SWING",
+                        "shortCall": "BAL.ance and SWING"
                     },
                     {
                         "type": "swing",
@@ -363,13 +416,17 @@
                     {
                         "type": "chain to partner",
                         "beats": 8,
-                        "who": "robins"
+                        "who": "robins",
+                        "call": "RO.bins CHAIN a.CROSS",
+                        "shortCall": "RO.bins CHAIN"
                     },
                     {
                         "type": "half hey",
                         "beats": 8,
                         "who": "all",
-                        "detail": "robins pass right shoulders, neighbors left, larks right"
+                        "detail": "robins pass right shoulders, neighbors left, larks right",
+                        "call": "half HEY, RO.bins pass RIGHT",
+                        "shortCall": "half HEY"
                     }
                 ]
             },
@@ -380,7 +437,9 @@
                     {
                         "type": "balance",
                         "beats": 4,
-                        "who": "partner"
+                        "who": "partner",
+                        "call": "PART.ners BAL.ance and SWING",
+                        "shortCall": "BAL.ance and SWING"
                     },
                     {
                         "type": "swing",
@@ -396,13 +455,17 @@
                     {
                         "type": "chain to neighbor",
                         "beats": 8,
-                        "who": "robins"
+                        "who": "robins",
+                        "call": "RO.bins CHAIN a.CROSS",
+                        "shortCall": "RO.bins CHAIN"
                     },
                     {
                         "type": "half hey",
                         "beats": 8,
                         "who": "all",
-                        "detail": "robins pass right shoulders, partners left, larks right, new neighbors left"
+                        "detail": "robins pass right shoulders, partners left, larks right, new neighbors left",
+                        "call": "half HEY, RO.bins pass RIGHT",
+                        "shortCall": "half HEY"
                     }
                 ]
             }

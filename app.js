@@ -3,7 +3,9 @@ import { toPixels } from './positions.js';
 import { Animator, AnimationState } from './animator.js';
 import { calculateMovePaths, executeMove, withSetState, pathCacheKey, isMoveSupported } from './pathCalculator.js';
 import { dances, danceSlug, findDance } from './library.js';
-import { Metronome, beatAccent, locateBeat, moveStartBeat } from './metronome.js';
+import { Metronome, beatAccent, danceBeats, locateBeat, moveStartBeat } from './metronome.js';
+import { INTRO_BEATS, PRACTICE_ROUNDS, callSchedule, displayCall, judgeCall } from './calls.js';
+import { createStationaryPath } from './paths.js';
 
 const APP_TITLE = document.title;
 
@@ -19,8 +21,12 @@ const state = {
     animationState: null,
     lastFrameTime: null, // Timestamp of the most recently drawn frame
     currentPaths: null,
-    pathCache: new Map() // Cache paths by move signature for performance
+    pathCache: new Map(), // Cache paths by move signature for performance
+    session: null // Practice session in progress (see startSession)
 };
+
+/** Beats a finished call stays lit before the next one replaces it */
+const CALL_HOLD_BEATS = 1;
 
 // Clicks on the beat while playing, accented by where the beat falls in its part
 const metronome = new Metronome({
@@ -41,6 +47,13 @@ const elements = {
     prevMoveBtn: document.getElementById('prev-move-btn'),
     nextMoveBtn: document.getElementById('next-move-btn'),
     metronomeToggle: document.getElementById('metronome-toggle'),
+    practiceBtn: document.getElementById('practice-btn'),
+    testBtn: document.getElementById('test-btn'),
+    beatCounter: document.getElementById('beat-counter'),
+    callLine: document.getElementById('call-line'),
+    callNext: document.getElementById('call-next'),
+    callFeedback: document.getElementById('call-feedback'),
+    callBtn: document.getElementById('call-btn'),
     menuView: document.getElementById('menu-view'),
     danceMenu: document.getElementById('dance-menu'),
     danceView: document.getElementById('dance-view'),
@@ -66,6 +79,7 @@ function route() {
 }
 
 function showMenu() {
+    endSession();
     stopAnimation();
     state.dance = null;
     state.dancerSet = null;
@@ -143,6 +157,7 @@ function createDancerSet(dance) {
 
 // Load dance data
 function loadDance(dance) {
+    endSession();
     stopAnimation();
     state.dance = dance;
     state.currentPartIndex = 0;
@@ -154,6 +169,7 @@ function loadDance(dance) {
     updateMoveList();
     updateVisualization();
     updateControls();
+    showIdleCallPanel();
 }
 
 // Update dance information display
@@ -228,7 +244,7 @@ function updateMoveList() {
                     moveItem.classList.add('current');
 
                     // Add 'animating' class if animation is active
-                    if (state.isPlaying && state.animationState) {
+                    if (state.isPlaying && state.animationState && !state.session?.intro) {
                         moveItem.classList.add('animating');
                     }
                 }
@@ -627,13 +643,19 @@ function animate(timestamp) {
 
         // Update visualization with interpolated positions
         updateVisualization(currentPositions);
+        updateCallPanel(currentBeat(timestamp));
         state.lastFrameTime = timestamp;
 
         // Check if animation is complete
         if (state.animationState.isComplete(timestamp)) {
             // Animation finished - advance to next move, starting it exactly
             // where this one ended
-            advanceToNextMove(state.animationState.getCompletionTime());
+            if (state.session?.intro) {
+                state.session.intro = false;
+                startAnimation(state.animationState.getCompletionTime());
+            } else {
+                advanceToNextMove(state.animationState.getCompletionTime());
+            }
         } else {
             // Continue animation
             state.animationId = requestAnimationFrame(animate);
@@ -651,10 +673,24 @@ function animate(timestamp) {
  * @param {number} timestamp - Frame timestamp from requestAnimationFrame
  */
 function startMetronome(timestamp) {
-    const animationState = state.animationState;
-    const elapsedBeats = state.animator.msToBeats(animationState.getElapsedTime(timestamp));
-    const beat = moveStartBeat(state.dance, state.currentPartIndex, state.currentMoveIndex) + elapsedBeats;
-    metronome.start(beat, timestamp, state.animator.getTempo());
+    metronome.start(currentBeat(timestamp), timestamp, state.animator.getTempo());
+}
+
+/**
+ * Where the music has got to: beats from the start of the dance (the first time
+ * through, in a practice session; the intro before it is negative)
+ * @param {number} timestamp - A performance.now() time during the current move
+ * @returns {number}
+ */
+function currentBeat(timestamp) {
+    const elapsed = state.animator.msToBeats(state.animationState.getElapsedTime(timestamp));
+    if (state.session?.intro) {
+        return elapsed - INTRO_BEATS;
+    }
+    const round = state.session?.round ?? 0;
+    return round * danceBeats(state.dance)
+        + moveStartBeat(state.dance, state.currentPartIndex, state.currentMoveIndex)
+        + elapsed;
 }
 
 /**
@@ -723,6 +759,15 @@ function advanceToNextMove(startTime) {
 
     updateMoveList();
 
+    // A practice session stops after its times through the dance
+    if (state.session && state.currentPartIndex === 0 && state.currentMoveIndex === 0) {
+        state.session.round++;
+        if (state.session.round >= PRACTICE_ROUNDS) {
+            finishSession();
+            return;
+        }
+    }
+
     // If still playing, start animation for next move
     if (state.isPlaying) {
         startAnimation(startTime);
@@ -733,11 +778,302 @@ function advanceToNextMove(startTime) {
 }
 
 function updateControls() {
+    const mode = state.session?.mode;
     elements.playPauseBtn.textContent = state.isPlaying ? 'Pause' : 'Play';
-    elements.prevMoveBtn.disabled = !state.dancerSet;
-    elements.nextMoveBtn.disabled = !state.dancerSet;
+    elements.prevMoveBtn.disabled = !state.dancerSet || Boolean(mode);
+    elements.nextMoveBtn.disabled = !state.dancerSet || Boolean(mode);
     elements.playPauseBtn.disabled = !state.dancerSet;
+    elements.practiceBtn.textContent = mode === 'karaoke' ? 'Stop Practice' : 'Practice Calls';
+    elements.testBtn.textContent = mode === 'test' ? 'Stop Test' : 'Test Me';
+    elements.practiceBtn.disabled = !state.dancerSet || mode === 'test';
+    elements.testBtn.disabled = !state.dancerSet || mode === 'karaoke';
+    elements.callBtn.hidden = mode !== 'test';
 }
+
+// ===== PRACTICE SESSIONS =====
+// A session plays an intro and then the dance PRACTICE_ROUNDS times from the top,
+// with the calls: shown as they're said ('karaoke'), or made by the trainee, who
+// presses Call when they would start each one ('test').
+
+/**
+ * Start a practice session from the top of the dance
+ * @param {'karaoke'|'test'} mode
+ */
+function startSession(mode) {
+    if (!state.dance || !state.dancerSet) return;
+
+    stopAnimation();
+    state.dancerSet = createDancerSet(state.dance);
+    state.currentPartIndex = 0;
+    state.currentMoveIndex = 0;
+    state.session = {
+        mode,
+        calls: callSchedule(state.dance),
+        intro: true,
+        round: 0,
+        attempts: [], // Test mode: for each call, how the trainee did
+        nextCall: 0, // Test mode: the next call the trainee is to make
+        shown: null // The call (or attempt) on the call line
+    };
+    state.isPlaying = true;
+    metronome.unlock();
+
+    elements.callFeedback.replaceChildren();
+    elements.callNext.textContent = '';
+    updateControls();
+    updateCallPanel(-INTRO_BEATS);
+    startIntro();
+}
+
+/**
+ * Play the intro: the dancers wait in place while the music starts
+ * @param {number} [startTime]
+ */
+function startIntro(startTime = performance.now()) {
+    const firstPaths = getMovePaths(state.dance.parts[0].moves[0], state.dancerSet);
+    state.currentPaths = new Map([...firstPaths].map(([id, path]) =>
+        [id, createStationaryPath(path.getPositionAtBeat(0), INTRO_BEATS)]));
+    state.animationState = new AnimationState(state.currentPaths, state.animator, { next: firstPaths });
+    state.animationState.start(startTime);
+    state.animationId = requestAnimationFrame(animate);
+    updateMoveList();
+}
+
+/**
+ * The session has played through: stop, and say how it went
+ */
+function finishSession() {
+    const session = state.session;
+    state.isPlaying = false;
+    stopAnimation();
+    updateVisualization();
+
+    if (session.mode === 'test') {
+        // Calls still to come when the music stopped count as missed
+        for (let i = session.nextCall; i < session.calls.length; i++) {
+            session.attempts[i] = { missed: true };
+        }
+        showTestSummary(session);
+    } else {
+        elements.callNext.textContent = '';
+        elements.callFeedback.textContent = `That's ${PRACTICE_ROUNDS} times through.`;
+    }
+    state.session = null;
+    updateControls();
+}
+
+/**
+ * Abandon any session in progress
+ */
+function endSession() {
+    if (!state.session) return;
+    state.session = null;
+    state.isPlaying = false;
+    stopAnimation();
+    updateControls();
+    showIdleCallPanel();
+}
+
+function showIdleCallPanel() {
+    elements.beatCounter.textContent = '';
+    elements.callLine.replaceChildren();
+    elements.callLine.className = 'idle';
+    elements.callLine.textContent = 'Practice Calls shows the calls in time; Test Me lets you make them.';
+    elements.callNext.textContent = '';
+    elements.callFeedback.replaceChildren();
+}
+
+/**
+ * Name of a beat, e.g. "A1 · 3" (beats counted from 1, as the music is)
+ * @param {number} beat - Beats from the start of the dance
+ * @returns {string}
+ */
+function beatLabel(beat) {
+    const whole = Math.floor(beat + 1e-6);
+    if (whole < 0) {
+        return `Intro · ${whole + INTRO_BEATS + 1}`;
+    }
+    const { partIndex, beatInPart } = locateBeat(state.dance, whole);
+    return `${state.dance.parts[partIndex].name} · ${beatInPart + 1}`;
+}
+
+/**
+ * Bring the call panel up to date with the music
+ * @param {number} beat - Beats from the start of the dance
+ */
+function updateCallPanel(beat) {
+    elements.beatCounter.textContent = beatLabel(beat);
+    const session = state.session;
+    if (!session) return;
+
+    if (session.mode === 'karaoke') {
+        // The call being said, or the next one coming
+        const index = session.calls.findIndex(call => call.end + CALL_HOLD_BEATS > beat);
+        const call = index < 0 ? null : session.calls[index];
+        showOnCallLine(call, 0, beat);
+        const next = index < 0 ? null : session.calls[index + 1];
+        elements.callNext.textContent = next ? `Then: ${displayCall(next.syllables)}` : '';
+        return;
+    }
+
+    // Test mode: a call whose figure has started without being made is missed
+    while (session.nextCall < session.calls.length && beat >= session.calls[session.nextCall].figureBeat) {
+        const call = session.calls[session.nextCall];
+        session.attempts[session.nextCall] = { missed: true };
+        showFeedback(`Missed: ${displayCall(call.syllables)}`, 'off');
+        session.nextCall++;
+    }
+
+    // The call the trainee made, while they are saying it; otherwise a reminder
+    // of what comes next, like the card a caller keeps in hand
+    const lastIndex = session.attempts.findLastIndex(attempt => attempt && !attempt.missed);
+    const last = session.attempts[lastIndex];
+    const lastCall = session.calls[lastIndex];
+    if (last && beat < lastCall.end + last.offset + CALL_HOLD_BEATS) {
+        showOnCallLine(lastCall, last.offset, beat);
+    } else {
+        showOnCallLine(null, 0, beat);
+    }
+    const upcoming = session.calls[session.nextCall];
+    elements.callNext.textContent = upcoming ? `Next: ${displayCall(upcoming.syllables)}` : '';
+}
+
+/**
+ * Show a call on the call line, lighting up the syllables said so far
+ * @param {Object|null} call - From callSchedule
+ * @param {number} offset - Beats later than scheduled that the call is said
+ * @param {number} beat - Beats from the start of the dance
+ */
+function showOnCallLine(call, offset, beat) {
+    const session = state.session;
+    const key = call ? `${session.calls.indexOf(call)}@${offset}` : null;
+    if (session.shown !== key) {
+        session.shown = key;
+        elements.callLine.className = '';
+        elements.callLine.replaceChildren();
+        call?.syllables.forEach((syllable, i) => {
+            if (i > 0 && syllable.word !== call.syllables[i - 1].word) {
+                elements.callLine.append(' ');
+            }
+            const span = document.createElement('span');
+            span.className = syllable.stressed ? 'syllable stressed' : 'syllable';
+            // The call's first letter is a capital, as in displayCall
+            span.textContent = i === 0
+                ? syllable.text.charAt(0).toUpperCase() + syllable.text.slice(1)
+                : syllable.text;
+            elements.callLine.append(span);
+        });
+    }
+    if (!call) return;
+
+    elements.callLine.classList.toggle('upcoming', beat < call.start + offset);
+    const spans = elements.callLine.querySelectorAll('.syllable');
+    call.syllables.forEach((syllable, i) => {
+        const said = beat >= syllable.beat + offset;
+        const saying = said && !(beat >= (call.syllables[i + 1]?.beat ?? call.end) + offset);
+        spans[i].classList.toggle('said', said);
+        spans[i].classList.toggle('saying', saying);
+    });
+}
+
+/**
+ * Add a line to the feedback list, newest first
+ * @param {string} text
+ * @param {string} grade - For styling: 'on-time', 'nearly', 'off' or 'summary'
+ */
+function showFeedback(text, grade) {
+    const item = document.createElement('div');
+    item.className = `feedback ${grade}`;
+    item.textContent = text;
+    elements.callFeedback.prepend(item);
+}
+
+/**
+ * Format a number of beats, e.g. "1.5 beats"
+ * @param {number} beats
+ * @returns {string}
+ */
+function formatBeats(beats) {
+    const rounded = Math.round(Math.abs(beats) * 4) / 4;
+    return `${rounded} beat${rounded === 1 ? '' : 's'}`;
+}
+
+/**
+ * Test mode: the trainee starts the next call now
+ * @param {number} timestamp - performance.now() time of the press
+ */
+function makeCall(timestamp) {
+    const session = state.session;
+    if (session?.mode !== 'test' || !state.isPlaying || !state.animationState) return;
+    if (session.nextCall >= session.calls.length) return;
+
+    const beat = currentBeat(timestamp);
+    const index = session.nextCall++;
+    const call = session.calls[index];
+    const judged = judgeCall(beat, call);
+    session.attempts[index] = { clickBeat: beat, ...judged };
+
+    let text = `${displayCall(call.syllables)}: ${judged.grade}`;
+    if (judged.grade !== 'on time') {
+        text += ` (${formatBeats(judged.offset)})`;
+    }
+    if (judged.endsBefore < 0) {
+        text += `, running ${formatBeats(judged.endsBefore)} into the figure`;
+    }
+    const style = judged.grade === 'on time' ? 'on-time' : judged.grade.startsWith('a little') ? 'nearly' : 'off';
+    showFeedback(text, style);
+}
+
+/**
+ * Test mode: how the trainee did over the whole session
+ * @param {Object} session
+ */
+function showTestSummary(session) {
+    const counts = { onTime: 0, nearly: 0, missed: 0 };
+    for (const attempt of session.attempts) {
+        if (attempt.missed) counts.missed++;
+        else if (attempt.grade === 'on time') counts.onTime++;
+        else if (attempt.grade.startsWith('a little')) counts.nearly++;
+    }
+    const total = session.calls.length;
+    let text = `On time for ${counts.onTime} of ${total} calls`;
+    if (counts.nearly) text += `, close on ${counts.nearly}`;
+    if (counts.missed) text += `, missed ${counts.missed}`;
+    showOnCallLine(null, 0, 0);
+    elements.callLine.className = 'summary';
+    elements.callLine.textContent = `${text}.`;
+    elements.callNext.textContent = 'Each call is listed on the right.';
+    showFeedback(`${text}.`, 'summary');
+}
+
+elements.practiceBtn.addEventListener('click', () => {
+    if (state.session) {
+        endSession();
+    } else {
+        startSession('karaoke');
+    }
+});
+
+elements.testBtn.addEventListener('click', () => {
+    if (state.session) {
+        endSession();
+    } else {
+        startSession('test');
+    }
+});
+
+// Calls are made on the press, not the release, which comes noticeably later
+elements.callBtn.addEventListener('pointerdown', event => makeCall(event.timeStamp));
+elements.canvas.addEventListener('pointerdown', event => makeCall(event.timeStamp));
+document.addEventListener('keydown', event => {
+    if (event.code === 'Space' && state.session?.mode === 'test') {
+        // Don't also press whichever button has the focus
+        event.preventDefault();
+        if (!event.repeat) {
+            makeCall(event.timeStamp);
+        }
+    }
+});
 
 // The metronome setting is remembered between visits (where storage is allowed)
 try {

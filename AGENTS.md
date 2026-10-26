@@ -41,6 +41,26 @@ are scheduled ahead on the audio clock, lined up with the animation clock
 when play starts or resumes. The "Metronome" checkbox mutes it, and the
 choice is remembered in `localStorage`.
 
+## Calls
+
+`calls.js` times the calls for practising calling. Moves carry their
+call text (`call`, and optionally a shorter `shortCall`), written with
+syllables and stresses marked: `"NEIGH.bors BAL.ance and SWING"`. A `.`
+splits syllables invisibly, a `-` splits them and is shown (`do-si-DO`),
+and a syllable in capitals is stressed. A move without a call (such as
+the swing after a balance whose call covers both) is not called.
+
+Stressed syllables land on strong beats (odd-numbered beats of the
+music), with the others on half beats between. A call's last stress comes
+2 beats before its figure, or 4 for a call longer than 4 beats; where
+calls crowd together, a call moves earlier to finish before the next.
+
+A practice session plays an 8-beat intro and then the dance twice from
+the top, with full calls the first time and short ones the second.
+"Practice Calls" shows them karaoke-style; "Test Me" has the trainee
+press Call (or the space bar, or the dancers) when they'd start each
+call, and says how early or late they were.
+
 ## Dance Data Structure
 
 Dances are stored as JSON with the following structure:
@@ -61,6 +81,8 @@ Dances are stored as JSON with the following structure:
           "direction": "left" or "right" or "clockwise" or null,
           "facing": "up" or "down" (optional: which way dancers end up facing),
           "progression": true (optional: new neighbors from this move on),
+          "call": "NEIGH.bors BAL.ance and SWING" (optional: see Calls),
+          "shortCall": "BAL.ance and SWING" (optional: after the first time),
           "detail": "additional parameters as needed"
         }
       ]

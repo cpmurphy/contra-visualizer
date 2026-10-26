@@ -285,6 +285,97 @@
             background-color: #1976d2;
         }
 
+        #call-panel {
+            height: 96px;
+            background-color: white;
+            border-top: 1px solid #ddd;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 0 20px;
+        }
+
+        #beat-counter {
+            width: 80px;
+            font-size: 18px;
+            font-variant-numeric: tabular-nums;
+            color: #666;
+        }
+
+        #call-lines {
+            flex: 1;
+            min-width: 0;
+        }
+
+        #call-line {
+            font-size: 30px;
+            color: #333;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        #call-line.idle {
+            font-size: 14px;
+            color: #999;
+        }
+
+        #call-line.summary {
+            font-size: 22px;
+        }
+
+        #call-line .syllable {
+            color: #aaa;
+        }
+
+        #call-line.upcoming .syllable {
+            color: #ccc;
+        }
+
+        #call-line .syllable.stressed {
+            font-weight: 700;
+        }
+
+        #call-line .syllable.said {
+            color: #1565c0;
+        }
+
+        #call-line .syllable.saying {
+            color: #e65100;
+        }
+
+        #call-next {
+            font-size: 14px;
+            color: #888;
+            margin-top: 4px;
+        }
+
+        #call-btn {
+            background-color: #e65100;
+            border-color: #e65100;
+            color: white;
+            font-size: 18px;
+            font-weight: 600;
+            padding: 16px 36px;
+            touch-action: manipulation;
+        }
+
+        #call-btn:hover {
+            background-color: #bf360c;
+        }
+
+        #call-feedback {
+            width: 320px;
+            max-height: 84px;
+            overflow-y: auto;
+            font-size: 13px;
+        }
+
+        .feedback.on-time { color: #2e7d32; }
+        .feedback.nearly { color: #b26a00; }
+        .feedback.off { color: #c62828; }
+        .feedback.summary { color: #333; font-weight: 600; }
+
         #metronome-label {
             display: flex;
             align-items: center;
@@ -322,6 +413,30 @@
             #visualization-panel {
                 flex: 1;
             }
+
+            #call-panel {
+                height: auto;
+                flex-wrap: wrap;
+                gap: 8px;
+                padding: 8px 16px;
+            }
+
+            #call-line {
+                font-size: 22px;
+                white-space: normal;
+            }
+
+            #call-feedback {
+                width: 100%;
+                max-height: 40px;
+            }
+
+            #controls {
+                height: auto;
+                flex-wrap: wrap;
+                gap: 8px;
+                padding: 8px 16px;
+            }
         }
     </style>
 </head>
@@ -356,6 +471,16 @@
             </div>
         </div>
 
+        <div id="call-panel">
+            <div id="beat-counter"></div>
+            <div id="call-lines">
+                <div id="call-line"></div>
+                <div id="call-next"></div>
+            </div>
+            <button id="call-btn" hidden>Call</button>
+            <div id="call-feedback"></div>
+        </div>
+
         <div id="controls">
             <button id="prev-move-btn">Previous Move</button>
             <button id="play-pause-btn">Play</button>
@@ -364,6 +489,8 @@
                 <input type="checkbox" id="metronome-toggle" checked>
                 Metronome
             </label>
+            <button id="practice-btn">Practice Calls</button>
+            <button id="test-btn">Test Me</button>
         </div>
     </div>
 
