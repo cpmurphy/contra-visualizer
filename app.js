@@ -9,6 +9,10 @@ import { createStationaryPath } from './paths.js';
 
 const APP_TITLE = document.title;
 
+/** Beats per minute to start at: slower than most dances, for learners */
+const DEFAULT_TEMPO = 100;
+const TEMPO_SETTING = 'tempo';
+
 // Application state
 const state = {
     dance: null,
@@ -17,7 +21,7 @@ const state = {
     currentMoveIndex: 0,
     isPlaying: false,
     animationId: null,
-    animator: new Animator(120), // 120 BPM
+    animator: new Animator(DEFAULT_TEMPO),
     animationState: null,
     lastFrameTime: null, // Timestamp of the most recently drawn frame
     currentPaths: null,
@@ -47,6 +51,8 @@ const elements = {
     prevMoveBtn: document.getElementById('prev-move-btn'),
     nextMoveBtn: document.getElementById('next-move-btn'),
     metronomeToggle: document.getElementById('metronome-toggle'),
+    tempoSlider: document.getElementById('tempo-slider'),
+    tempoValue: document.getElementById('tempo-value'),
     practiceBtn: document.getElementById('practice-btn'),
     testBtn: document.getElementById('test-btn'),
     beatCounter: document.getElementById('beat-counter'),
@@ -1093,6 +1099,42 @@ elements.metronomeToggle.addEventListener('change', () => {
         localStorage.setItem(METRONOME_SETTING, enabled ? 'on' : 'off');
     } catch {
         // No storage: the setting lasts until the page is reloaded
+    }
+});
+
+/**
+ * Set the tempo, keeping the dancers' place in the move if it is playing
+ * @param {number} tempo - Beats per minute
+ */
+function setTempo(tempo) {
+    if (state.animationState) {
+        state.animationState.changeTempo(tempo, performance.now());
+        // The metronome restarts at the new tempo on the next frame
+        metronome.stop();
+    } else {
+        state.animator.setTempo(tempo);
+    }
+    elements.tempoSlider.value = tempo;
+    elements.tempoValue.textContent = `${tempo} BPM`;
+}
+
+// The tempo is remembered between visits too
+try {
+    const saved = parseInt(localStorage.getItem(TEMPO_SETTING));
+    const min = parseInt(elements.tempoSlider.min);
+    const max = parseInt(elements.tempoSlider.max);
+    setTempo(saved >= min && saved <= max ? saved : DEFAULT_TEMPO);
+} catch {
+    setTempo(DEFAULT_TEMPO);
+}
+
+elements.tempoSlider.addEventListener('input', () => {
+    const tempo = parseInt(elements.tempoSlider.value);
+    setTempo(tempo);
+    try {
+        localStorage.setItem(TEMPO_SETTING, String(tempo));
+    } catch {
+        // No storage: the tempo lasts until the page is reloaded
     }
 });
 

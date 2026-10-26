@@ -376,6 +376,22 @@
         .feedback.off { color: #c62828; }
         .feedback.summary { color: #333; font-weight: 600; }
 
+        #tempo-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+
+        #tempo-slider {
+            width: 110px;
+        }
+
+        #tempo-value {
+            width: 64px;
+            font-variant-numeric: tabular-nums;
+        }
+
         #metronome-label {
             display: flex;
             align-items: center;
@@ -485,6 +501,11 @@
             <button id="prev-move-btn">Previous Move</button>
             <button id="play-pause-btn">Play</button>
             <button id="next-move-btn">Next Move</button>
+            <label id="tempo-label">
+                Tempo
+                <input type="range" id="tempo-slider" min="70" max="130" step="2" value="100">
+                <span id="tempo-value">100 BPM</span>
+            </label>
             <label id="metronome-label">
                 <input type="checkbox" id="metronome-toggle" checked>
                 Metronome

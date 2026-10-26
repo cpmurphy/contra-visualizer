@@ -273,6 +273,20 @@ export class AnimationState {
     }
 
     /**
+     * Change the tempo without losing the place: the beat reached at the given time
+     * stays the same, and the rest of the move plays at the new tempo
+     * @param {number} tempo - New tempo in BPM
+     * @param {number} timestamp - Current timestamp in milliseconds
+     */
+    changeTempo(tempo, timestamp) {
+        const beat = this.animator.msToBeats(this.getElapsedTime(timestamp));
+        this.animator.setTempo(tempo);
+        if (this.startTime === null) return;
+        const endTime = this.pausedTime !== null ? this.pausedTime : timestamp;
+        this.startTime = endTime - this.totalPausedDuration - this.animator.beatsToMs(beat);
+    }
+
+    /**
      * Get current positions of all dancers
      * @param {number} timestamp - Current timestamp in milliseconds
      * @returns {Map<string, import('./positions.js').Position>} Map from dancer ID to current position

@@ -41,6 +41,10 @@ are scheduled ahead on the audio clock, lined up with the animation clock
 when play starts or resumes. The "Metronome" checkbox mutes it, and the
 choice is remembered in `localStorage`.
 
+The tempo slider (70-130 BPM) defaults to 100 BPM, slower than most
+dances, for learners; it is remembered too. Changing it mid-move keeps
+the dancers' place in the figure (`AnimationState.changeTempo`).
+
 ## Calls
 
 `calls.js` times the calls for practising calling. Moves carry their

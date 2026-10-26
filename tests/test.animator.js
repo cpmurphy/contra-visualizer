@@ -535,3 +535,53 @@ test('resuming continues from the paused position', () => {
     assert(state.getCurrentPositions(7000).get('d1').equals(atPause));
     assert(state.getCurrentPositions(7500).get('d1').equals(new Position(3, 0), 0.0001));
 });
+
+// ===== CHANGING TEMPO =====
+
+/**
+ * One dancer walking 100 units in 8 beats, started at time 0
+ */
+function walkingAt(tempo) {
+    const paths = new Map([['d', createStraightPath(new Position(0, 0), new Position(100, 0), 8)]]);
+    const state = new AnimationState(paths, new Animator(tempo));
+    state.start(0);
+    return state;
+}
+
+test('changeTempo keeps the dancers where they are', () => {
+    const state = walkingAt(120);
+    // 1000ms at 120 BPM is beat 2 of 8
+    const before = state.getCurrentPositions(1000).get('d');
+    state.changeTempo(60, 1000);
+    const after = state.getCurrentPositions(1000).get('d');
+    assert.ok(distance(before, after) < 1e-9);
+    assert.strictEqual(state.animator.getTempo(), 60);
+});
+
+test('changeTempo plays the rest of the move at the new tempo', () => {
+    const state = walkingAt(120);
+    state.changeTempo(60, 1000); // At beat 2
+    // Six beats left, at a second a beat
+    assert.strictEqual(state.getCompletionTime(), 7000);
+    assert.strictEqual(state.isComplete(6999), false);
+    assert.strictEqual(state.isComplete(7000), true);
+});
+
+test('changeTempo while paused keeps the place for resuming', () => {
+    const state = walkingAt(120);
+    state.pause(1000); // At beat 2
+    state.changeTempo(60, 3000);
+    state.resume(5000);
+    const position = state.getCurrentPositions(5000).get('d');
+    assert.ok(Math.abs(position.x - 25) < 1e-9, `x is ${position.x}`);
+    // One beat later at 60 BPM is beat 3
+    assert.ok(Math.abs(state.getCurrentPositions(6000).get('d').x - 37.5) < 1e-9);
+});
+
+test('changeTempo before starting just sets the tempo', () => {
+    const paths = new Map([['d', createStationaryPath(new Position(0, 0), 4)]]);
+    const state = new AnimationState(paths, new Animator(120));
+    state.changeTempo(90, 0);
+    assert.strictEqual(state.animator.getTempo(), 90);
+    assert.strictEqual(state.startTime, null);
+});
