@@ -798,6 +798,27 @@ test('stars should end where the set says, without collisions, for any number of
     }
 });
 
+test('those balancing should hold hands', () => {
+    const moves = [
+        { type: 'balance', who: 'neighbor', beats: 4 },
+        { type: 'balance', who: 'partner', beats: 4 },
+        { type: 'balance', who: 'ones', beats: 4 }
+    ];
+    for (const move of moves) {
+        const set = new Set(6);
+        const paths = calculateMovePaths(move, set);
+        const balancing = [...paths.keys()].filter(id => !paths.get(id).getWaypoints().every(p => p.equals(paths.get(id).start)));
+        assert.deepStrictEqual(paths.holds.flatMap(hold => hold.ids).sort(), balancing.sort(),
+            `${move.who} balance: everyone balancing should hold hands`);
+        for (const hold of paths.holds) {
+            assert.equal(hold.shape, 'line');
+            assert.equal(hold.ids.length, 2);
+            assert.equal(hold.from, 0.5);
+            assert.equal(hold.to, 3.5);
+        }
+    }
+});
+
 test('swing pairs should hold each other while they turn', () => {
     for (const who of ['neighbor', 'partner']) {
         const set = new Set(6);
@@ -843,7 +864,7 @@ test('circles should hold hands all the way around each minor set', () => {
             assert(a[0] === b[0] || a[1] === b[1], `${hold.ids[j]} and ${hold.ids[(j + 1) % 4]} should be beside each other`);
         }
     }
-    assert.equal(calculateMovePaths({ type: 'balance', who: 'neighbor', beats: 4 }, set).holds, undefined);
+    assert.equal(calculateMovePaths({ type: 'do-si-do', who: 'neighbor', beats: 8 }, set).holds, undefined);
 });
 
 // ===== CHAIN MOVES TESTS =====

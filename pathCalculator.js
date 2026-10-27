@@ -93,7 +93,7 @@ const STAR_RADIUS_PX = 40;
 // Waypoints per place travelled in a star
 const STAR_STEPS_PER_PLACE = 8;
 
-// Long lines and circles: how long the dancers take to join hands with those beside
+// Long lines, circles and balances: how long the dancers take to join hands with those beside
 // them as they start, and to let go as they finish
 const TAKE_HANDS_BEATS = 0.5;
 
@@ -312,7 +312,7 @@ function createBalancePaths(dancerSet, startPosById, paths, beats) {
 
 /**
  * Create balance paths for a pair of dancers: they step towards each other, stopping
- * a little apart, and back.
+ * a little apart, and back, holding hands (added to paths.holds).
  * @param {import('./dancers.js').Dancer} d1
  * @param {import('./dancers.js').Dancer} d2
  * @param {Map<string, Position>} startPosById
@@ -335,6 +335,8 @@ function addBalancePairPaths(d1, d2, startPosById, paths, beats) {
 
     paths.set(d1.id, createOutAndBackPath(pos1, turn1, beats));
     paths.set(d2.id, createOutAndBackPath(pos2, turn2, beats));
+    paths.holds = [...(paths.holds || []),
+        { ids: [d1.id, d2.id], shape: 'line', from: TAKE_HANDS_BEATS, to: beats - TAKE_HANDS_BEATS }];
 }
 
 /**
