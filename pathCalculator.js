@@ -79,9 +79,10 @@ const RIGHT_AND_LEFT_SAMPLES = 16;
 const STEP_IN_BEATS = 1;
 
 // Swings: the two swinging hold each other, so they turn closer together than in
-// any other figure, just about touching, about once every 2 beats (a buzz-step
-// swing)
-const SWING_RADIUS_PX = DANCER_RADIUS_PX + 1;
+// any other figure, about once every 2 beats (a buzz-step swing). The circles are
+// drawn with a 2px outline, reaching 1px past the radius, so this leaves a small
+// gap of 4px between them
+const SWING_RADIUS_PX = DANCER_RADIUS_PX + 3;
 const SWING_BEATS_PER_TURN = 2;
 // Waypoints per revolution of a swing
 const SWING_STEPS_PER_TURN = 24;

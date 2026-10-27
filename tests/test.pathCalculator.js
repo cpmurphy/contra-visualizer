@@ -676,7 +676,7 @@ test('swing pair dancers should remain separated during rotation', () => {
 });
 
 // The two swinging hold each other: between stepping in and out (a beat each),
-// they turn steadily about a fixed point, just about touching, closer together
+// they turn steadily about a fixed point, close but not touching, closer together
 // than in an allemande
 test('swing pairs should turn close together, steadily opposite each other', () => {
     const setups = [
@@ -708,8 +708,8 @@ test('swing pairs should turn close together, steadily opposite each other', () 
                 for (let beat = 1; beat <= beats - 1; beat += 0.25) {
                     const [p1, p2] = [px(id1, beat), px(id2, beat)];
                     const dist = apart(id1, id2, beat);
-                    assert(dist >= 40 && dist <= 44,
-                        `${who} swing: ${id1}/${id2} should be about touching at beat ${beat} (got ${dist.toFixed(1)})`);
+                    assert(dist >= 44 && dist <= 48,
+                        `${who} swing: ${id1}/${id2} should be close but not touching at beat ${beat} (got ${dist.toFixed(1)})`);
                     centers.push({ x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 });
                 }
                 for (const c of centers) {
