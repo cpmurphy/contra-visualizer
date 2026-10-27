@@ -93,7 +93,7 @@ const STAR_RADIUS_PX = 40;
 // Waypoints per place travelled in a star
 const STAR_STEPS_PER_PLACE = 8;
 
-// Long lines, circles and balances: how long the dancers take to join hands with those beside
+// Long lines, circles, balances and casts: how long the dancers take to join hands with those beside
 // them as they start, and to let go as they finish
 const TAKE_HANDS_BEATS = 0.5;
 
@@ -1052,7 +1052,8 @@ function createTurnAlonePaths(dancerSet, turning, startPosById, paths, beats) {
 /**
  * Create cast off paths: each dancer casting off turns out and goes around the
  * outside of the line, ending in the line below the dancer on their side, who steps
- * up on the inside if they need to move up.
+ * up on the inside if they need to move up. The two hold near hands as they go
+ * around each other, added to paths.holds.
  * @param {import('./dancers.js').Set} dancerSet
  * @param {number[]} casting - Places of the dancers casting off
  * @param {Map<string, Position>} startPosById
@@ -1082,6 +1083,21 @@ function createCastOffPaths(dancerSet, casting, startPosById, endPosById, paths,
         );
         paths.set(dancer.id, createBezierPath([start, control, end], beats));
     });
+
+    // Each caster with the dancer on their side in their minor set, if they trade places
+    const holds = [];
+    for (const i of dancerSet.minorSetStarts()) {
+        for (const column of [0, 1]) {
+            const [upper, lower] = [i + column, i + 2 + column];
+            const castingIndex = [upper, lower].find(index => casting.includes(index));
+            if (castingIndex === undefined) continue;
+            const caster = dancerSet.dancers[castingIndex];
+            const pivot = dancerSet.dancers[castingIndex === upper ? lower : upper];
+            if (startPosById.get(caster.id).equals(endPosById.get(caster.id), 0.01)) continue;
+            holds.push({ ids: [caster.id, pivot.id], shape: 'line', from: TAKE_HANDS_BEATS, to: beats - TAKE_HANDS_BEATS });
+        }
+    }
+    paths.holds = holds;
 }
 
 /**

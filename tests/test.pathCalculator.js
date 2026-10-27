@@ -1416,6 +1416,30 @@ test('casting off from below the twos should leave the twos in place', () => {
     assert.deepEqual(set.dancers.map(d => d.id), before);
 });
 
+test('each one casting off should hold hands with the two they go around', () => {
+    const set = properSet();
+    for (const move of [ONES_DOWN, ONES_TURN, ONES_UP]) {
+        executeMove(set, move);
+    }
+    const paths = calculateMovePaths(ONES_CAST, set);
+    const ones = set.dancers.filter(d => d.couple.coupleNumber === 1 && d.active);
+    assert.equal(paths.holds.length, ones.length);
+    for (const one of ones) {
+        const hold = paths.holds.find(h => h.ids[0] === one.id);
+        const two = set.dancers.find(d => d.id === hold.ids[1]);
+        assert.equal(two.couple.coupleNumber, 2, `${one.id} should cast around a two`);
+        assert.equal(two.role, one.role, `${one.id} should cast around the two on their side`);
+        assert.equal(hold.shape, 'line');
+        assert.equal(hold.from, 0.5);
+        assert.equal(hold.to, ONES_CAST.beats - 0.5);
+    }
+
+    // Casting off from below the twos goes around no one
+    const below = new Set(6);
+    executeMove(below, { type: 'swing', who: 'neighbor', beats: 12 });
+    assert.deepStrictEqual(calculateMovePaths(ONES_CAST, below).holds, []);
+});
+
 test('down the center, turn alone, up the center and cast off paths should not collide', () => {
     for (const set of [properSet(), new Set(6)]) {
         for (const move of [ONES_DOWN, ONES_TURN, ONES_UP, ONES_CAST]) {
