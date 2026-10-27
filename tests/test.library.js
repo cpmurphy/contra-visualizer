@@ -4,7 +4,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Set } from '../dancers.js';
 import { dances, danceSlug, findDance } from '../library.js';
-import { calculateMovePaths, executeMove } from '../pathCalculator.js';
+import { calculateMovePaths } from '../pathCalculator.js';
+import { executeMove } from '../moves.js';
 
 test('every dance should have a title, author and formation', () => {
     for (const dance of dances) {

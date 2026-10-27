@@ -1,7 +1,8 @@
 import { Set } from './dancers.js';
 import { toPixels } from './positions.js';
 import { Animator, AnimationState } from './animator.js';
-import { calculateMovePaths, executeMove, withSetState, pathCacheKey, isMoveSupported } from './pathCalculator.js';
+import { calculateMovePaths } from './pathCalculator.js';
+import { executeMove, withSetState, pathCacheKey, isMoveSupported } from './moves.js';
 import { dances, danceSlug, findDance } from './library.js';
 import { Metronome, beatAccent, danceBeats, locateBeat, moveStartBeat } from './metronome.js';
 import { INTRO_BEATS, PRACTICE_ROUNDS, callSchedule, displayCall, judgeCall } from './calls.js';

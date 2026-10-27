@@ -29,7 +29,7 @@ menu of these dances. Choosing one puts its slug in the URL hash (e.g.
 `index.html#lady-of-the-lake`), so reloading stays on that dance.
 
 Figures the path calculator can't animate yet (see `isMoveSupported`
-in `pathCalculator.js`) are shown as "not animated yet", and the dancers
+in `moves.js`) are shown as "not animated yet", and the dancers
 hold their places during them.
 
 ## Metronome
