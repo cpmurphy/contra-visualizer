@@ -1162,6 +1162,14 @@ test('robins chain: couple courtesy turns counter-clockwise as a unit', () => {
     }
 });
 
+test('robins chain: each couple holds hands while they courtesy turn', () => {
+    const { paths, couples } = chainFromSimplicitySwingB1();
+    for (const { robin, lark } of couples) {
+        assert.deepStrictEqual(paths.holds.find(hold => hold.ids.includes(robin)),
+            { ids: [lark, robin], shape: 'line', from: 3, to: 7 });
+    }
+});
+
 test('robins chain: turn ends with the robin on the lark\'s right, facing in', () => {
     const { paths, couples, endPositions } = chainFromSimplicitySwingB1();
 
@@ -1557,6 +1565,21 @@ test('right and left through paths should not collide, and should start and end 
             assert(paths.get(id).start.equals(start[index]), `${id} should start in place`);
             assert(paths.get(id).end.equals(end.get(id)), `${id} should end in place`);
         });
+    }
+});
+
+test('in a right and left through the two on each side hold hands as they courtesy turn', () => {
+    const set = afterCastOff();
+    const paths = calculateMovePaths(RIGHT_AND_LEFT, set);
+    assert.equal(paths.holds.length, 2 * set.minorSetStarts().length);
+    executeMove(set, RIGHT_AND_LEFT);
+    for (const hold of paths.holds) {
+        assert.equal(hold.shape, 'line');
+        assert.equal(hold.from, RIGHT_AND_LEFT.beats / 2, 'they take hands as they start to turn');
+        assert(hold.to > RIGHT_AND_LEFT.beats - 1, 'they hold on until they are nearly in place');
+        // The two end side by side, on the same side of the set
+        const [p1, p2] = hold.ids.map(id => paths.get(id).end);
+        assert(Math.abs(p1.x - p2.x) < 0.01, `${hold.ids.join('/')} should end on the same side`);
     }
 });
 

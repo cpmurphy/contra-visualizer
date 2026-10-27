@@ -680,7 +680,8 @@ function createHalfHeyPaths(dancerSet, startPosById, endPosById, paths, beats) {
  * shoulder. For the second half the two who arrived on each side courtesy turn:
  * they come close together, turn half way around counter-clockwise (as seen from
  * above, with the music at the top) about the middle of their side of the minor set,
- * and spread back out into the places there.
+ * and spread back out into the places there, holding hands as they turn (added to
+ * paths.holds).
  * @param {import('./dancers.js').Set} dancerSet
  * @param {Map<string, Position>} startPosById
  * @param {Map<string, Position>} endPosById
@@ -693,9 +694,18 @@ function createRightAndLeftThroughPaths(dancerSet, startPosById, endPosById, pat
     });
     // Ease in and out of each half
     const ease = u => (1 - Math.cos(Math.PI * u)) / 2;
+    const holds = [];
 
     for (const i of dancerSet.minorSetStarts()) {
         const minorSet = dancerSet.dancers.slice(i, i + 4);
+        // The two who end on each side courtesy turn together
+        const endX = dancer => endPosById.get(dancer.id).x;
+        for (const dancer of minorSet) {
+            const other = minorSet.find(d => d !== dancer && Math.abs(endX(d) - endX(dancer)) < 0.01);
+            if (other && minorSet.indexOf(dancer) < minorSet.indexOf(other)) {
+                holds.push({ ids: [dancer.id, other.id], shape: 'line', from: beats / 2, to: beats - TAKE_HANDS_BEATS });
+            }
+        }
         for (const dancer of minorSet) {
             const start = toPixels(startPosById.get(dancer.id), SVG_WIDTH, SVG_HEIGHT);
             const end = toPixels(endPosById.get(dancer.id), SVG_WIDTH, SVG_HEIGHT);
@@ -736,6 +746,8 @@ function createRightAndLeftThroughPaths(dancerSet, startPosById, endPosById, pat
             paths.set(dancer.id, new Path(normalized, beats, times));
         }
     }
+
+    paths.holds = holds;
 }
 
 /**
@@ -1394,7 +1406,7 @@ const CHAIN_SAMPLES_PER_BEAT = 12;
  * minor set, each meets the lark on the far side, and the couple courtesy turns
  * counter-clockwise as a unit (lark backing, robin walking forward around him),
  * coming to rest facing in with the robin on the lark's right. They then release
- * into their places.
+ * into their places. Each couple holds hands while they turn, added to paths.holds.
  * @param {import('./dancers.js').Set} dancerSet
  * @param {Map<string, Position>} startPosById
  * @param {Map<string, Position>} endPosById
@@ -1403,6 +1415,7 @@ const CHAIN_SAMPLES_PER_BEAT = 12;
  */
 function createRobinsChainPaths(dancerSet, startPosById, endPosById, paths, beats) {
     const startIndex = dancerSet.dancers[0].active ? 0 : 2;
+    const holds = [];
 
     for (let i = startIndex; i + 4 <= dancerSet.dancers.length; i += 4) {
         const minorSetDancers = dancerSet.dancers.slice(i, i + 4);
@@ -1430,8 +1443,11 @@ function createRobinsChainPaths(dancerSet, startPosById, endPosById, paths, beat
             );
             paths.set(robin.id, new Path(robinWaypoints, beats, times));
             paths.set(lark.id, new Path(larkWaypoints, beats, times));
+            holds.push({ ids: [lark.id, robin.id], shape: 'line',
+                from: CHAIN_ARRIVAL_END * beats, to: CHAIN_TURN_END * beats });
         }
     }
+    paths.holds = holds;
 
     // Everyone else (other active dancers, inactive couples) stays put
     dancerSet.dancers.forEach(dancer => {
