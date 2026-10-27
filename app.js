@@ -396,9 +396,10 @@ function drawStage(svg) {
 
 // Draw dancers from the Set
 /**
- * Draw arms reaching from dancers to their joined hands: for a line, from each to
- * hands joined half way to those beside them; otherwise from each to hands joined
- * in the middle of them all, as in a star
+ * Draw arms reaching from dancers to their joined hands: for a line or a ring
+ * (a line closed into a circle), from each to hands joined half way to those
+ * beside them; otherwise from each to hands joined in the middle of them all, as
+ * in a star
  * @param {SVGElement} svg
  * @param {{ids: string[], shape?: string, strength: number}[]} holds
  * @param {Map<string, import('./positions.js').Position>} positions
@@ -408,9 +409,10 @@ function drawHolds(svg, holds, positions) {
         const points = hold.ids.map(id => toPixels(positions.get(id), 800, 1000));
         const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         group.setAttribute('opacity', hold.strength);
-        if (hold.shape === 'line') {
-            for (let i = 1; i < points.length; i++) {
-                const [a, b] = [points[i - 1], points[i]];
+        if (hold.shape === 'line' || hold.shape === 'ring') {
+            const neighbors = points.slice(1).map((point, i) => [points[i], point]);
+            if (hold.shape === 'ring') neighbors.push([points[points.length - 1], points[0]]);
+            for (const [a, b] of neighbors) {
                 drawJoinedHands(group, [a, b], { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
             }
         } else {

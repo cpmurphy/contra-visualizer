@@ -311,8 +311,9 @@ export class AnimationState {
     /**
      * Groups of dancers holding hands now, each with how firmly (0 to 1), fading
      * in as they join hands and out as they let go. A group with shape 'line'
-     * holds hands with those beside them, in order; otherwise all join hands in
-     * the middle, as in a star.
+     * holds hands with those beside them, in order, and with shape 'ring' the
+     * last with the first too; otherwise all join hands in the middle, as in a
+     * star.
      * @param {number} timestamp - Current timestamp in milliseconds
      * @returns {{ids: string[], shape?: string, strength: number}[]}
      */

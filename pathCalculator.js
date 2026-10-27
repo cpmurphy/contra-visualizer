@@ -93,9 +93,9 @@ const STAR_RADIUS_PX = 40;
 // Waypoints per place travelled in a star
 const STAR_STEPS_PER_PLACE = 8;
 
-// Long lines: how long the dancers take to join hands with those beside them as they
-// start forward, and to let go as they finish falling back
-const LONG_LINES_TAKE_HANDS_BEATS = 0.5;
+// Long lines and circles: how long the dancers take to join hands with those beside
+// them as they start, and to let go as they finish
+const TAKE_HANDS_BEATS = 0.5;
 
 // Allemandes: how far apart the two turning are (twice the radius they turn at)
 const ALLEMANDE_RADIUS_PX = 25;
@@ -449,7 +449,8 @@ function createDoSiDoPaths(dancerSet, startPosById, paths, beats) {
 }
 
 /**
- * Create circular arc paths for dancers during circles
+ * Create circular arc paths for dancers during circles. Each circle holds hands
+ * all the way around, added to paths.holds.
  * @param {import('./dancers.js').Set} dancerSet
  * @param {Map<string, Position>} startPosById
  * @param {Map<string, import('./paths.js').Path>} paths
@@ -460,6 +461,7 @@ function createDoSiDoPaths(dancerSet, startPosById, paths, beats) {
 function createCircularPaths(dancerSet, startPosById, paths, beats, places, isClockwise) {
     // Determine starting index based on active state
     const startIndex = dancerSet.dancers[0].active ? 0 : 2;
+    const holds = [];
 
     // Process each minor set of 4 dancers
     for (let i = startIndex; i < dancerSet.dancers.length; i += 4) {
@@ -493,7 +495,22 @@ function createCircularPaths(dancerSet, startPosById, paths, beats, places, isCl
                 paths.set(dancer.id, createEllipticalPath(start, centerPos, places, beats, isClockwise));
             }
         });
+
+        // The four hold hands with those beside them around the circle
+        if (minorSetDancers.every(d => d.active)) {
+            const angle = dancer => {
+                const pos = startPosById.get(dancer.id);
+                return Math.atan2(pos.y - centerPos.y, pos.x - centerPos.x);
+            };
+            holds.push({
+                ids: [...minorSetDancers].sort((d1, d2) => angle(d1) - angle(d2)).map(d => d.id),
+                shape: 'ring',
+                from: TAKE_HANDS_BEATS,
+                to: beats - TAKE_HANDS_BEATS
+            });
+        }
     }
+    paths.holds = holds;
 
     // Handle any inactive dancers at the beginning
     if (startIndex === 2) {
@@ -1092,8 +1109,8 @@ function createLongLinesPaths(dancerSet, startPosById, paths, beats) {
                 .sort((a, b) => startPosById.get(a.id).y - startPosById.get(b.id).y)
                 .map(d => d.id),
             shape: 'line',
-            from: LONG_LINES_TAKE_HANDS_BEATS,
-            to: beats - LONG_LINES_TAKE_HANDS_BEATS
+            from: TAKE_HANDS_BEATS,
+            to: beats - TAKE_HANDS_BEATS
         }));
 }
 

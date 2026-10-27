@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Set } from '../dancers.js';
 import { calculateMovePaths, executeMove, withSetState, pathCacheKey, isMoveSupported } from '../pathCalculator.js';
-import { distance, isInBounds, toPixels } from '../positions.js';
+import { center, distance, isInBounds, toPixels } from '../positions.js';
 
 // Helper to check if all waypoints are within bounds
 function allWaypointsInBounds(paths) {
@@ -806,7 +806,28 @@ test('stars should hold hands in the middle of each minor set while they turn', 
         from: 1,
         to: 7
     })));
-    assert.equal(calculateMovePaths({ type: 'circle left 4 places', beats: 8 }, set).holds, undefined);
+});
+
+test('circles should hold hands all the way around each minor set', () => {
+    const set = new Set(6);
+    const paths = calculateMovePaths({ type: 'circle left 3 places', beats: 6 }, set);
+    assert.equal(paths.holds.length, set.minorSetStarts().length);
+    for (const [k, i] of set.minorSetStarts().entries()) {
+        const hold = paths.holds[k];
+        assert.equal(hold.shape, 'ring');
+        assert.equal(hold.from, 0.5);
+        assert.equal(hold.to, 5.5);
+        assert.deepStrictEqual([...hold.ids].sort(), set.dancers.slice(i, i + 4).map(d => d.id).sort());
+        // In order around the circle: each is beside the next, never across from them
+        const starts = hold.ids.map(id => paths.get(id).start);
+        const mid = center(starts);
+        const side = p => [Math.sign(p.x - mid.x), Math.sign(p.y - mid.y)];
+        for (let j = 0; j < 4; j++) {
+            const [a, b] = [side(starts[j]), side(starts[(j + 1) % 4])];
+            assert(a[0] === b[0] || a[1] === b[1], `${hold.ids[j]} and ${hold.ids[(j + 1) % 4]} should be beside each other`);
+        }
+    }
+    assert.equal(calculateMovePaths({ type: 'balance', who: 'neighbor', beats: 4 }, set).holds, undefined);
 });
 
 // ===== CHAIN MOVES TESTS =====
