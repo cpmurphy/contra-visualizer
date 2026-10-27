@@ -1216,6 +1216,21 @@ test('robins chain: robins pull by clockwise around the middle, passing right sh
         'the other robin should be on the right while pulling by');
 });
 
+test('robins chain: robins hold hands while they pull by', () => {
+    const { paths, couples } = chainFromSimplicitySwingB1();
+    const robins = couples.map(c => c.robin);
+    const hold = paths.holds.find(h => robins.every(id => h.ids.includes(id)));
+    assert(hold, 'the robins should hold hands');
+    assert.equal(hold.shape, 'line');
+    assert(hold.from > 0 && hold.to < 3 && hold.from < hold.to, 'they should let go before the courtesy turn');
+    // Close together, on the pull-by circle, all the while they hold on
+    for (let beat = hold.from; beat <= hold.to; beat += 0.1) {
+        const [p1, p2] = robins.map(id => toPixels(paths.get(id).getPositionAtBeat(beat), 800, 1000));
+        const apart = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+        assert(apart > 54 && apart < 58, `the robins should be on the pull-by circle at beat ${beat} (${apart.toFixed(1)}px apart)`);
+    }
+});
+
 test('moves we cannot animate yet should be unsupported', () => {
     const improper = new Set(6);
     const proper = new Set(6, 'proper');

@@ -1406,7 +1406,8 @@ const CHAIN_SAMPLES_PER_BEAT = 12;
  * minor set, each meets the lark on the far side, and the couple courtesy turns
  * counter-clockwise as a unit (lark backing, robin walking forward around him),
  * coming to rest facing in with the robin on the lark's right. They then release
- * into their places. Each couple holds hands while they turn, added to paths.holds.
+ * into their places. The robins hold hands while they pull by, and each couple
+ * while they turn, added to paths.holds.
  * @param {import('./dancers.js').Set} dancerSet
  * @param {Map<string, Position>} startPosById
  * @param {Map<string, Position>} endPosById
@@ -1425,6 +1426,8 @@ function createRobinsChainPaths(dancerSet, startPosById, endPosById, paths, beat
         const robins = minorSetDancers.filter(d =>
             d.active && d.role === 'robin' && !startPosById.get(d.id).equals(endPosById.get(d.id), 0.01));
 
+        // When each robin is on the pull-by circle, in beats
+        const pullBys = [];
         for (const robin of robins) {
             const robinEnd = endPosById.get(robin.id);
             // The robin turns with the lark already standing on the side she ends on
@@ -1434,7 +1437,7 @@ function createRobinsChainPaths(dancerSet, startPosById, endPosById, paths, beat
                 throw new Error(`No lark for ${robin.id} to courtesy turn with`);
             }
 
-            const [robinWaypoints, larkWaypoints, times] = courtesyTurnChainWaypoints(
+            const [robinWaypoints, larkWaypoints, times, pullBy] = courtesyTurnChainWaypoints(
                 toPixels(startPosById.get(robin.id), SVG_WIDTH, SVG_HEIGHT),
                 toPixels(robinEnd, SVG_WIDTH, SVG_HEIGHT),
                 toPixels(startPosById.get(lark.id), SVG_WIDTH, SVG_HEIGHT),
@@ -1445,6 +1448,12 @@ function createRobinsChainPaths(dancerSet, startPosById, endPosById, paths, beat
             paths.set(lark.id, new Path(larkWaypoints, beats, times));
             holds.push({ ids: [lark.id, robin.id], shape: 'line',
                 from: CHAIN_ARRIVAL_END * beats, to: CHAIN_TURN_END * beats });
+            pullBys.push(pullBy);
+        }
+        // The robins hold hands while both are on the pull-by circle
+        if (robins.length === 2) {
+            holds.push({ ids: robins.map(robin => robin.id), shape: 'line',
+                from: Math.max(...pullBys.map(p => p.from)), to: Math.min(...pullBys.map(p => p.to)) });
         }
     }
     paths.holds = holds;
@@ -1462,13 +1471,14 @@ function createRobinsChainPaths(dancerSet, startPosById, endPosById, paths, beat
  * The robin's arrival is built from tangent lines and arcs: straight onto the
  * pull-by circle (clockwise), around it, then along the inner tangent onto the
  * courtesy-turn circle (counter-clockwise), so her path never has a corner.
- * All inputs are in pixels; returns normalized waypoints and their shared times.
+ * All inputs are in pixels; returns normalized waypoints and their shared times,
+ * and the beats from and to which the robin is on the pull-by circle.
  * @param {{x: number, y: number}} robinStart
  * @param {{x: number, y: number}} robinEnd
  * @param {{x: number, y: number}} larkPlace - Lark's place (start and end)
  * @param {{x: number, y: number}} setCenter - Center of the minor set
  * @param {number} beats
- * @returns {[Position[], Position[], number[]]}
+ * @returns {[Position[], Position[], number[], {from: number, to: number}]}
  */
 function courtesyTurnChainWaypoints(robinStart, robinEnd, larkPlace, setCenter, beats) {
     const add = (a, b, k = 1) => ({ x: a.x + k * b.x, y: a.y + k * b.y });
@@ -1614,7 +1624,12 @@ function courtesyTurnChainWaypoints(robinStart, robinEnd, larkPlace, setCenter, 
     larkWaypoints[larkWaypoints.length - 1] = fromPixels(larkPlace.x, larkPlace.y, SVG_WIDTH, SVG_HEIGHT);
     times[times.length - 1] = 1;
 
-    return [robinWaypoints, larkWaypoints, times];
+    // She crosses at a steady pace, so the time on each piece is in proportion to its length
+    const pullBy = {
+        from: pieces[0].length / arrivalLength * arrivalBeats,
+        to: (pieces[0].length + pieces[1].length) / arrivalLength * arrivalBeats
+    };
+    return [robinWaypoints, larkWaypoints, times, pullBy];
 }
 
 /**
