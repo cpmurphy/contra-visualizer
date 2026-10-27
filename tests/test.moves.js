@@ -3,7 +3,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Set } from '../dancers.js';
-import { executeMove, withSetState, pathCacheKey, isMoveSupported } from '../moves.js';
+import { isMoveSupported, pathCacheKey, withSetState, executeMove } from '../moves.js';
+import { properSet, ONES_DOWN, ONES_TURN } from './helpers/sets.js';
 
 test('withSetState restores the Set after reading', () => {
     const set = new Set(6);
@@ -113,4 +114,11 @@ test('every move should record exactly one undo snapshot', () => {
         assert.deepEqual(set.getPositions(), before.positions, `undoing ${move.type} should restore positions`);
         executeMove(set, move);
     }
+});
+
+test('the path cache key should depend on where dancers are off their places', () => {
+    const set = properSet();
+    const key = pathCacheKey(ONES_TURN, set);
+    executeMove(set, ONES_DOWN);
+    assert.notEqual(pathCacheKey(ONES_TURN, set), key);
 });
