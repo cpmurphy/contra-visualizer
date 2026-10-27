@@ -394,12 +394,17 @@ function drawStage(svg) {
     });
 }
 
+// In a swing, how far to either side of the two swinging their arms join, in
+// pixels: far enough out from behind the dancers to show two arms from each
+const SWING_HOLD_SPREAD = 24;
+
 // Draw dancers from the Set
 /**
  * Draw arms reaching from dancers to their joined hands: for a line or a ring
  * (a line closed into a circle), from each to hands joined half way to those
- * beside them; otherwise from each to hands joined in the middle of them all, as
- * in a star
+ * beside them; for a swing, from each of the two to where their arms join on
+ * either side of them; otherwise from each to hands joined in the middle of them
+ * all, as in a star
  * @param {SVGElement} svg
  * @param {{ids: string[], shape?: string, strength: number}[]} holds
  * @param {Map<string, import('./positions.js').Position>} positions
@@ -409,7 +414,19 @@ function drawHolds(svg, holds, positions) {
         const points = hold.ids.map(id => toPixels(positions.get(id), 800, 1000));
         const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         group.setAttribute('opacity', hold.strength);
-        if (hold.shape === 'line' || hold.shape === 'ring') {
+        if (hold.shape === 'swing') {
+            const [a, b] = points;
+            const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+            const apart = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+            // Across the line between them, to either side
+            const across = { x: -(b.y - a.y) / apart, y: (b.x - a.x) / apart };
+            for (const side of [1, -1]) {
+                drawJoinedHands(group, [a, b], {
+                    x: mid.x + side * SWING_HOLD_SPREAD * across.x,
+                    y: mid.y + side * SWING_HOLD_SPREAD * across.y
+                });
+            }
+        } else if (hold.shape === 'line' || hold.shape === 'ring') {
             const neighbors = points.slice(1).map((point, i) => [points[i], point]);
             if (hold.shape === 'ring') neighbors.push([points[points.length - 1], points[0]]);
             for (const [a, b] of neighbors) {

@@ -1267,7 +1267,8 @@ function turnTimes(beats, rotationSteps) {
 
 /**
  * Create swing paths for one pair of dancers in a minor set: they come together
- * and rotate clockwise, close, around the point midway between them.
+ * and rotate clockwise, close, around the point midway between them, holding on
+ * while they turn (added to paths.holds).
  * @param {import('./dancers.js').Dancer} dancer1
  * @param {import('./dancers.js').Dancer} dancer2
  * @param {Map<string, Position>} startPosById
@@ -1302,6 +1303,9 @@ function addSwingPairPaths(dancer1, dancer2, startPosById, endPosById, paths, be
 
     paths.set(dancer1.id, new Path(waypoints1, beats, times));
     paths.set(dancer2.id, new Path(waypoints2, beats, times));
+    const leg = stepInBeats(beats);
+    paths.holds = [...(paths.holds || []),
+        { ids: [dancer1.id, dancer2.id], shape: 'swing', from: leg, to: beats - leg }];
 }
 
 /**

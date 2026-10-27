@@ -798,6 +798,22 @@ test('stars should end where the set says, without collisions, for any number of
     }
 });
 
+test('swing pairs should hold each other while they turn', () => {
+    for (const who of ['neighbor', 'partner']) {
+        const set = new Set(6);
+        const paths = calculateMovePaths({ type: 'swing', who, beats: 8 }, set);
+        assert.equal(paths.holds.length, 2 * set.minorSetStarts().length, `${who} swing: two pairs in each minor set`);
+        for (const hold of paths.holds) {
+            assert.equal(hold.shape, 'swing');
+            assert.equal(hold.from, 1, `${who} swing: they take hold once they have stepped in`);
+            assert.equal(hold.to, 7, `${who} swing: they let go as they step out`);
+            const [d1, d2] = hold.ids.map(id => set.dancers.find(d => d.id === id));
+            assert.notEqual(d1.role, d2.role, `${who} swing: a lark swings a robin`);
+            assert.equal(d1.partner === d2, who === 'partner', `${who} swing: ${d1.id} with ${d2.id}`);
+        }
+    }
+});
+
 test('stars should hold hands in the middle of each minor set while they turn', () => {
     const set = new Set(6);
     const paths = calculateMovePaths({ type: 'star left 4 places', beats: 8 }, set);
