@@ -601,6 +601,14 @@ test('getCurrentHolds fades hands in as they join and out as they let go', () =>
     assert.equal(strengthAt(8), 0);
 });
 
+test('getCurrentHolds keeps the shape of a line', () => {
+    const paths = new Map([['d1', createStationaryPath(new Position(10, 10), 8)]]);
+    paths.holds = [{ ids: ['d1'], shape: 'line', from: 1, to: 7 }];
+    const state = new AnimationState(paths, new Animator(60));
+    state.start(0);
+    assert.deepStrictEqual(state.getCurrentHolds(4000), [{ ids: ['d1'], shape: 'line', strength: 1 }]);
+});
+
 test('getCurrentHolds is empty for a move without holds', () => {
     const paths = new Map([['d1', createStationaryPath(new Position(10, 10), 8)]]);
     const state = new AnimationState(paths, new Animator(60));

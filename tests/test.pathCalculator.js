@@ -1006,6 +1006,24 @@ test('long lines should come close to the other line', () => {
     assert(gapPx >= 40 && gapPx <= 55, `gap should be just over a dancer width (got ${gapPx.toFixed(1)}px)`);
 });
 
+test('long lines should hold hands all along each line', () => {
+    const set = new Set(6);
+    const paths = calculateMovePaths({ type: 'long lines', beats: 8 }, set);
+    assert.equal(paths.holds.length, 2);
+    const active = set.dancers.filter(d => d.active).map(d => d.id);
+    const held = paths.holds.flatMap(hold => hold.ids);
+    assert.deepStrictEqual([...held].sort(), [...active].sort(), 'everyone dancing should be in a line');
+    for (const hold of paths.holds) {
+        assert.equal(hold.shape, 'line');
+        assert.equal(hold.from, 0.5);
+        assert.equal(hold.to, 7.5);
+        const xs = hold.ids.map(id => paths.get(id).start.x);
+        const ys = hold.ids.map(id => paths.get(id).start.y);
+        assert(xs.every(x => Math.abs(x - xs[0]) < 1), 'a line should be one side of the set');
+        assert(ys.every((y, i) => i === 0 || y > ys[i - 1]), 'a line should be in order from top to bottom');
+    }
+});
+
 test('swing exits should not pass through the swing partner', () => {
     // Swing from the starting formation and from the Simplicity Swing A2 setup
     // (neighbor swing then circle left 3/4), for a range of swing lengths

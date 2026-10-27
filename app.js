@@ -292,7 +292,7 @@ function formatMove(move) {
 
 // Update visualization
 // customPositions: Map from dancer ID to Position, while animating
-// holds: groups of dancers holding hands in the middle (see AnimationState.getCurrentHolds)
+// holds: groups of dancers holding hands (see AnimationState.getCurrentHolds)
 function updateVisualization(customPositions = null, holds = []) {
     // Clear canvas
     const svg = elements.canvas;
@@ -396,40 +396,58 @@ function drawStage(svg) {
 
 // Draw dancers from the Set
 /**
- * Draw arms reaching from each dancer in a group to their hands joined in the
- * middle of them, as in a star
+ * Draw arms reaching from dancers to their joined hands: for a line, from each to
+ * hands joined half way to those beside them; otherwise from each to hands joined
+ * in the middle of them all, as in a star
  * @param {SVGElement} svg
- * @param {{ids: string[], strength: number}[]} holds
+ * @param {{ids: string[], shape?: string, strength: number}[]} holds
  * @param {Map<string, import('./positions.js').Position>} positions
  */
 function drawHolds(svg, holds, positions) {
     for (const hold of holds) {
         const points = hold.ids.map(id => toPixels(positions.get(id), 800, 1000));
-        const hub = {
-            x: points.reduce((sum, p) => sum + p.x, 0) / points.length,
-            y: points.reduce((sum, p) => sum + p.y, 0) / points.length
-        };
         const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         group.setAttribute('opacity', hold.strength);
-        for (const point of points) {
-            const arm = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-            arm.setAttribute('x1', point.x);
-            arm.setAttribute('y1', point.y);
-            arm.setAttribute('x2', hub.x);
-            arm.setAttribute('y2', hub.y);
-            arm.setAttribute('stroke', '#555');
-            arm.setAttribute('stroke-width', '5');
-            arm.setAttribute('stroke-linecap', 'round');
-            group.appendChild(arm);
+        if (hold.shape === 'line') {
+            for (let i = 1; i < points.length; i++) {
+                const [a, b] = [points[i - 1], points[i]];
+                drawJoinedHands(group, [a, b], { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+            }
+        } else {
+            const hub = {
+                x: points.reduce((sum, p) => sum + p.x, 0) / points.length,
+                y: points.reduce((sum, p) => sum + p.y, 0) / points.length
+            };
+            drawJoinedHands(group, points, hub);
         }
-        const hands = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        hands.setAttribute('cx', hub.x);
-        hands.setAttribute('cy', hub.y);
-        hands.setAttribute('r', 6);
-        hands.setAttribute('fill', '#555');
-        group.appendChild(hands);
         svg.appendChild(group);
     }
+}
+
+/**
+ * Draw arms from each of the points to hands joined at one place
+ * @param {SVGElement} group
+ * @param {{x: number, y: number}[]} points - Dancers' positions in pixels
+ * @param {{x: number, y: number}} handsAt - Where their hands join, in pixels
+ */
+function drawJoinedHands(group, points, handsAt) {
+    for (const point of points) {
+        const arm = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        arm.setAttribute('x1', point.x);
+        arm.setAttribute('y1', point.y);
+        arm.setAttribute('x2', handsAt.x);
+        arm.setAttribute('y2', handsAt.y);
+        arm.setAttribute('stroke', '#555');
+        arm.setAttribute('stroke-width', '5');
+        arm.setAttribute('stroke-linecap', 'round');
+        group.appendChild(arm);
+    }
+    const hands = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    hands.setAttribute('cx', handsAt.x);
+    hands.setAttribute('cy', handsAt.y);
+    hands.setAttribute('r', 6);
+    hands.setAttribute('fill', '#555');
+    group.appendChild(hands);
 }
 
 function drawDancers(svg, dancerSet, customPositions = null) {

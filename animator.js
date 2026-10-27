@@ -310,15 +310,18 @@ export class AnimationState {
 
     /**
      * Groups of dancers holding hands now, each with how firmly (0 to 1), fading
-     * in as they join hands and out as they let go
+     * in as they join hands and out as they let go. A group with shape 'line'
+     * holds hands with those beside them, in order; otherwise all join hands in
+     * the middle, as in a star.
      * @param {number} timestamp - Current timestamp in milliseconds
-     * @returns {{ids: string[], strength: number}[]}
+     * @returns {{ids: string[], shape?: string, strength: number}[]}
      */
     getCurrentHolds(timestamp) {
         const beat = this.animator.msToBeats(this.getElapsedTime(timestamp));
         return (this.paths.holds || [])
             .map(hold => ({
                 ids: hold.ids,
+                ...(hold.shape && { shape: hold.shape }),
                 strength: Math.max(0, Math.min(1,
                     (beat - hold.from) / HOLD_FADE_BEATS + 1,
                     (hold.to - beat) / HOLD_FADE_BEATS + 1))

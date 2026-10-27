@@ -93,6 +93,10 @@ const STAR_RADIUS_PX = 40;
 // Waypoints per place travelled in a star
 const STAR_STEPS_PER_PLACE = 8;
 
+// Long lines: how long the dancers take to join hands with those beside them as they
+// start forward, and to let go as they finish falling back
+const LONG_LINES_TAKE_HANDS_BEATS = 0.5;
+
 // Allemandes: how far apart the two turning are (twice the radius they turn at)
 const ALLEMANDE_RADIUS_PX = 25;
 // Contra corners, as fractions of the figure (sixteenths, for a 16-beat figure):
@@ -1040,6 +1044,7 @@ function createCastOffPaths(dancerSet, casting, startPosById, endPosById, paths,
 /**
  * Create long lines paths - two vertical lines approach each other and retreat.
  * Dancers move horizontally toward the center line, then return to their starting position.
+ * Each line holds hands all the way along, added to paths.holds.
  * @param {import('./dancers.js').Set} dancerSet
  * @param {Map<string, Position>} startPosById
  * @param {Map<string, import('./paths.js').Path>} paths
@@ -1073,6 +1078,23 @@ function createLongLinesPaths(dancerSet, startPosById, paths, beats) {
 
         paths.set(dancer.id, createOutAndBackPath(start, approachPos, beats));
     });
+
+    // Those out at the ends stand still, so only those dancing join the lines
+    const active = dancerSet.dancers.filter(d => d.active);
+    const lines = [
+        active.filter(d => startPosById.get(d.id).x < centerX),
+        active.filter(d => startPosById.get(d.id).x >= centerX)
+    ];
+    paths.holds = lines
+        .filter(line => line.length > 1)
+        .map(line => ({
+            ids: line
+                .sort((a, b) => startPosById.get(a.id).y - startPosById.get(b.id).y)
+                .map(d => d.id),
+            shape: 'line',
+            from: LONG_LINES_TAKE_HANDS_BEATS,
+            to: beats - LONG_LINES_TAKE_HANDS_BEATS
+        }));
 }
 
 /**
