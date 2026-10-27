@@ -1662,6 +1662,29 @@ test('contra corners paths should not collide, and should start and end where th
     });
 });
 
+test('in contra corners the two turning should hold hands while they turn', () => {
+    const set = afterCastOff();
+    const paths = calculateMovePaths(ONES_CONTRA_CORNERS, set);
+    const ones = set.dancers.filter(d => d.couple.coupleNumber === 1 && d.active);
+    for (const one of ones) {
+        // Twice with their partner, and once with each corner that is really there
+        const held = paths.holds.filter(hold => hold.ids.includes(one.id));
+        const withPartner = held.filter(hold => hold.ids.includes(one.partner.id));
+        const { first, second } = set.contraCornersOf(set.dancers.indexOf(one));
+        const corners = [first, second].filter(i => set.dancers[i]);
+        assert.equal(withPartner.length, 2, `${one.id} should turn their partner twice`);
+        assert.equal(held.length, 2 + corners.length, `${one.id} should hold each corner's hand`);
+        for (const hold of held) {
+            assert.equal(hold.shape, 'line');
+            assert.equal(hold.ids.length, 2);
+            // Close enough to join hands half way through the turn
+            const [p1, p2] = hold.ids.map(id => toPixels(
+                paths.get(id).getPositionAtBeat((hold.from + hold.to) / 2), 800, 1000));
+            assert(Math.hypot(p1.x - p2.x, p1.y - p2.y) < 60, `${hold.ids.join('/')} should be close while turning`);
+        }
+    }
+});
+
 // Partner balance
 
 test('partners should balance towards each other, on the side or across the set', () => {

@@ -826,7 +826,8 @@ function createCouplePairPaths(dancerSet, who, startPosById, paths, beats, addPa
  * back to the middle, crossed over. Allemandes right turn clockwise as seen from
  * above, with the music at the top, and lefts counter-clockwise. A corner turns once
  * around with the dancer turning them, and is back in place after; a corner off the
- * end of the set is imaginary.
+ * end of the set is imaginary. The two turning hold hands while they turn, added to
+ * paths.holds.
  * @param {import('./dancers.js').Set} dancerSet
  * @param {number[]} turning - Places of the dancers turning contra corners
  * @param {Map<string, Position>} startPosById
@@ -854,6 +855,10 @@ function createContraCornersPaths(dancerSet, turning, startPosById, endPosById, 
 
     // Times at which each corner turns, with the center and starting angle of the turn
     const cornerTurns = new Map();
+    // Two hold hands from one time to another
+    const holds = [];
+    const hold = (dancer1, dancer2, t0, t1) =>
+        holds.push({ ids: [dancer1.id, dancer2.id], shape: 'line', from: t0 * beats, to: t1 * beats });
 
     for (const index of turning) {
         const dancer = dancerSet.dancers[index];
@@ -893,6 +898,7 @@ function createContraCornersPaths(dancerSet, turning, startPosById, endPosById, 
                 const list = cornerTurns.get(cornerDancer) || [];
                 list.push({ t0, t1, center: turnCenter, angle: angle + Math.PI });
                 cornerTurns.set(cornerDancer, list);
+                hold(dancer, cornerDancer, t0, t1);
             }
         };
 
@@ -904,6 +910,10 @@ function createContraCornersPaths(dancerSet, turning, startPosById, endPosById, 
         // Allemande right 3/4 with partner
         turn(middle, ALLEMANDE_RADIUS_PX, facingFirst, CLOCKWISE * 3 / 4 * 2 * Math.PI, T.backFromFirst, T.partnerAgain);
         turnCorner(corners.second, T.secondCorner, T.backFromSecond);
+        if (index < partnerIndex) {
+            hold(dancer, dancer.partner, T.middle, T.partner);
+            hold(dancer, dancer.partner, T.backFromFirst, T.partnerAgain);
+        }
         // Back to the middle, crossed over
         add(1, toPixels(endPosById.get(dancer.id), SVG_WIDTH, SVG_HEIGHT));
 
@@ -933,6 +943,8 @@ function createContraCornersPaths(dancerSet, turning, startPosById, endPosById, 
         normalized[normalized.length - 1] = startPosById.get(corner.id).clone();
         paths.set(corner.id, new Path(normalized, beats, times));
     }
+
+    paths.holds = holds;
 }
 
 /**
