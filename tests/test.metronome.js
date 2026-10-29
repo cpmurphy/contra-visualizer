@@ -1,9 +1,9 @@
-// Unit tests for the metronome and the beat arithmetic it relies on
+// Unit tests for the metronome
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Metronome, beatAccent, danceBeats, locateBeat, moveStartBeat } from '../metronome.js';
-import { findDance } from '../library.js';
+import { Metronome, beatAccent } from '../metronome.js';
+import { locateBeat } from '../timeline.js';
 
 const dance = {
     parts: [
@@ -61,25 +61,6 @@ function advance(metronome, context, toTime) {
         metronome.schedule();
     }
 }
-
-test('danceBeats adds up the parts', () => {
-    assert.strictEqual(danceBeats(dance), 32);
-    assert.strictEqual(danceBeats(findDance('simplicity-swing')), 64);
-});
-
-test('moveStartBeat counts the beats before a move', () => {
-    assert.strictEqual(moveStartBeat(dance, 0, 0), 0);
-    assert.strictEqual(moveStartBeat(dance, 0, 1), 4);
-    assert.strictEqual(moveStartBeat(dance, 1, 0), 16);
-    assert.strictEqual(moveStartBeat(dance, 1, 1), 22);
-});
-
-test('locateBeat finds the part and wraps around the dance', () => {
-    assert.deepStrictEqual(locateBeat(dance, 0), { partIndex: 0, beatInPart: 0 });
-    assert.deepStrictEqual(locateBeat(dance, 15), { partIndex: 0, beatInPart: 15 });
-    assert.deepStrictEqual(locateBeat(dance, 16), { partIndex: 1, beatInPart: 0 });
-    assert.deepStrictEqual(locateBeat(dance, 33), { partIndex: 0, beatInPart: 1 });
-});
 
 test('beatAccent stresses phrase starts, then odd beats', () => {
     // Beats count from 0 here, so beat 0 is "beat 1" of the music

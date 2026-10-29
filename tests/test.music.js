@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { beatLength, keySignature, parseAbc, parseChord } from '../abc.js';
 import { MusicPlayer, chordNotes, midiFrequency, potatoEvents, tuneEvents, tunes } from '../music.js';
-import { INTRO_BEATS } from '../calls.js';
+import { INTRO_BEATS } from '../timeline.js';
 
 const tune = body => parseAbc(`X:1\nT:Test\nM:4/4\nL:1/8\nK:D\n${body}`);
 const pitches = parsed => parsed.notes.map(note => note.midi.join('+'));

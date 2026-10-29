@@ -56,7 +56,9 @@ the common subset used for dance tunes (repeats, endings, chord symbols
 like `"D"`, broken rhythms, triplets) but not pickup notes or inline
 fields. A tune for the built-in dances should be 64 beats long (AABB).
 The metronome and music share `BeatScheduler` (`scheduler.js`), which
-schedules sounds ahead on the audio clock.
+schedules sounds ahead on the audio clock. Where beats fall in the dance
+(its parts, phrases and moves, and the potatoes before it) is worked out
+in `timeline.js`, which the metronome, music and calls all use.
 
 ## Calls
 

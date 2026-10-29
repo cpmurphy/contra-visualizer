@@ -3,10 +3,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    INTRO_BEATS, callRhythm, callSchedule, displayCall, judgeCall, leadBeats, parseCall, placeCall
+    callRhythm, callSchedule, displayCall, judgeCall, leadBeats, parseCall, placeCall
 } from '../calls.js';
 import { dances } from '../library.js';
-import { danceBeats } from '../metronome.js';
+import { INTRO_BEATS, danceBeats } from '../timeline.js';
 
 test('parseCall splits syllables and finds the stresses', () => {
     assert.deepStrictEqual(parseCall('NEIGH.bors BAL.ance and SWING'), [

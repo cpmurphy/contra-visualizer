@@ -2,8 +2,9 @@ import { toPixels } from './positions.js';
 import { Animator, AnimationState } from './animator.js';
 import { perform } from './performance.js';
 import { dances, danceSlug, findDance } from './library.js';
-import { Metronome, beatAccent, danceBeats, locateBeat, moveStartBeat } from './metronome.js';
-import { INTRO_BEATS, PRACTICE_ROUNDS, callSchedule, displayCall, judgeCall } from './calls.js';
+import { Metronome, beatAccent } from './metronome.js';
+import { INTRO_BEATS, danceBeats, locateBeat, moveStartBeat } from './timeline.js';
+import { PRACTICE_ROUNDS, callSchedule, displayCall, judgeCall } from './calls.js';
 import { MusicPlayer, findTune, tunes } from './music.js';
 
 const APP_TITLE = document.title;

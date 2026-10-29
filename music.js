@@ -4,7 +4,7 @@
 
 import { BeatScheduler } from './scheduler.js';
 import { parseAbc } from './abc.js';
-import { INTRO_BEATS } from './calls.js';
+import { INTRO_BEATS } from './timeline.js';
 import tunes from './library/tunes.json' with { type: 'json' };
 
 export { tunes };

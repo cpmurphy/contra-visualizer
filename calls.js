@@ -7,11 +7,7 @@
 // of the music, which are the even-numbered ones counting from 0), and the
 // other syllables fit between them on half beats.
 
-import { danceBeats, moveStartBeat } from './metronome.js';
-
-/** Beats of music before the dance starts (the lead fiddle's "potatoes"), during
- * which the first call is made */
-export const INTRO_BEATS = 4;
+import { INTRO_BEATS, danceBeats, moveStartBeat } from './timeline.js';
 
 /** Times through the dance in a practice session */
 export const PRACTICE_ROUNDS = 2;
