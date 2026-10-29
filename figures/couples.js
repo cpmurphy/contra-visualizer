@@ -3,7 +3,8 @@
 
 import { Position, toPixels, fromPixels, center } from '../positions.js';
 import { Path, createBezierPath, createStationaryPath } from '../paths.js';
-import { SVG_WIDTH, SVG_HEIGHT, VERTICAL_SPACING_PX, COLUMN_MIDPOINT_PX, TAKE_HANDS_BEATS } from './shared.js';
+import { SVG_WIDTH, SVG_HEIGHT, VERTICAL_SPACING_PX, COLUMN_MIDPOINT_PX } from '../layout.js';
+import { TAKE_HANDS_BEATS } from './shared.js';
 
 // Size of the little loop a dancer turning alone makes: narrow, since there's not
 // much room between their partner and the line

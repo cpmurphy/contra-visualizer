@@ -1,6 +1,7 @@
 // Checks on dancers' paths shared by the path tests
 
 import { toPixels, isInBounds } from '../../positions.js';
+import { SVG_WIDTH, SVG_HEIGHT } from '../../layout.js';
 
 // Helper to check if all waypoints are within bounds
 export function allWaypointsInBounds(paths) {
@@ -36,8 +37,8 @@ export function hasNoOverlaps(paths, minDistance = 44) {
             for (let j = i + 1; j < allDancers.length; j++) {
                 const pos1 = positions.get(allDancers[i]);
                 const pos2 = positions.get(allDancers[j]);
-                const px1 = toPixels(pos1, 800, 1000);
-                const px2 = toPixels(pos2, 800, 1000);
+                const px1 = toPixels(pos1, SVG_WIDTH, SVG_HEIGHT);
+                const px2 = toPixels(pos2, SVG_WIDTH, SVG_HEIGHT);
                 const dist = Math.hypot(px1.x - px2.x, px1.y - px2.y);
 
                 if (dist < minDistance) {

@@ -6,6 +6,7 @@ import { Set } from '../dancers.js';
 import { calculateMovePaths } from '../pathCalculator.js';
 import { executeMove } from '../moves.js';
 import { toPixels, distance } from '../positions.js';
+import { SVG_WIDTH, SVG_HEIGHT } from '../layout.js';
 import { allWaypointsInBounds, hasNoOverlaps } from './helpers/paths.js';
 import { properSet, ONES_DOWN, ONES_TURN, ONES_UP, ONES_CAST, afterCastOff } from './helpers/sets.js';
 
@@ -305,7 +306,7 @@ test('in contra corners the two turning should hold hands while they turn', () =
             assert.equal(hold.ids.length, 2);
             // Close enough to join hands half way through the turn
             const [p1, p2] = hold.ids.map(id => toPixels(
-                paths.get(id).getPositionAtBeat((hold.from + hold.to) / 2), 800, 1000));
+                paths.get(id).getPositionAtBeat((hold.from + hold.to) / 2), SVG_WIDTH, SVG_HEIGHT));
             assert(Math.hypot(p1.x - p2.x, p1.y - p2.y) < 60, `${hold.ids.join('/')} should be close while turning`);
         }
     }

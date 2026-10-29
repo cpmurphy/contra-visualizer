@@ -2,15 +2,8 @@
 // even as they move between minor sets or become inactive.
 
 import { Position } from './positions.js';
+import { SVG_WIDTH, SVG_HEIGHT, LEFT_LINE_X_PX, LINE_SPACING_PX, COLUMN_MIDPOINT_PX, VERTICAL_SPACING_PX, firstRowY } from './layout.js';
 
-// Layout of the set on the SVG canvas, in pixels
-const SVG_WIDTH = 800;
-const SVG_HEIGHT = 1000;
-const STAGE_HEIGHT = 100;
-const START_X = 270;
-const HORIZONTAL_SPACING = 160;
-const VERTICAL_SPACING = 120;
-const DANCER_RADIUS = 20;
 // A couple going down or up the center walks this far either side of the middle
 const CENTER_LANE_OFFSET_PX = 30;
 // Dancers going down or up the outside walk this far outside the lines
@@ -349,7 +342,7 @@ export class Set {
      * @returns {number}
      */
     middleX() {
-        return (START_X + HORIZONTAL_SPACING / 2) / SVG_WIDTH * 100;
+        return COLUMN_MIDPOINT_PX / SVG_WIDTH * 100;
     }
 
     /**
@@ -373,8 +366,8 @@ export class Set {
         for (const index of this.placesOf(who)) {
             const dancer = this.dancers[index];
             const onLeft = positions[index].x < this.middleX();
-            const outsideX = (onLeft ? START_X - OUTSIDE_LANE_OFFSET_PX
-                : START_X + HORIZONTAL_SPACING + OUTSIDE_LANE_OFFSET_PX) / SVG_WIDTH * 100;
+            const outsideX = (onLeft ? LEFT_LINE_X_PX - OUTSIDE_LANE_OFFSET_PX
+                : LEFT_LINE_X_PX + LINE_SPACING_PX + OUTSIDE_LANE_OFFSET_PX) / SVG_WIDTH * 100;
             this.offsets.set(dancer.id, {
                 x: outsideX - places[index].x,
                 y: this.getOffset(dancer).y + distancePx / SVG_HEIGHT * 100
@@ -741,18 +734,15 @@ export class Set {
      * @returns {import('./positions.js').Position[]} Array of Position objects
      */
     getPlacePositions() {
-        const danceFloorHeight = SVG_HEIGHT - STAGE_HEIGHT;
-        const numRows = Math.ceil(this.dancers.length / 2);
-        const totalDancerHeight = (numRows - 1) * VERTICAL_SPACING + 2 * DANCER_RADIUS;
-        const startY = STAGE_HEIGHT + (danceFloorHeight - totalDancerHeight) / 2 + DANCER_RADIUS;
+        const startY = firstRowY(Math.ceil(this.dancers.length / 2));
 
         // Convert each place to normalized coordinates
         return this.dancers.map((dancer, index) => {
             const col = index % 2;
             const row = Math.floor(index / 2);
 
-            const xPixels = START_X + col * HORIZONTAL_SPACING;
-            const yPixels = startY + row * VERTICAL_SPACING;
+            const xPixels = LEFT_LINE_X_PX + col * LINE_SPACING_PX;
+            const yPixels = startY + row * VERTICAL_SPACING_PX;
 
             return new Position(
                 (xPixels / SVG_WIDTH) * 100,

@@ -6,6 +6,7 @@ import { Set } from '../dancers.js';
 import { calculateMovePaths } from '../pathCalculator.js';
 import { executeMove } from '../moves.js';
 import { toPixels, distance, center } from '../positions.js';
+import { SVG_WIDTH, SVG_HEIGHT } from '../layout.js';
 import { allWaypointsInBounds, hasNoOverlaps } from './helpers/paths.js';
 
 // Do-si-do
@@ -406,7 +407,7 @@ test('swing pairs should turn close together, steadily opposite each other', () 
             setup.forEach(move => executeMove(set, move));
             const beats = 8;
             const paths = calculateMovePaths({ type: 'swing', who, beats }, set);
-            const px = (id, beat) => toPixels(paths.get(id).getPositionAtBeat(beat), 800, 1000);
+            const px = (id, beat) => toPixels(paths.get(id).getPositionAtBeat(beat), SVG_WIDTH, SVG_HEIGHT);
             const apart = (id1, id2, beat) => {
                 const [p1, p2] = [px(id1, beat), px(id2, beat)];
                 return Math.hypot(p1.x - p2.x, p1.y - p2.y);
@@ -563,7 +564,7 @@ test('star right should work like circle right', () => {
 
 /** Pixel position of each dancer in a minor set, and its center, at a beat */
 function minorSetPixels(paths, ids, beat) {
-    const points = ids.map(id => toPixels(paths.get(id).getPositionAtBeat(beat), 800, 1000));
+    const points = ids.map(id => toPixels(paths.get(id).getPositionAtBeat(beat), SVG_WIDTH, SVG_HEIGHT));
     const center = {
         x: points.reduce((sum, p) => sum + p.x, 0) / 4,
         y: points.reduce((sum, p) => sum + p.y, 0) / 4
@@ -626,7 +627,7 @@ test('stars should end where the set says, without collisions, for any number of
             // The step out goes straight from the circle to the new corner: it
             // shouldn't be longer than the step in
             for (const dancer of set.dancers) {
-                const waypoints = paths.get(dancer.id).getWaypoints().map(w => toPixels(w, 800, 1000));
+                const waypoints = paths.get(dancer.id).getWaypoints().map(w => toPixels(w, SVG_WIDTH, SVG_HEIGHT));
                 if (waypoints.length < 4) continue;
                 const stepIn = Math.hypot(waypoints[1].x - waypoints[0].x, waypoints[1].y - waypoints[0].y);
                 const stepOut = Math.hypot(waypoints.at(-1).x - waypoints.at(-2).x, waypoints.at(-1).y - waypoints.at(-2).y);

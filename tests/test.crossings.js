@@ -7,6 +7,7 @@ import { Set } from '../dancers.js';
 import { calculateMovePaths } from '../pathCalculator.js';
 import { executeMove } from '../moves.js';
 import { toPixels, distance } from '../positions.js';
+import { SVG_WIDTH, SVG_HEIGHT } from '../layout.js';
 import { allWaypointsInBounds, hasNoOverlaps } from './helpers/paths.js';
 import { HALF_HEY, beforeHalfHey, afterCastOff } from './helpers/sets.js';
 
@@ -271,7 +272,7 @@ test('robins chain: robins hold hands while they pull by', () => {
     assert(hold.from > 0 && hold.to < 3 && hold.from < hold.to, 'they should let go before the courtesy turn');
     // Close together, on the pull-by circle, all the while they hold on
     for (let beat = hold.from; beat <= hold.to; beat += 0.1) {
-        const [p1, p2] = robins.map(id => toPixels(paths.get(id).getPositionAtBeat(beat), 800, 1000));
+        const [p1, p2] = robins.map(id => toPixels(paths.get(id).getPositionAtBeat(beat), SVG_WIDTH, SVG_HEIGHT));
         const apart = Math.hypot(p1.x - p2.x, p1.y - p2.y);
         assert(apart > 54 && apart < 58, `the robins should be on the pull-by circle at beat ${beat} (${apart.toFixed(1)}px apart)`);
     }

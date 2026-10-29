@@ -3,7 +3,8 @@
 
 import { Position, toPixels, fromPixels, center } from '../positions.js';
 import { Path, createStationaryPath, createArcPath } from '../paths.js';
-import { SVG_WIDTH, SVG_HEIGHT, TAKE_HANDS_BEATS } from './shared.js';
+import { SVG_WIDTH, SVG_HEIGHT } from '../layout.js';
+import { TAKE_HANDS_BEATS } from './shared.js';
 
 // Routes through half a hey for the left robin and left lark of a minor set with
 // the robins on the diagonal from bottom left to top right, as [time, x, y]: time

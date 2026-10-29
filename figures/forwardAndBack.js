@@ -3,7 +3,8 @@
 
 import { Position, toPixels, center } from '../positions.js';
 import { createOutAndBackPath, createStationaryPath } from '../paths.js';
-import { SVG_WIDTH, SVG_HEIGHT, DANCER_RADIUS_PX, TAKE_HANDS_BEATS } from './shared.js';
+import { SVG_WIDTH, SVG_HEIGHT, DANCER_RADIUS_PX } from '../layout.js';
+import { TAKE_HANDS_BEATS } from './shared.js';
 
 /**
  * Create balance paths - neighbor pairs approach each other vertically and retreat.

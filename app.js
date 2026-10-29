@@ -1,4 +1,5 @@
 import { toPixels } from './positions.js';
+import { SVG_WIDTH, SVG_HEIGHT, STAGE_HEIGHT, DANCER_RADIUS_PX } from './layout.js';
 import { Animator, AnimationState } from './animator.js';
 import { perform } from './performance.js';
 import { dances, danceSlug, findDance } from './library.js';
@@ -289,8 +290,8 @@ function updateVisualization(customPositions = null, holds = []) {
 
     if (!state.performance) {
         const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        text.setAttribute('x', '400');
-        text.setAttribute('y', '500');
+        text.setAttribute('x', SVG_WIDTH / 2);
+        text.setAttribute('y', SVG_HEIGHT / 2);
         text.setAttribute('text-anchor', 'middle');
         text.setAttribute('font-size', '18');
         text.setAttribute('fill', '#999');
@@ -314,8 +315,8 @@ function drawStage(svg) {
     const stageRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
     stageRect.setAttribute('x', '0');
     stageRect.setAttribute('y', '0');
-    stageRect.setAttribute('width', '800');
-    stageRect.setAttribute('height', '100');
+    stageRect.setAttribute('width', SVG_WIDTH);
+    stageRect.setAttribute('height', STAGE_HEIGHT);
     stageRect.setAttribute('fill', '#e8e8e8');
     stageRect.setAttribute('stroke', '#999');
     stageRect.setAttribute('stroke-width', '1');
@@ -393,7 +394,7 @@ const SWING_HOLD_SPREAD = 24;
  */
 function drawHolds(svg, holds, positions) {
     for (const hold of holds) {
-        const points = hold.ids.map(id => toPixels(positions.get(id), 800, 1000));
+        const points = hold.ids.map(id => toPixels(positions.get(id), SVG_WIDTH, SVG_HEIGHT));
         const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         group.setAttribute('opacity', hold.strength);
         if (hold.shape === 'swing') {
@@ -457,13 +458,9 @@ function drawJoinedHands(group, points, handsAt) {
  * @param {import('./performance.js').DancerView[]} dancers
  */
 function drawDancers(svg, dancers) {
-    const svgWidth = 800;
-    const svgHeight = 1000;
-    const dancerRadius = 20;
-
     dancers.forEach(dancer => {
         // Convert normalized position to pixel coordinates
-        const pixelPos = toPixels(dancer.position, svgWidth, svgHeight);
+        const pixelPos = toPixels(dancer.position, SVG_WIDTH, SVG_HEIGHT);
         const x = pixelPos.x;
         const y = pixelPos.y;
 
@@ -471,7 +468,7 @@ function drawDancers(svg, dancers) {
         const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
         circle.setAttribute('cx', x);
         circle.setAttribute('cy', y);
-        circle.setAttribute('r', dancerRadius);
+        circle.setAttribute('r', DANCER_RADIUS_PX);
         circle.setAttribute('fill', dancer.color);
         circle.setAttribute('stroke', '#333');
         circle.setAttribute('stroke-width', '2');
