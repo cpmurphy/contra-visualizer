@@ -546,6 +546,7 @@ elements.nextMoveBtn.addEventListener('click', () => {
 function goToNextMove() {
     if (!state.performance) return;
     state.performance.next();
+    updateControls();
     updateMoveList();
     updateVisualization();
 }
@@ -553,6 +554,7 @@ function goToNextMove() {
 function goToPreviousMove() {
     if (!state.performance) return;
     state.performance.previous();
+    updateControls();
     updateMoveList();
     updateVisualization();
 }
@@ -727,6 +729,7 @@ function advanceToNextMove(startTime) {
     if (!state.performance) return;
 
     state.performance.next();
+    updateControls();
     updateMoveList();
 
     // A practice session stops after its times through the dance
@@ -750,7 +753,7 @@ function advanceToNextMove(startTime) {
 function updateControls() {
     const mode = state.session?.mode;
     elements.playPauseBtn.textContent = state.isPlaying ? 'Pause' : 'Play';
-    elements.prevMoveBtn.disabled = !state.performance || Boolean(mode);
+    elements.prevMoveBtn.disabled = !state.performance?.canGoBack || Boolean(mode);
     elements.nextMoveBtn.disabled = !state.performance || Boolean(mode);
     elements.playPauseBtn.disabled = !state.performance;
     elements.practiceBtn.textContent = mode === 'karaoke' ? 'Stop Practice' : 'Practice Calls';

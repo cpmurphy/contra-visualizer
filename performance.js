@@ -57,6 +57,14 @@ export class DancePerformance {
     }
 
     /**
+     * Whether there's a move to go back to: there isn't before the first move
+     * @returns {boolean}
+     */
+    get canGoBack() {
+        return this.set.snapshots.length > 0;
+    }
+
+    /**
      * Whether a move of this dance is animated, or the dancers hold their places
      * @param {Object} move
      * @returns {boolean}
@@ -69,10 +77,7 @@ export class DancePerformance {
      * Dance the current move, and go on to the next one, wrapping around to the top
      */
     next() {
-        // Back at the top, there's no need to keep the history of the last time through
-        if (this.atTop) {
-            this.set.clearSnapshots();
-        }
+        // The set keeps the history of every move danced, for going back
         executeMove(this.set, this.currentMove);
 
         const parts = this.dance.parts;
@@ -85,9 +90,12 @@ export class DancePerformance {
     }
 
     /**
-     * Go back to the move before, wrapping around to the end of the dance
+     * Go back to the move before, wrapping around to the end of the dance from the
+     * top, as it was the time before. Before the first move, there's nothing to go
+     * back to, and the performance stays where it is.
      */
     previous() {
+        if (!this.canGoBack) return;
         this.set.undo();
 
         const parts = this.dance.parts;

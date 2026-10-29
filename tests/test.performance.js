@@ -36,25 +36,52 @@ test('next goes through the moves in order and wraps around to the top', () => {
     assert.ok(danced.atTop);
 });
 
-test('previous undoes next, back to the top of the dance', () => {
-    const danced = perform(DANCE);
-    const before = [];
-    for (let i = 0; i < MOVE_COUNT; i++) {
-        before.push(ids(danced));
-        danced.next();
-    }
-    for (let i = MOVE_COUNT - 1; i >= 0; i--) {
-        danced.previous();
-        assert.equal(ids(danced), before[i]);
-    }
-    assert.ok(danced.atTop);
+/** Everything about the set and where it's got to, to compare */
+const snapshot = danced => JSON.stringify({
+    at: [danced.partIndex, danced.moveIndex],
+    dancers: danced.dancers().map(d => [d.id, d.label, d.active, d.position])
 });
 
-test('previous from the top wraps around to the last move', () => {
+test('previous undoes next, back through the times before to the start', () => {
     const danced = perform(DANCE);
+    const before = [];
+    for (let i = 0; i < 3 * MOVE_COUNT; i++) {
+        before.push(snapshot(danced));
+        danced.next();
+    }
+    for (let i = 3 * MOVE_COUNT - 1; i >= 0; i--) {
+        danced.previous();
+        assert.equal(snapshot(danced), before[i], `going back to move ${i}`);
+    }
+    assert.ok(!danced.canGoBack);
+});
+
+test('previous from the top goes back to the last move as it was the time before', () => {
+    const danced = perform(DANCE);
+    for (let i = 0; i < 2 * MOVE_COUNT - 1; i++) {
+        danced.next();
+    }
+    const lastMove = snapshot(danced);
+    danced.next();
+    danced.next(); // A move into the third time through
     danced.previous();
-    assert.equal(danced.partIndex, LAST_PART);
-    assert.equal(danced.moveIndex, LAST_MOVE);
+    assert.ok(danced.atTop);
+    danced.previous();
+    assert.deepEqual([danced.partIndex, danced.moveIndex], [LAST_PART, LAST_MOVE]);
+    assert.equal(snapshot(danced), lastMove);
+});
+
+test('there is nothing to go back to before the first move', () => {
+    const danced = perform(DANCE);
+    assert.ok(!danced.canGoBack);
+    const start = snapshot(danced);
+    danced.previous();
+    assert.equal(snapshot(danced), start);
+
+    danced.next();
+    assert.ok(danced.canGoBack);
+    danced.restart();
+    assert.ok(!danced.canGoBack);
 });
 
 test('restart puts everyone back in their starting places', () => {

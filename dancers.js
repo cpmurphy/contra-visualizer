@@ -722,14 +722,6 @@ export class Set {
     }
 
     /**
-     * Clear all snapshots. This is useful when restarting a dance from the beginning
-     * to avoid keeping unnecessary history.
-     */
-    clearSnapshots() {
-        this.snapshots = [];
-    }
-
-    /**
      * Get normalized positions (0-100 range) for all dancers: their places, moved by
      * any offsets of dancers who aren't standing in their places.
      *
