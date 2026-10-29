@@ -21,6 +21,13 @@ We'll allow for other conventions as well, such as the former names of
 
 For now, all tests are in the `tests/` directory and can be run using test.sh.
 
+The modules' dependencies are checked with dependency-cruiser, a
+development tool only (`npm install` to get it): `npm run depcheck`
+checks them against the rules in `.dependency-cruiser.cjs`, such as
+app.js going through `performance.js` rather than using the set, moves
+and paths itself, and `npm run depgraph` draws them in
+`dependency-graph.svg` (with Graphviz's `dot`).
+
 ## Dance Library
 
 The dances are built into the application from `library/dances.json`

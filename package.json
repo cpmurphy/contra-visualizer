@@ -1,0 +1,12 @@
+{
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "./test.sh",
+    "depcheck": "depcruise --validate .dependency-cruiser.cjs .",
+    "depgraph": "depcruise --config .dependency-cruiser.cjs --output-type archi . | dot -T svg > dependency-graph.svg"
+  },
+  "devDependencies": {
+    "dependency-cruiser": "^17.4.3"
+  }
+}
