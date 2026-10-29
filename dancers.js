@@ -750,15 +750,4 @@ export class Set {
             );
         });
     }
-
-    /**
-     * Calculate paths for all dancers during a move
-     * @param {Object} move - The move object with type, beats, etc.
-     * @returns {Promise<Map<string, import('./paths.js').Path>>} Map from dancer ID to Path
-     */
-    async calculateMovePath(move) {
-        // Import calculateMovePaths dynamically to avoid circular dependency
-        const { calculateMovePaths } = await import('./pathCalculator.js');
-        return calculateMovePaths(move, this);
-    }
 }

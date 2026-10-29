@@ -923,23 +923,6 @@ test('positions after progression should still be valid', () => {
     }
 });
 
-test('calculateMovePath should return paths for all dancers', async () => {
-    const set = new Set(4);
-    const move = { type: 'balance', beats: 4 };
-
-    const paths = await set.calculateMovePath(move);
-
-    // Should have path for each dancer
-    assert.strictEqual(paths.size, set.dancers.length);
-
-    // Each path should be valid
-    set.dancers.forEach(dancer => {
-        const path = paths.get(dancer.id);
-        assert(path !== undefined, `Should have path for dancer ${dancer.id}`);
-        assert(path.beats === 4, 'Path should have correct beat duration');
-    });
-});
-
 test('a proper set should put all the larks on one side and all the robins on the other', () => {
     const set = new Set(6, 'proper');
     set.dancers.forEach((dancer, index) => {

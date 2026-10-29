@@ -7,6 +7,23 @@ import { calculateMovePaths } from '../pathCalculator.js';
 import { executeMove } from '../moves.js';
 import { allWaypointsInBounds, hasNoOverlaps } from './helpers/paths.js';
 
+test('calculateMovePaths should return paths for all dancers', () => {
+    const set = new Set(4);
+    const move = { type: 'balance', beats: 4 };
+
+    const paths = calculateMovePaths(move, set);
+
+    // Should have path for each dancer
+    assert.strictEqual(paths.size, set.dancers.length);
+
+    // Each path should be valid
+    set.dancers.forEach(dancer => {
+        const path = paths.get(dancer.id);
+        assert(path !== undefined, `Should have path for dancer ${dancer.id}`);
+        assert(path.beats === 4, 'Path should have correct beat duration');
+    });
+});
+
 // Test path start positions match Set positions
 test('path start positions should match Set positions', () => {
     const set = new Set(4);
