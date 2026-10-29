@@ -596,7 +596,29 @@ export class Set {
         }
     }
 
+    /**
+     * Whether the dancers at the top of the set, and those at the bottom, are each a
+     * couple, standing side by side. Only then can the set progress, since couples
+     * wait out at the ends together.
+     * @returns {boolean}
+     */
+    coupleAtEachEnd() {
+        const last = this.dancers.length - 1;
+        return this.dancers[0].partner === this.dancers[1]
+            && this.dancers[last - 1].partner === this.dancers[last];
+    }
+
+    /**
+     * Progress: each couple moves on to their next neighbors, the couples reaching
+     * the ends of the set wait out there, and those waiting out come back in
+     * @throws {Error} If there isn't a couple at each end of the set to wait out
+     */
     progress() {
+        if (!this.coupleAtEachEnd()) {
+            // Progressing would pair up dancers who aren't partners at the ends,
+            // scrambling the set
+            throw new Error("Can't progress: the dancers at the ends of the set aren't couples");
+        }
         this.snapshot();
         this.progressFirstCouple();
         this.progressLastCouple();

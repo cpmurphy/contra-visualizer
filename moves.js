@@ -129,11 +129,21 @@ export function progresses(move, dancerSet) {
  * before the move
  * @param {import('./dancers.js').Set} dancerSet
  * @param {Object} move
+ * @throws {Error} If the set can't dance the move (such as progressing without a
+ *   couple at each end), leaving the set as it was
  */
 export function executeMove(dancerSet, move) {
     const depth = dancerSet.snapshots.length;
     dancerSet.snapshot();
-    executeMoveSteps(dancerSet, move);
+    try {
+        executeMoveSteps(dancerSet, move);
+    } catch (error) {
+        // Leave the set as it was, history and all
+        while (dancerSet.snapshots.length > depth) {
+            dancerSet.undo();
+        }
+        throw error;
+    }
     dancerSet.started = true;
     // Drop the snapshots the steps took along the way
     dancerSet.snapshots.length = depth + 1;

@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { Set } from '../dancers.js';
 import { dances, danceSlug, findDance } from '../library.js';
 import { calculateMovePaths } from '../pathCalculator.js';
-import { executeMove } from '../moves.js';
+import { executeMove, progresses } from '../moves.js';
 
 test('every dance should have a title, author and formation', () => {
     for (const dance of dances) {
@@ -49,6 +49,25 @@ test('findDance should find a dance by its slug', () => {
         assert.equal(findDance(danceSlug(dance)), dance);
     }
     assert.equal(findDance('no-such-dance'), undefined);
+});
+
+test('every progression should come when there is a couple at each end of the set', () => {
+    for (const dance of dances) {
+        if (!Set.FORMATIONS.includes(dance.formation)) continue;
+        const set = new Set(6, dance.formation);
+        // The second time through, when the progressions happen
+        for (let round = 0; round < 2; round++) {
+            for (const part of dance.parts) {
+                for (const move of part.moves) {
+                    if (progresses(move, set)) {
+                        assert.ok(set.coupleAtEachEnd(),
+                            `${dance.title} ${part.name} ${move.type}: progresses with partners apart at the ends`);
+                    }
+                    executeMove(set, move);
+                }
+            }
+        }
+    }
 });
 
 test('every dance in a supported formation should play through three times', () => {

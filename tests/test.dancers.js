@@ -970,3 +970,24 @@ test('couples who wait out at the ends after progressing should stand in their p
             `${dancer.getLabel()} should ${dancer.active ? 'keep' : 'lose'} their offset`);
     });
 });
+
+test('progress should refuse, leaving the set as it was, when the ends aren\'t couples', () => {
+    // After a neighbor swing and circling left 3 places, partners stand one above
+    // the other: each row is a robin and a lark from different couples
+    const set = new Set(6);
+    set.swing('neighbor');
+    set.circleLeft(3);
+    assert.ok(!set.coupleAtEachEnd());
+
+    const before = set.dancers.map(d => [d.id, d.active, d.couple.coupleNumber]);
+    const snapshots = set.snapshots.length;
+    assert.throws(() => set.progress(), /aren't couples/);
+    assert.deepEqual(set.dancers.map(d => [d.id, d.active, d.couple.coupleNumber]), before);
+    assert.equal(set.snapshots.length, snapshots);
+});
+
+test('a set should start with a couple at each end', () => {
+    assert.ok(new Set(6).coupleAtEachEnd());
+    assert.ok(new Set(6, 'proper').coupleAtEachEnd());
+    assert.ok(new Set(5).coupleAtEachEnd());
+});

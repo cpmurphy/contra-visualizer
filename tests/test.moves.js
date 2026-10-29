@@ -122,3 +122,22 @@ test('the path cache key should depend on where dancers are off their places', (
     executeMove(set, ONES_DOWN);
     assert.notEqual(pathCacheKey(ONES_TURN, set), key);
 });
+
+test('executeMove leaves the set as it was when the move can\'t be danced', () => {
+    // Partners stand one above the other, so the ends of the set aren't couples
+    const set = new Set(6);
+    executeMove(set, { type: 'swing', who: 'neighbor', beats: 16 });
+    executeMove(set, { type: 'circle left 3', beats: 8 });
+
+    const ids = set.dancers.map(d => d.id);
+    const snapshots = set.snapshots.length;
+    assert.throws(() => executeMove(set, { type: 'swing', who: 'partner', beats: 8, progression: true }),
+        /aren't couples/);
+    assert.deepEqual(set.dancers.map(d => d.id), ids);
+    assert.equal(set.snapshots.length, snapshots);
+
+    // Undo still goes back a move at a time
+    set.undo();
+    executeMove(set, { type: 'circle left 3', beats: 8 });
+    assert.deepEqual(set.dancers.map(d => d.id), ids);
+});
