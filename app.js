@@ -1,12 +1,9 @@
-import { Set } from './dancers.js';
 import { toPixels } from './positions.js';
 import { Animator, AnimationState } from './animator.js';
-import { calculateMovePaths } from './pathCalculator.js';
-import { executeMove, withSetState, pathCacheKey, isMoveSupported } from './moves.js';
+import { perform } from './performance.js';
 import { dances, danceSlug, findDance } from './library.js';
 import { Metronome, beatAccent, danceBeats, locateBeat, moveStartBeat } from './metronome.js';
 import { INTRO_BEATS, PRACTICE_ROUNDS, callSchedule, displayCall, judgeCall } from './calls.js';
-import { createStationaryPath } from './paths.js';
 import { MusicPlayer, findTune, tunes } from './music.js';
 
 const APP_TITLE = document.title;
@@ -18,16 +15,13 @@ const TEMPO_SETTING = 'tempo';
 // Application state
 const state = {
     dance: null,
-    dancerSet: null,
-    currentPartIndex: 0,
-    currentMoveIndex: 0,
+    performance: null, // The dance being performed, if we can lay out its formation
     isPlaying: false,
     animationId: null,
     animator: new Animator(DEFAULT_TEMPO),
     animationState: null,
     lastFrameTime: null, // Timestamp of the most recently drawn frame
     currentPaths: null,
-    pathCache: new Map(), // Cache paths by move signature for performance
     session: null // Practice session in progress (see startSession)
 };
 
@@ -100,7 +94,7 @@ function showMenu() {
     endSession();
     stopAnimation();
     state.dance = null;
-    state.dancerSet = null;
+    state.performance = null;
     state.isPlaying = false;
     updateControls();
 
@@ -153,24 +147,15 @@ function buildMenu() {
  * @returns {string}
  */
 function describeSupport(dance) {
-    const dancerSet = createDancerSet(dance);
-    if (!dancerSet) {
+    const danced = perform(dance);
+    if (!danced) {
         return `${dance.formation} formation isn't animated yet`;
     }
     const moves = dance.parts.flatMap(part => part.moves);
-    const supported = moves.filter(move => isMoveSupported(move, dancerSet)).length;
+    const supported = moves.filter(move => danced.isSupported(move)).length;
     return supported === moves.length
         ? 'All figures animated'
         : `${supported} of ${moves.length} figures animated`;
-}
-
-/**
- * Create the set of dancers for a dance, if we can lay out its formation
- * @param {Object} dance
- * @returns {Set|null}
- */
-function createDancerSet(dance) {
-    return Set.FORMATIONS.includes(dance.formation) ? new Set(6, dance.formation) : null;
 }
 
 // Load dance data
@@ -178,10 +163,8 @@ function loadDance(dance) {
     endSession();
     stopAnimation();
     state.dance = dance;
-    state.currentPartIndex = 0;
-    state.currentMoveIndex = 0;
     state.isPlaying = false;
-    state.dancerSet = createDancerSet(dance);
+    state.performance = perform(dance);
 
     updateDanceInfo();
     updateMoveList();
@@ -241,7 +224,7 @@ function updateMoveList() {
                     moveItem.appendChild(detail);
                 }
 
-                if (state.dancerSet && !isMoveSupported(move, state.dancerSet)) {
+                if (state.performance && !state.performance.isSupported(move)) {
                     moveItem.classList.add('unsupported');
                     const unsupported = document.createElement('span');
                     unsupported.className = 'move-unsupported';
@@ -252,13 +235,12 @@ function updateMoveList() {
                 moveItem.addEventListener('click', () => {
                     // TODO: Implement jumping to arbitrary moves with snapshot/undo
                     // For now, disable clicking on moves
-                    // state.currentPartIndex = partIndex;
-                    // state.currentMoveIndex = moveIndex;
+                    // (DancePerformance would dance up to it from the top)
                     // updateMoveList();
                     // updateVisualization();
                 });
 
-                if (partIndex === state.currentPartIndex && moveIndex === state.currentMoveIndex) {
+                if (partIndex === state.performance?.partIndex && moveIndex === state.performance.moveIndex) {
                     moveItem.classList.add('current');
 
                     // Add 'animating' class if animation is active
@@ -304,7 +286,7 @@ function updateVisualization(customPositions = null, holds = []) {
     // Draw stage area
     drawStage(svg);
 
-    if (!state.dance || !state.dancerSet) {
+    if (!state.performance) {
         const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         text.setAttribute('x', '400');
         text.setAttribute('y', '500');
@@ -319,12 +301,10 @@ function updateVisualization(customPositions = null, holds = []) {
     }
 
     // Draw dancers, with the arms of any holding hands behind them
-    if (state.dancerSet) {
-        if (customPositions) {
-            drawHolds(svg, holds, customPositions);
-        }
-        drawDancers(svg, state.dancerSet, customPositions);
+    if (customPositions) {
+        drawHolds(svg, holds, customPositions);
     }
+    drawDancers(svg, state.performance.dancers(customPositions));
 }
 
 // Draw stage with caller and musicians
@@ -470,27 +450,19 @@ function drawJoinedHands(group, points, handsAt) {
     group.appendChild(hands);
 }
 
-function drawDancers(svg, dancerSet, customPositions = null) {
-    const dancers = dancerSet.dancers;
+/**
+ * Draw the dancers
+ * @param {SVGElement} svg
+ * @param {import('./performance.js').DancerView[]} dancers
+ */
+function drawDancers(svg, dancers) {
     const svgWidth = 800;
     const svgHeight = 1000;
     const dancerRadius = 20;
 
-    // Get normalized positions - either custom (for animation) or from the Set
-    let positions;
-    if (customPositions) {
-        // Custom positions is a Map from dancer ID to Position
-        positions = dancers.map(dancer => customPositions.get(dancer.id));
-    } else {
-        // Get positions from the Set
-        positions = dancerSet.getPositions();
-    }
-
-    // Draw dancers in reading order: left to right, top to bottom
-    // The Set stores 12 dancers in a 2-column layout (6 rows)
-    dancers.forEach((dancer, index) => {
+    dancers.forEach(dancer => {
         // Convert normalized position to pixel coordinates
-        const pixelPos = toPixels(positions[index], svgWidth, svgHeight);
+        const pixelPos = toPixels(dancer.position, svgWidth, svgHeight);
         const x = pixelPos.x;
         const y = pixelPos.y;
 
@@ -499,7 +471,7 @@ function drawDancers(svg, dancerSet, customPositions = null) {
         circle.setAttribute('cx', x);
         circle.setAttribute('cy', y);
         circle.setAttribute('r', dancerRadius);
-        circle.setAttribute('fill', dancer.couple.color);
+        circle.setAttribute('fill', dancer.color);
         circle.setAttribute('stroke', '#333');
         circle.setAttribute('stroke-width', '2');
 
@@ -523,7 +495,7 @@ function drawDancers(svg, dancerSet, customPositions = null) {
         label.setAttribute('font-size', '14');
         label.setAttribute('font-weight', 'bold');
         label.setAttribute('fill', 'white');
-        label.textContent = dancer.getLabel();
+        label.textContent = dancer.label;
 
         if (!dancer.active) {
             label.setAttribute('opacity', '0.3');
@@ -574,91 +546,17 @@ elements.nextMoveBtn.addEventListener('click', () => {
 });
 
 function goToNextMove() {
-    if (!state.dance || !state.dancerSet) return;
-
-    const currentPart = state.dance.parts[state.currentPartIndex];
-    const currentMove = currentPart.moves[state.currentMoveIndex];
-
-    // If we're at the first move, clear snapshots before advancing
-    // (we don't need history from previous iterations)
-    if (state.currentPartIndex === 0 && state.currentMoveIndex === 0) {
-        state.dancerSet.clearSnapshots();
-    }
-
-    // Execute the current move (snapshot is taken automatically)
-    executeMove(state.dancerSet, currentMove);
-
-    // Advance to next move
-    if (state.currentMoveIndex < currentPart.moves.length - 1) {
-        state.currentMoveIndex++;
-    } else if (state.currentPartIndex < state.dance.parts.length - 1) {
-        state.currentPartIndex++;
-        state.currentMoveIndex = 0;
-    } else {
-        // Loop back to beginning
-        state.currentPartIndex = 0;
-        state.currentMoveIndex = 0;
-    }
-
+    if (!state.performance) return;
+    state.performance.next();
     updateMoveList();
     updateVisualization();
 }
 
 function goToPreviousMove() {
-    if (!state.dance || !state.dancerSet) return;
-
-    // Undo to restore previous snapshot
-    state.dancerSet.undo();
-
-    // Move pointer backwards
-    if (state.currentMoveIndex > 0) {
-        state.currentMoveIndex--;
-    } else if (state.currentPartIndex > 0) {
-        state.currentPartIndex--;
-        const prevPart = state.dance.parts[state.currentPartIndex];
-        state.currentMoveIndex = prevPart.moves.length - 1;
-    } else {
-        // Go to last move
-        state.currentPartIndex = state.dance.parts.length - 1;
-        const lastPart = state.dance.parts[state.currentPartIndex];
-        state.currentMoveIndex = lastPart.moves.length - 1;
-    }
-
+    if (!state.performance) return;
+    state.performance.previous();
     updateMoveList();
     updateVisualization();
-}
-
-/**
- * Get paths for a move from the given set state, using the cache when possible
- * @param {Object} move - The move object
- * @param {Set} dancerSet - The set state the move starts from
- * @returns {Map<string, import('./paths.js').Path>}
- */
-function getMovePaths(move, dancerSet) {
-    // Cache key is based on move properties and current positions
-    const cacheKey = pathCacheKey(move, dancerSet);
-    let paths = state.pathCache.get(cacheKey);
-
-    if (!paths) {
-        paths = calculateMovePaths(move, dancerSet);
-        state.pathCache.set(cacheKey, paths);
-    }
-
-    return paths;
-}
-
-/**
- * Get the move after the current one, wrapping around to the start of the dance
- * @returns {Object}
- */
-function getNextMove() {
-    const parts = state.dance.parts;
-    const currentPart = parts[state.currentPartIndex];
-    if (state.currentMoveIndex < currentPart.moves.length - 1) {
-        return currentPart.moves[state.currentMoveIndex + 1];
-    }
-    const nextPart = parts[(state.currentPartIndex + 1) % parts.length];
-    return nextPart.moves[0];
 }
 
 /**
@@ -668,20 +566,8 @@ function getNextMove() {
  *   Otherwise it begins now, once its paths are worked out.
  */
 function startAnimation(startTime = null) {
-    if (!state.dance || !state.dancerSet) {
-        console.warn('Cannot start animation: no dance or dancer set loaded');
-        return;
-    }
-
-    const currentPart = state.dance.parts[state.currentPartIndex];
-    if (!currentPart) {
-        console.error('Invalid part index:', state.currentPartIndex);
-        return;
-    }
-
-    const currentMove = currentPart.moves[state.currentMoveIndex];
-    if (!currentMove) {
-        console.error('Invalid move index:', state.currentMoveIndex);
+    if (!state.performance) {
+        console.warn('Cannot start animation: no dance performance loaded');
         return;
     }
 
@@ -689,19 +575,13 @@ function startAnimation(startTime = null) {
         // Paths of the move just finished (null when starting from a standstill)
         const previousPaths = state.currentPaths;
 
-        state.currentPaths = getMovePaths(currentMove, state.dancerSet);
-
-        // Paths of the upcoming move, computed from the set as it will be after this one
-        const nextPaths = withSetState(
-            state.dancerSet,
-            set => executeMove(set, currentMove),
-            set => getMovePaths(getNextMove(), set)
-        );
+        const { current, next } = state.performance.paths();
+        state.currentPaths = current;
 
         // Create animation state, blending into the adjacent moves at each end
-        state.animationState = new AnimationState(state.currentPaths, state.animator, {
+        state.animationState = new AnimationState(current, state.animator, {
             previous: previousPaths,
-            next: nextPaths
+            next
         });
         state.animationState.start(startTime ?? performance.now());
 
@@ -804,7 +684,7 @@ function currentBeat(timestamp) {
     }
     const round = state.session?.round ?? 0;
     return round * danceBeats(state.dance)
-        + moveStartBeat(state.dance, state.currentPartIndex, state.currentMoveIndex)
+        + moveStartBeat(state.dance, state.performance.partIndex, state.performance.moveIndex)
         + elapsed;
 }
 
@@ -846,36 +726,13 @@ function stopAnimation() {
  * @param {number} startTime - Timestamp at which the next move's animation begins
  */
 function advanceToNextMove(startTime) {
-    if (!state.dance || !state.dancerSet) return;
+    if (!state.performance) return;
 
-    const currentPart = state.dance.parts[state.currentPartIndex];
-    const currentMove = currentPart.moves[state.currentMoveIndex];
-
-    // If we're at the first move, clear snapshots before advancing
-    // (we don't need history from previous iterations)
-    if (state.currentPartIndex === 0 && state.currentMoveIndex === 0) {
-        state.dancerSet.clearSnapshots();
-    }
-
-    // Execute the current move on the Set (snapshot is taken automatically)
-    executeMove(state.dancerSet, currentMove);
-
-    // Advance to next move
-    if (state.currentMoveIndex < currentPart.moves.length - 1) {
-        state.currentMoveIndex++;
-    } else if (state.currentPartIndex < state.dance.parts.length - 1) {
-        state.currentPartIndex++;
-        state.currentMoveIndex = 0;
-    } else {
-        // Loop back to beginning
-        state.currentPartIndex = 0;
-        state.currentMoveIndex = 0;
-    }
-
+    state.performance.next();
     updateMoveList();
 
     // A practice session stops after its times through the dance
-    if (state.session && state.currentPartIndex === 0 && state.currentMoveIndex === 0) {
+    if (state.session && state.performance.atTop) {
         state.session.round++;
         if (state.session.round >= PRACTICE_ROUNDS) {
             finishSession();
@@ -895,13 +752,13 @@ function advanceToNextMove(startTime) {
 function updateControls() {
     const mode = state.session?.mode;
     elements.playPauseBtn.textContent = state.isPlaying ? 'Pause' : 'Play';
-    elements.prevMoveBtn.disabled = !state.dancerSet || Boolean(mode);
-    elements.nextMoveBtn.disabled = !state.dancerSet || Boolean(mode);
-    elements.playPauseBtn.disabled = !state.dancerSet;
+    elements.prevMoveBtn.disabled = !state.performance || Boolean(mode);
+    elements.nextMoveBtn.disabled = !state.performance || Boolean(mode);
+    elements.playPauseBtn.disabled = !state.performance;
     elements.practiceBtn.textContent = mode === 'karaoke' ? 'Stop Practice' : 'Practice Calls';
     elements.testBtn.textContent = mode === 'test' ? 'Stop Test' : 'Test Me';
-    elements.practiceBtn.disabled = !state.dancerSet || mode === 'test';
-    elements.testBtn.disabled = !state.dancerSet || mode === 'karaoke';
+    elements.practiceBtn.disabled = !state.performance || mode === 'test';
+    elements.testBtn.disabled = !state.performance || mode === 'karaoke';
     elements.callBtn.hidden = mode !== 'test';
 }
 
@@ -915,12 +772,10 @@ function updateControls() {
  * @param {'karaoke'|'test'} mode
  */
 function startSession(mode) {
-    if (!state.dance || !state.dancerSet) return;
+    if (!state.performance) return;
 
     stopAnimation();
-    state.dancerSet = createDancerSet(state.dance);
-    state.currentPartIndex = 0;
-    state.currentMoveIndex = 0;
+    state.performance.restart();
     state.session = {
         mode,
         calls: callSchedule(state.dance),
@@ -944,10 +799,9 @@ function startSession(mode) {
  * Play the intro: the dancers wait in place through the potatoes
  */
 function startIntro() {
-    const firstPaths = getMovePaths(state.dance.parts[0].moves[0], state.dancerSet);
-    state.currentPaths = new Map([...firstPaths].map(([id, path]) =>
-        [id, createStationaryPath(path.getPositionAtBeat(0), INTRO_BEATS)]));
-    state.animationState = new AnimationState(state.currentPaths, state.animator, { next: firstPaths });
+    const { current, next } = state.performance.waitingPaths(INTRO_BEATS);
+    state.currentPaths = current;
+    state.animationState = new AnimationState(current, state.animator, { next });
     // Starting now, after the paths are worked out, so the first beat isn't missed
     state.animationState.start(performance.now());
     state.animationId = requestAnimationFrame(animate);
