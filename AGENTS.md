@@ -39,6 +39,32 @@ Figures the path calculator can't animate yet (see `isMoveSupported`
 in `moves.js`) are shown as "not animated yet", and the dancers
 hold their places during them.
 
+## Figures
+
+Each figure we can animate is one entry in `figures/catalog.js`: the move
+types and `who` it covers, the formations it's worked out for, what it does
+to the set (a method of `Set` in `dancers.js`), and the dancers' paths (from
+the other modules in `figures/`). `moves.js` and `pathCalculator.js` both
+look moves up there, so adding a figure means adding an entry there, the
+change to the set, and the paths, and nowhere else. `who` is read the same
+way everywhere (`whoDances`): "neighbor", "new neighbor" and "neighbors"
+all mean neighbors, and so on.
+
+The set is a list of places in rows of two, and each minor set is two
+rows (`Set.minorSetStarts`); loop over minor sets with that rather than
+working them out again.
+
+## Formations
+
+`dancers.js` lays out "improper", "proper" and "becket" sets. In Becket
+formation partners stand side by side in the lines, the robin on the
+lark's right, which is where an improper set's couples stand after a
+partner swing, so many improper figures work there too. A Becket
+progression is a slide to the left (`Set.slideLeft`): a figure marked
+`progression` is danced with the couple on the left diagonal, and only
+figures whose paths can start from there (`fromLeftDiagonal` in the
+catalog) are animated as one.
+
 ## Metronome
 
 While a dance plays, `metronome.js` clicks on every beat using the Web
@@ -97,7 +123,7 @@ Dances are stored as JSON with the following structure:
 {
   "title": "Dance Name",
   "author": "Choreographer Name",
-  "formation": "improper" or "proper",
+  "formation": "improper" or "proper" or "becket",
   "parts": [
     {
       "name": "A1" or "A2" or "B1" or "B2",
@@ -106,8 +132,8 @@ Dances are stored as JSON with the following structure:
         {
           "type": "move_name",
           "beats": 8,
-          "who": "neighbors" or "partners" or "lark" or "robin" or "ones" or "twos",
-          "direction": "left" or "right" or "clockwise" or null,
+          "who": "neighbors" or "partners" or "shadows" or "lark" or "robin" or "ones" or "twos",
+          "direction": "left" or "right" or "clockwise" or "left diagonal" or null,
           "facing": "up" or "down" (optional: which way dancers end up facing),
           "progression": true (optional: new neighbors from this move on),
           "call": "NEIGH.bors BAL.ance and SWING" (optional: see Calls),

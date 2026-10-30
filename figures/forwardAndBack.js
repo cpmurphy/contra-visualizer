@@ -4,7 +4,7 @@
 import { Position, toPixels, center } from '../positions.js';
 import { createOutAndBackPath, createStationaryPath } from '../paths.js';
 import { SVG_WIDTH, SVG_HEIGHT, DANCER_RADIUS_PX } from '../layout.js';
-import { TAKE_HANDS_BEATS } from './shared.js';
+import { TAKE_HANDS_BEATS, standStill } from './shared.js';
 
 /**
  * Create balance paths - neighbor pairs approach each other vertically and retreat.
@@ -15,10 +15,9 @@ import { TAKE_HANDS_BEATS } from './shared.js';
  * @param {number} beats
  */
 export function createBalancePaths(dancerSet, startPosById, paths, beats) {
-    const startIndex = dancerSet.dancers[0].active ? 0 : 2;
+    standStill(dancerSet, startPosById, paths, beats);
 
-    for (let i = startIndex; i < dancerSet.dancers.length; i += 4) {
-        if (dancerSet.dancers.length - i < 4) break;
+    for (const i of dancerSet.minorSetStarts()) {
 
         // Within a minor set [i, i+1, i+2, i+3]:
         // Left column pair: dancers[i] and dancers[i+2]
@@ -30,23 +29,6 @@ export function createBalancePaths(dancerSet, startPosById, paths, beats) {
 
         for (const [d1, d2] of columnPairs) {
             addBalancePairPaths(d1, d2, startPosById, paths, beats);
-        }
-    }
-
-    // Handle inactive dancers at the beginning
-    if (startIndex === 2) {
-        for (let i = 0; i < 2; i++) {
-            const d = dancerSet.dancers[i];
-            paths.set(d.id, createStationaryPath(startPosById.get(d.id), beats));
-        }
-    }
-
-    // Handle inactive dancers at the end
-    const remainder = (dancerSet.dancers.length - startIndex) % 4;
-    if (remainder > 0) {
-        for (let i = dancerSet.dancers.length - remainder; i < dancerSet.dancers.length; i++) {
-            const d = dancerSet.dancers[i];
-            paths.set(d.id, createStationaryPath(startPosById.get(d.id), beats));
         }
     }
 }

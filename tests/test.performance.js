@@ -13,7 +13,7 @@ const LAST_MOVE = DANCE.parts[LAST_PART].moves.length - 1;
 const ids = danced => danced.dancers().map(d => d.id).join(',');
 
 test('perform gives null for a formation we cannot lay out', () => {
-    assert.equal(perform({ ...DANCE, formation: 'becket' }), null);
+    assert.equal(perform({ ...DANCE, formation: 'triple minor' }), null);
 });
 
 test('a danced starts at the top', () => {

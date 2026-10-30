@@ -4,7 +4,7 @@
 import { Position, toPixels, fromPixels, center } from '../positions.js';
 import { Path, createBezierPath, createStationaryPath } from '../paths.js';
 import { SVG_WIDTH, SVG_HEIGHT, VERTICAL_SPACING_PX, COLUMN_MIDPOINT_PX } from '../layout.js';
-import { TAKE_HANDS_BEATS } from './shared.js';
+import { TAKE_HANDS_BEATS, standStill } from './shared.js';
 
 // Size of the little loop a dancer turning alone makes: narrow, since there's not
 // much room between their partner and the line
@@ -52,9 +52,7 @@ const CONTRA_CORNERS_SAMPLES_PER_BEAT = 8;
  * @param {number} beats
  */
 export function createContraCornersPaths(dancerSet, turning, startPosById, endPosById, paths, beats) {
-    dancerSet.dancers.forEach(dancer => {
-        paths.set(dancer.id, createStationaryPath(startPosById.get(dancer.id), beats));
-    });
+    standStill(dancerSet, startPosById, paths, beats);
     const T = CONTRA_CORNERS_TIMES;
     const placesPx = dancerSet.getPlacePositions().map(p => toPixels(p, SVG_WIDTH, SVG_HEIGHT));
     const rowSpacing = placesPx.length > 2 ? placesPx[2].y - placesPx[0].y : VERTICAL_SPACING_PX;

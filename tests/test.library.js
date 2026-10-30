@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { Set } from '../dancers.js';
 import { dances, danceSlug, findDance } from '../library.js';
 import { calculateMovePaths } from '../pathCalculator.js';
-import { executeMove, progresses } from '../moves.js';
+import { executeMove, progresses, isMoveSupported } from '../moves.js';
 
 test('every dance should have a title, author and formation', () => {
     for (const dance of dances) {
@@ -51,7 +51,7 @@ test('findDance should find a dance by its slug', () => {
     assert.equal(findDance('no-such-dance'), undefined);
 });
 
-test('every progression should come when there is a couple at each end of the set', () => {
+test('every progression should come when the set can progress', () => {
     for (const dance of dances) {
         if (!Set.FORMATIONS.includes(dance.formation)) continue;
         const set = new Set(6, dance.formation);
@@ -60,8 +60,8 @@ test('every progression should come when there is a couple at each end of the se
             for (const part of dance.parts) {
                 for (const move of part.moves) {
                     if (progresses(move, set)) {
-                        assert.ok(set.coupleAtEachEnd(),
-                            `${dance.title} ${part.name} ${move.type}: progresses with partners apart at the ends`);
+                        assert.ok(set.canProgress(),
+                            `${dance.title} ${part.name} ${move.type}: progresses when the set can't`);
                     }
                     executeMove(set, move);
                 }
@@ -79,6 +79,21 @@ test('every dance in a supported formation should play through three times', () 
                 const paths = calculateMovePaths(move, set);
                 assert.equal(paths.size, 12, `${dance.title} ${move.type}: a path for every dancer`);
                 executeMove(set, move);
+            }
+        }
+    }
+});
+
+test('every figure of every dance in a supported formation should be animated', () => {
+    for (const dance of dances) {
+        if (!Set.FORMATIONS.includes(dance.formation)) continue;
+        const set = new Set(6, dance.formation);
+        for (let round = 0; round < 2; round++) {
+            for (const part of dance.parts) {
+                for (const move of part.moves) {
+                    assert.ok(isMoveSupported(move, set), `${dance.title} ${part.name} ${move.type}`);
+                    executeMove(set, move);
+                }
             }
         }
     }

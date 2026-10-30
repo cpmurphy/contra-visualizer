@@ -58,15 +58,22 @@ export class Couple {
 
 export class Set {
     /** Formations the set can be laid out in */
-    static FORMATIONS = ['improper', 'proper'];
+    static FORMATIONS = ['improper', 'proper', 'becket'];
 
     /**
+     * The places are in rows of two, across the set, and each minor set is two rows.
+     * In the improper and proper formations, each couple stands across the set from
+     * each other in a row; in Becket formation, partners stand side by side in a
+     * line, facing the couple across from them, the robin on the lark's right.
      * @param {number} coupleCount - Number of couples in the set
-     * @param {string} formation - 'improper' (ones crossed over) or 'proper'
+     * @param {string} formation - 'improper' (ones crossed over), 'proper' or 'becket'
      */
     constructor(coupleCount = 6, formation = 'improper') {
         if (!Set.FORMATIONS.includes(formation)) {
             throw new Error('Unsupported formation: ' + formation);
+        }
+        if (formation === 'becket' && coupleCount % 2 !== 0) {
+            throw new Error('A Becket set needs an even number of couples');
         }
         this.formation = formation;
         this.dancers = [];
@@ -94,7 +101,15 @@ export class Set {
             this.dancerMap.set(lark.id, lark);
             this.dancerMap.set(robin.id, robin);
 
-            if (i % 2 == 0 && this.isImproper()) {
+            if (this.isBecket()) {
+                // Each couple fills one side of their minor set's two rows: on the
+                // left, facing right, the lark above the robin; on the right, facing
+                // left, the robin above the lark
+                const minorSet = 4 * Math.floor(i / 2);
+                const [top, bottom] = i % 2 === 0 ? [lark, robin] : [robin, lark];
+                this.dancers[minorSet + i % 2] = top;
+                this.dancers[minorSet + 2 + i % 2] = bottom;
+            } else if (i % 2 == 0 && this.isImproper()) {
                 this.dancers.push(robin);
                 this.dancers.push(lark);
             } else {
@@ -126,16 +141,21 @@ export class Set {
     }
 
     /**
+     * Whether partners stand side by side in the lines (and progress by sliding to
+     * their left, rather than with couples waiting out at the ends)
+     * @returns {boolean}
+     */
+    isBecket() {
+        return this.formation === 'becket';
+    }
+
+    /**
      * Rotate each minor set to the left by the given number of places.
      * @param {number} numberOfPlaces - The number of places to rotate
      */
     circleLeft(numberOfPlaces) {
         this.snapshot();
-        const startIndex = this.dancers[0].active ? 0 : 2;
-        for (let i = startIndex; i < this.dancers.length; i += 4) {
-            if (this.dancers.length - i < 4) {
-                break;
-            }
+        for (const i of this.minorSetStarts()) {
             for (let j = 0; j < numberOfPlaces; j++) {
                 const originalFirst = this.dancers[i];
                 const originalSecond = this.dancers[i + 1];
@@ -164,11 +184,7 @@ export class Set {
      */
     circleRight(numberOfPlaces) {
         this.snapshot();
-        const startIndex = this.dancers[0].active ? 0 : 2;
-        for (let i = startIndex; i < this.dancers.length; i += 4) {
-            if (this.dancers.length - i < 4) {
-                break;
-            }
+        for (const i of this.minorSetStarts()) {
             for (let j = 0; j < numberOfPlaces; j++) {
                 const originalFirst = this.dancers[i];
                 const originalSecond = this.dancers[i + 1];
@@ -496,11 +512,7 @@ export class Set {
     }
 
     swingNeighbor() {
-        const startIndex = this.dancers[0].active ? 0 : 2;
-        for (let i = startIndex; i < this.dancers.length; i += 4) {
-            if (this.dancers.length - i < 4) {
-                break;
-            }
+        for (const i of this.minorSetStarts()) {
             const leftLark = this.dancers[i].role === 'lark' ? this.dancers[i] : this.dancers[i + 2];
             const leftRobin = this.dancers[i].role === 'robin' ? this.dancers[i] : this.dancers[i + 2];
             const rightLark = this.dancers[i + 1].role === 'lark' ? this.dancers[i + 1] : this.dancers[i + 3];
@@ -513,11 +525,7 @@ export class Set {
     }
 
     swingPartner() {
-        const startIndex = this.dancers[0].active ? 0 : 2;
-        for (let i = startIndex; i < this.dancers.length; i += 4) {
-            if (this.dancers.length - i < 4) {
-                break;
-            }
+        for (const i of this.minorSetStarts()) {
             const leftLark = this.dancers[i].role === 'lark' ? this.dancers[i] : this.dancers[i + 2];
             const leftRobin = leftLark.partner;
             const rightLark = this.dancers[i + 1].role === 'lark' ? this.dancers[i + 1] : this.dancers[i + 3];
@@ -541,11 +549,7 @@ export class Set {
 
     chainRobins() {
         this.snapshot();
-        const startIndex = this.dancers[0].active ? 0 : 2;
-        for (let i = startIndex; i < this.dancers.length; i += 4) {
-            if (this.dancers.length - i < 4) {
-                break;
-            }
+        for (const i of this.minorSetStarts()) {
             const leftRobinIndex = this.dancers[i].role === 'robin' ? i : i + 2;
             const rightRobinIndex = this.dancers[i + 1].role === 'robin' ? i + 1 : i + 3;
             const leftRobin = this.dancers[leftRobinIndex];
@@ -557,11 +561,7 @@ export class Set {
 
     chainLarks() {
         this.snapshot();
-        const startIndex = this.dancers[0].active ? 0 : 2;
-        for (let i = startIndex; i < this.dancers.length; i += 4) {
-            if (this.dancers.length - i < 4) {
-                break;
-            }
+        for (const i of this.minorSetStarts()) {
             const leftLarkIndex = this.dancers[i].role === 'lark' ? i : i + 2;
             const rightLarkIndex = this.dancers[i + 1].role === 'lark' ? i + 1 : i + 3;
             const leftLark = this.dancers[leftLarkIndex];
@@ -577,11 +577,7 @@ export class Set {
             // returns dancers to original positions
         } else if (Number.isFinite(numberOfTimes)) {
             // swaps the dancers vertically
-            const startIndex = this.dancers[0].active ? 0 : 2;
-            for (let i = startIndex; i < this.dancers.length; i += 4) {
-                if (this.dancers.length - i < 4) {
-                    break;
-                }
+            for (const i of this.minorSetStarts()) {
                 const topLeft = this.dancers[i];
                 const topRight = this.dancers[i + 1];
                 const bottomLeft = this.dancers[i + 2];
@@ -609,11 +605,37 @@ export class Set {
     }
 
     /**
-     * Progress: each couple moves on to their next neighbors, the couples reaching
-     * the ends of the set wait out there, and those waiting out come back in
-     * @throws {Error} If there isn't a couple at each end of the set to wait out
+     * Whether each couple stands side by side in a line, as in Becket formation: on
+     * the left, the lark above the robin; on the right, the robin above the lark
+     * @returns {boolean}
+     */
+    couplesInLines() {
+        return this.minorSetStarts().every(i =>
+            this.dancers[i].role === 'lark' && this.dancers[i].partner === this.dancers[i + 2]
+            && this.dancers[i + 1].role === 'robin' && this.dancers[i + 1].partner === this.dancers[i + 3]);
+    }
+
+    /**
+     * Whether the set can progress: in Becket formation, when the couples are side by
+     * side in the lines, to slide along them; otherwise, when there's a couple at
+     * each end to wait out
+     * @returns {boolean}
+     */
+    canProgress() {
+        return this.isBecket() ? this.couplesInLines() : this.coupleAtEachEnd();
+    }
+
+    /**
+     * Progress: each couple moves on to their next neighbors. In Becket formation
+     * they slide to their left (see slideLeft); otherwise the couples reaching the
+     * ends of the set wait out there, and those waiting out come back in.
+     * @throws {Error} If the set can't progress (see canProgress)
      */
     progress() {
+        if (this.isBecket()) {
+            this.slideLeft();
+            return;
+        }
         if (!this.coupleAtEachEnd()) {
             // Progressing would pair up dancers who aren't partners at the ends,
             // scrambling the set
@@ -624,6 +646,63 @@ export class Set {
         this.progressLastCouple();
         // Couples waiting out at the ends stand in their places
         this.dancers.filter(dancer => !dancer.active).forEach(dancer => this.offsets.delete(dancer.id));
+    }
+
+    /**
+     * Becket formation's progression: each couple, facing across the set, slides one
+     * couple's place to their left, so the left line moves up the hall and the right
+     * line down it (clockwise, seen from above with the music at the top). The
+     * couple at the top of the left line cross over to the top of the right, and the
+     * couple at the bottom of the right line to the bottom of the left. Each couple
+     * then faces the couple that was on their left diagonal.
+     * @throws {Error} If the couples aren't side by side in the lines
+     */
+    slideLeft() {
+        if (!this.couplesInLines()) {
+            throw new Error("Can't slide left: the couples aren't side by side in the lines");
+        }
+        this.snapshot();
+        // The places in order clockwise around the set: up the left line, then down the right
+        const ring = [];
+        for (let index = this.dancers.length - 2; index >= 0; index -= 2) ring.push(index);
+        for (let index = 1; index < this.dancers.length; index += 2) ring.push(index);
+        const dancers = ring.map(index => this.dancers[index]);
+        ring.forEach((index, k) => {
+            this.dancers[index] = dancers[(k - 2 + ring.length) % ring.length];
+        });
+        this.offsets.clear();
+    }
+
+    /**
+     * The places of the shadows standing beside each other in Becket formation: on
+     * the left, facing across, each lark's shadow is the robin on their left (above
+     * them); on the right, each lark's is the robin below them. The couples at the
+     * top of the left line and the bottom of the right have no shadows there.
+     * @returns {number[][]} Pairs of places, each a lark's and a robin's
+     * @throws {Error} If the set isn't in Becket formation with couples in the lines
+     */
+    shadowPairs() {
+        if (!this.isBecket() || !this.couplesInLines()) {
+            throw new Error('Shadows are beside each other only with couples side by side in Becket formation');
+        }
+        const pairs = [];
+        // Between the bottom row of each minor set and the top row of the next
+        for (let row = 1; (row + 1) * 2 < this.dancers.length; row += 2) {
+            pairs.push([row * 2, (row + 1) * 2], [row * 2 + 1, (row + 1) * 2 + 1]);
+        }
+        return pairs;
+    }
+
+    /**
+     * Shadows allemande, once around, so everyone ends where they started
+     * @param {number} turns - Times around: a whole number
+     */
+    shadowAllemande(turns) {
+        if (!Number.isInteger(turns)) {
+            throw new Error('Unsupported number of times around: ' + turns);
+        }
+        this.shadowPairs();
+        this.snapshot();
     }
 
     progressFirstCouple() {

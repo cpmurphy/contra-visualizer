@@ -2,9 +2,9 @@
 // right and left throughs and heys
 
 import { Position, toPixels, fromPixels, center } from '../positions.js';
-import { Path, createStationaryPath, createArcPath } from '../paths.js';
-import { SVG_WIDTH, SVG_HEIGHT } from '../layout.js';
-import { TAKE_HANDS_BEATS } from './shared.js';
+import { Path, createArcPath } from '../paths.js';
+import { SVG_WIDTH, SVG_HEIGHT, DANCER_RADIUS_PX } from '../layout.js';
+import { TAKE_HANDS_BEATS, standStill } from './shared.js';
 
 // Routes through half a hey for the left robin and left lark of a minor set with
 // the robins on the diagonal from bottom left to top right, as [time, x, y]: time
@@ -52,9 +52,16 @@ const HEY_SAMPLES_PER_STEP = 8;
 // coming across the other way by the right shoulder, and how close together the
 // two who courtesy turn come as they turn
 const PASS_THROUGH_BULGE_PX = 26;
+// On the diagonal, the couples are narrower across the way they travel than across
+// the set, and the two passes, each bearing left, come closer than this; each
+// dancer then meets the one coming the other way on the next pass over just after
+// passing their own, so they bear left sharply as they pass, and only then (see
+// passSwerve)
+const PASS_THROUGH_CLEARANCE_PX = 2 * DANCER_RADIUS_PX + 4;
+const SHARP_SWERVE_POWER = 9;
 const COURTESY_TURN_RADIUS_PX = 25;
 // Waypoints for each half of a right and left through
-const RIGHT_AND_LEFT_SAMPLES = 16;
+const RIGHT_AND_LEFT_SAMPLES = 32;
 
 /**
  * Create half hey paths, for a minor set with the robins on one diagonal: on the
@@ -67,9 +74,7 @@ const RIGHT_AND_LEFT_SAMPLES = 16;
  * @param {number} beats
  */
 export function createHalfHeyPaths(dancerSet, startPosById, endPosById, paths, beats) {
-    dancerSet.dancers.forEach(dancer => {
-        paths.set(dancer.id, createStationaryPath(startPosById.get(dancer.id), beats));
-    });
+    standStill(dancerSet, startPosById, paths, beats);
 
     for (const i of dancerSet.minorSetStarts()) {
         const [leftLark, leftRobin, rightRobin, rightLark] = dancerSet.heyLine(i).map(index => dancerSet.dancers[index]);
@@ -121,11 +126,12 @@ export function createHalfHeyPaths(dancerSet, startPosById, endPosById, paths, b
 
 /**
  * Create right and left through paths. For the first half everyone passes straight
- * across the set, bearing left to pass the dancer coming the other way by the right
- * shoulder. For the second half the two who arrived on each side courtesy turn:
- * they come close together, turn half way around counter-clockwise (as seen from
- * above, with the music at the top) about the middle of their side of the minor set,
- * and spread back out into the places there, holding hands as they turn (added to
+ * across to the couple they face (across the set, or in a Becket progression, on
+ * the left diagonal), bearing left to pass the dancer coming the other way by the
+ * right shoulder. For the second half the two who arrived on each side courtesy
+ * turn: they come close together, turn half way around counter-clockwise (as seen
+ * from above, with the music at the top) about the middle of the places they end in,
+ * and spread back out into those places, holding hands as they turn (added to
  * paths.holds).
  * @param {import('./dancers.js').Set} dancerSet
  * @param {Map<string, Position>} startPosById
@@ -134,19 +140,21 @@ export function createHalfHeyPaths(dancerSet, startPosById, endPosById, paths, b
  * @param {number} beats
  */
 export function createRightAndLeftThroughPaths(dancerSet, startPosById, endPosById, paths, beats) {
-    dancerSet.dancers.forEach(dancer => {
-        paths.set(dancer.id, createStationaryPath(startPosById.get(dancer.id), beats));
-    });
+    standStill(dancerSet, startPosById, paths, beats);
     // Ease in and out of each half
     const ease = u => (1 - Math.cos(Math.PI * u)) / 2;
     const holds = [];
 
     for (const i of dancerSet.minorSetStarts()) {
-        const minorSet = dancerSet.dancers.slice(i, i + 4);
+        // Those who end where they started (a couple with no one on the diagonal, in
+        // a Becket progression) stand still
+        const minorSet = dancerSet.dancers.slice(i, i + 4)
+            .filter(dancer => !startPosById.get(dancer.id).equals(endPosById.get(dancer.id), 0.01));
         // The two who end on each side courtesy turn together
         const endX = dancer => endPosById.get(dancer.id).x;
+        const turningWith = dancer => minorSet.find(d => d !== dancer && Math.abs(endX(d) - endX(dancer)) < 0.01);
         for (const dancer of minorSet) {
-            const other = minorSet.find(d => d !== dancer && Math.abs(endX(d) - endX(dancer)) < 0.01);
+            const other = turningWith(dancer);
             if (other && minorSet.indexOf(dancer) < minorSet.indexOf(other)) {
                 holds.push({ ids: [dancer.id, other.id], shape: 'line', from: beats / 2, to: beats - TAKE_HANDS_BEATS });
             }
@@ -154,22 +162,30 @@ export function createRightAndLeftThroughPaths(dancerSet, startPosById, endPosBy
         for (const dancer of minorSet) {
             const start = toPixels(startPosById.get(dancer.id), SVG_WIDTH, SVG_HEIGHT);
             const end = toPixels(endPosById.get(dancer.id), SVG_WIDTH, SVG_HEIGHT);
-            // Across the set at their own row, then turning about the middle of the far side
-            const arrival = { x: end.x, y: start.y };
-            const pivot = { x: end.x, y: (start.y + end.y) / 2 };
-            const heading = Math.sign(arrival.x - start.x);
-            // Bearing left: heading right across the screen, that's up
-            const bulge = { x: (start.x + arrival.x) / 2, y: start.y - heading * PASS_THROUGH_BULGE_PX };
+            // Across the set to the place of the dancer they pass, then turning half
+            // way around the middle of the two who courtesy turn there
+            const other = turningWith(dancer);
+            const otherStart = toPixels(startPosById.get(other.id), SVG_WIDTH, SVG_HEIGHT);
+            const otherEnd = toPixels(endPosById.get(other.id), SVG_WIDTH, SVG_HEIGHT);
+            const pivot = { x: (end.x + otherEnd.x) / 2, y: (end.y + otherEnd.y) / 2 };
+            const arrival = { x: 2 * pivot.x - end.x, y: 2 * pivot.y - end.y };
+            // Bearing left of the way they're heading: heading right across the screen, that's up
+            const across = Math.hypot(arrival.x - start.x, arrival.y - start.y);
+            const left = { x: (arrival.y - start.y) / across, y: -(arrival.x - start.x) / across };
+            // How far their pass is from the other pass, the courtesy-turn partner's
+            const otherArrival = { x: 2 * pivot.x - otherEnd.x, y: 2 * pivot.y - otherEnd.y };
+            const passGap = Math.abs((otherStart.x + otherArrival.x - start.x - arrival.x) / 2 * left.x
+                + (otherStart.y + otherArrival.y - start.y - arrival.y) / 2 * left.y);
+            const swerve = passSwerve(passGap < 2 * PASS_THROUGH_BULGE_PX + PASS_THROUGH_CLEARANCE_PX);
 
             const waypoints = [];
             const times = [];
             for (let k = 0; k <= RIGHT_AND_LEFT_SAMPLES; k++) {
                 const u = ease(k / RIGHT_AND_LEFT_SAMPLES);
-                // Quadratic curve through the bulge halfway across
-                const control = { x: 2 * bulge.x - (start.x + arrival.x) / 2, y: 2 * bulge.y - (start.y + arrival.y) / 2 };
+                const aside = PASS_THROUGH_BULGE_PX * swerve(u);
                 waypoints.push({
-                    x: (1 - u) ** 2 * start.x + 2 * (1 - u) * u * control.x + u ** 2 * arrival.x,
-                    y: (1 - u) ** 2 * start.y + 2 * (1 - u) * u * control.y + u ** 2 * arrival.y
+                    x: start.x + (arrival.x - start.x) * u + left.x * aside,
+                    y: start.y + (arrival.y - start.y) * u + left.y * aside
                 });
                 times.push(k / RIGHT_AND_LEFT_SAMPLES / 2);
             }
@@ -193,6 +209,17 @@ export function createRightAndLeftThroughPaths(dancerSet, startPosById, endPosBy
     }
 
     paths.holds = holds;
+}
+
+/**
+ * How far a dancer passing through bears to their left, as a fraction of
+ * PASS_THROUGH_BULGE_PX, on the way across
+ * @param {boolean} sharp - Whether they bear left only as they pass (see
+ *   SHARP_SWERVE_POWER), rather than steadily all the way
+ * @returns {(u: number) => number} From the fraction of the way across
+ */
+function passSwerve(sharp) {
+    return sharp ? u => Math.sin(Math.PI * u) ** SHARP_SWERVE_POWER : u => 4 * u * (1 - u);
 }
 
 /**
@@ -256,10 +283,10 @@ const CHAIN_SAMPLES_PER_BEAT = 12;
  * @param {number} beats
  */
 export function createRobinsChainPaths(dancerSet, startPosById, endPosById, paths, beats) {
-    const startIndex = dancerSet.dancers[0].active ? 0 : 2;
+    standStill(dancerSet, startPosById, paths, beats);
     const holds = [];
 
-    for (let i = startIndex; i + 4 <= dancerSet.dancers.length; i += 4) {
+    for (const i of dancerSet.minorSetStarts()) {
         const minorSetDancers = dancerSet.dancers.slice(i, i + 4);
         const setCenterPx = toPixels(center(minorSetDancers.map(d => startPosById.get(d.id))),
             SVG_WIDTH, SVG_HEIGHT);
@@ -298,13 +325,6 @@ export function createRobinsChainPaths(dancerSet, startPosById, endPosById, path
         }
     }
     paths.holds = holds;
-
-    // Everyone else (other active dancers, inactive couples) stays put
-    dancerSet.dancers.forEach(dancer => {
-        if (!paths.has(dancer.id)) {
-            paths.set(dancer.id, createStationaryPath(startPosById.get(dancer.id), beats));
-        }
-    });
 }
 
 /**
@@ -482,15 +502,9 @@ function courtesyTurnChainWaypoints(robinStart, robinEnd, larkPlace, setCenter, 
  * @param {number} beats
  */
 export function createChainPaths(dancerSet, startPosById, endPosById, paths, beats) {
-    // Determine starting index based on active state
-    const startIndex = dancerSet.dancers[0].active ? 0 : 2;
+    standStill(dancerSet, startPosById, paths, beats);
 
-    // Process each minor set of 4 dancers
-    for (let i = startIndex; i < dancerSet.dancers.length; i += 4) {
-        if (dancerSet.dancers.length - i < 4) {
-            break;
-        }
-
+    for (const i of dancerSet.minorSetStarts()) {
         // Get the 4 dancers in this minor set
         const minorSetDancers = [
             dancerSet.dancers[i],
@@ -504,13 +518,8 @@ export function createChainPaths(dancerSet, startPosById, endPosById, paths, bea
             const start = startPosById.get(dancer.id);
             const end = endPosById.get(dancer.id);
 
-            if (!dancer.active) {
-                // Dancer is inactive - create stationary path
-                paths.set(dancer.id, createStationaryPath(start, beats));
-            } else if (start.equals(end, 0.01)) {
-                // Active dancer doesn't move during this chain (other role is chaining)
-                paths.set(dancer.id, createStationaryPath(start, beats));
-            } else {
+            if (!start.equals(end, 0.01)) {
+                // The other role stands still while these chain
                 // Dancers cross - create arc path to avoid collision
                 const midX = (start.x + end.x) / 2;
                 const midY = (start.y + end.y) / 2;
@@ -529,21 +538,5 @@ export function createChainPaths(dancerSet, startPosById, endPosById, paths, bea
                 paths.set(dancer.id, createArcPath(start, end, centerPos, beats, 10, false));
             }
         });
-    }
-
-    // Handle any inactive dancers at the beginning
-    if (startIndex === 2) {
-        // First couple is inactive
-        paths.set(dancerSet.dancers[0].id, createStationaryPath(startPosById.get(dancerSet.dancers[0].id), beats));
-        paths.set(dancerSet.dancers[1].id, createStationaryPath(startPosById.get(dancerSet.dancers[1].id), beats));
-    }
-
-    // Handle any inactive dancers at the end
-    const remainder = (dancerSet.dancers.length - startIndex) % 4;
-    if (remainder > 0) {
-        for (let i = dancerSet.dancers.length - remainder; i < dancerSet.dancers.length; i++) {
-            const dancer = dancerSet.dancers[i];
-            paths.set(dancer.id, createStationaryPath(startPosById.get(dancer.id), beats));
-        }
     }
 }

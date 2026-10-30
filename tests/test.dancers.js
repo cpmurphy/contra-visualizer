@@ -934,7 +934,7 @@ test('progressing a proper set should not cross over the couples waiting out at 
 });
 
 test('creating a set in an unknown formation should throw', () => {
-    assert.throws(() => new Set(6, 'becket'), /Unsupported formation/);
+    assert.throws(() => new Set(6, 'triple minor'), /Unsupported formation/);
 });
 
 test('couples who wait out at the ends after progressing should stand in their places', () => {

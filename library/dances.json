@@ -470,5 +470,95 @@
                 ]
             }
         ]
+    },
+    {
+        "title": "Becket Reel",
+        "author": "Herbie Gaudreau",
+        "formation": "becket",
+        "notes": "The dance Becket formation is named after, from the New England Caller, October 1958. It has a double progression: the right and left through on the left diagonal brings new neighbors, and the one straight across brings new neighbors again.",
+        "references": [
+            "https://www.ibiblio.org/contradance/thecallersbox/dance.php?id=10284"
+        ],
+        "parts": [
+            {
+                "name": "A1",
+                "beats": 16,
+                "moves": [
+                    {
+                        "type": "allemande left",
+                        "beats": 6,
+                        "who": "shadow",
+                        "call": "SHA.dows al.le.MANDE LEFT",
+                        "shortCall": "al.le.MANDE left"
+                    },
+                    {
+                        "type": "swing",
+                        "beats": 10,
+                        "who": "partner",
+                        "call": "PART.ners SWING"
+                    }
+                ]
+            },
+            {
+                "name": "A2",
+                "beats": 16,
+                "moves": [
+                    {
+                        "type": "chain to neighbor",
+                        "beats": 8,
+                        "who": "robins",
+                        "call": "RO.bins CHAIN a.CROSS",
+                        "shortCall": "RO.bins CHAIN"
+                    },
+                    {
+                        "type": "chain to partner",
+                        "beats": 8,
+                        "who": "robins",
+                        "call": "CHAIN them BACK"
+                    }
+                ]
+            },
+            {
+                "name": "B1",
+                "beats": 16,
+                "moves": [
+                    {
+                        "type": "right and left through",
+                        "beats": 8,
+                        "who": "neighbor",
+                        "direction": "left diagonal",
+                        "progression": true,
+                        "call": "LEFT di.AG.o.nal, RIGHT and left THROUGH",
+                        "shortCall": "LEFT di.AG.o.nal THROUGH"
+                    },
+                    {
+                        "type": "right and left through",
+                        "beats": 8,
+                        "who": "neighbor",
+                        "call": "STRAIGHT a.CROSS, RIGHT and left THROUGH",
+                        "shortCall": "RIGHT and left THROUGH"
+                    }
+                ]
+            },
+            {
+                "name": "B2",
+                "beats": 16,
+                "moves": [
+                    {
+                        "type": "star left 4 places",
+                        "beats": 8,
+                        "who": "all",
+                        "call": "STAR by the LEFT, ONCE a.ROUND",
+                        "shortCall": "STAR LEFT"
+                    },
+                    {
+                        "type": "star right 4 places",
+                        "beats": 8,
+                        "who": "all",
+                        "call": "RIGHT hand BACK"
+                    }
+                ]
+            }
+        ]
     }
 ]

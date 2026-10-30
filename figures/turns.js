@@ -1,10 +1,10 @@
-// Paths for the turning figures: swings, stars, circles and do-si-dos, in which
-// dancers go around a center
+// Paths for the turning figures: swings, allemandes, stars, circles and do-si-dos,
+// in which dancers go around a center
 
 import { Position, toPixels, fromPixels, center } from '../positions.js';
 import { Path, createStationaryPath } from '../paths.js';
 import { SVG_WIDTH, SVG_HEIGHT, STAGE_HEIGHT, DANCER_RADIUS_PX, VERTICAL_SPACING_PX, COLUMN_MIDPOINT_PX, firstRowY } from '../layout.js';
-import { TAKE_HANDS_BEATS } from './shared.js';
+import { TAKE_HANDS_BEATS, standStill } from './shared.js';
 
 // Swings and stars: the dancers step in over a beat (less in a short figure), turn
 // steadily, and step out over a beat
@@ -18,6 +18,12 @@ const SWING_RADIUS_PX = DANCER_RADIUS_PX + 3;
 const SWING_BEATS_PER_TURN = 2;
 // Waypoints per revolution of a swing
 const SWING_STEPS_PER_TURN = 24;
+
+// Allemandes: the two turning hold forearms, so they're further apart than in a
+// swing. (Contra corners' allemandes, in couples.js, turn at the same radius.)
+const ALLEMANDE_RADIUS_PX = 25;
+// Waypoints per revolution of an allemande
+const ALLEMANDE_STEPS_PER_TURN = 24;
 
 // Stars: how far from the middle the four turn, hands joined there; closer than in
 // a circle, which is as wide as the minor set
@@ -36,11 +42,9 @@ const STAR_STEPS_PER_PLACE = 8;
  * @param {number} beats
  */
 export function createDoSiDoPaths(dancerSet, startPosById, paths, beats) {
-    const startIndex = dancerSet.dancers[0].active ? 0 : 2;
+    standStill(dancerSet, startPosById, paths, beats);
 
-    for (let i = startIndex; i < dancerSet.dancers.length; i += 4) {
-        if (dancerSet.dancers.length - i < 4) break;
-
+    for (const i of dancerSet.minorSetStarts()) {
         const minorSetDancers = [
             dancerSet.dancers[i],
             dancerSet.dancers[i + 1],
@@ -59,16 +63,6 @@ export function createDoSiDoPaths(dancerSet, startPosById, paths, beats) {
 
         for (const [dancer1, dancer2] of neighborPairs) {
             if (!dancer1 || !dancer2) continue;
-
-            if (!dancer1.active || !dancer2.active) {
-                if (!dancer1.active) {
-                    paths.set(dancer1.id, createStationaryPath(startPosById.get(dancer1.id), beats));
-                }
-                if (!dancer2.active) {
-                    paths.set(dancer2.id, createStationaryPath(startPosById.get(dancer2.id), beats));
-                }
-                continue;
-            }
 
             const start1 = startPosById.get(dancer1.id);
             const start2 = startPosById.get(dancer2.id);
@@ -117,23 +111,6 @@ export function createDoSiDoPaths(dancerSet, startPosById, paths, beats) {
             paths.set(dancer2.id, new Path(waypoints2, beats));
         }
     }
-
-    // Handle inactive dancers at the beginning
-    if (startIndex === 2) {
-        for (let j = 0; j < 2; j++) {
-            const d = dancerSet.dancers[j];
-            paths.set(d.id, createStationaryPath(startPosById.get(d.id), beats));
-        }
-    }
-
-    // Handle inactive dancers at the end
-    const remainder = (dancerSet.dancers.length - startIndex) % 4;
-    if (remainder > 0) {
-        for (let j = dancerSet.dancers.length - remainder; j < dancerSet.dancers.length; j++) {
-            const d = dancerSet.dancers[j];
-            paths.set(d.id, createStationaryPath(startPosById.get(d.id), beats));
-        }
-    }
 }
 
 /**
@@ -147,16 +124,10 @@ export function createDoSiDoPaths(dancerSet, startPosById, paths, beats) {
  * @param {boolean} isClockwise - Decreasing angle (circle right) rather than increasing
  */
 export function createCircularPaths(dancerSet, startPosById, paths, beats, places, isClockwise) {
-    // Determine starting index based on active state
-    const startIndex = dancerSet.dancers[0].active ? 0 : 2;
+    standStill(dancerSet, startPosById, paths, beats);
     const holds = [];
 
-    // Process each minor set of 4 dancers
-    for (let i = startIndex; i < dancerSet.dancers.length; i += 4) {
-        if (dancerSet.dancers.length - i < 4) {
-            break;
-        }
-
+    for (const i of dancerSet.minorSetStarts()) {
         // Get the 4 dancers in this minor set
         const minorSetDancers = [
             dancerSet.dancers[i],
@@ -174,47 +145,22 @@ export function createCircularPaths(dancerSet, startPosById, paths, beats, place
         // Each dancer travels around an ellipse through the four corners of the minor
         // set, so a wide set doesn't bulge into the minor sets above and below
         minorSetDancers.forEach(dancer => {
-            const start = startPosById.get(dancer.id);
-
-            if (!dancer.active) {
-                // Dancer is inactive - create stationary path
-                paths.set(dancer.id, createStationaryPath(start, beats));
-            } else {
-                paths.set(dancer.id, createEllipticalPath(start, centerPos, places, beats, isClockwise));
-            }
+            paths.set(dancer.id, createEllipticalPath(startPosById.get(dancer.id), centerPos, places, beats, isClockwise));
         });
 
         // The four hold hands with those beside them around the circle
-        if (minorSetDancers.every(d => d.active)) {
-            const angle = dancer => {
-                const pos = startPosById.get(dancer.id);
-                return Math.atan2(pos.y - centerPos.y, pos.x - centerPos.x);
-            };
-            holds.push({
-                ids: [...minorSetDancers].sort((d1, d2) => angle(d1) - angle(d2)).map(d => d.id),
-                shape: 'ring',
-                from: TAKE_HANDS_BEATS,
-                to: beats - TAKE_HANDS_BEATS
-            });
-        }
+        const angle = dancer => {
+            const pos = startPosById.get(dancer.id);
+            return Math.atan2(pos.y - centerPos.y, pos.x - centerPos.x);
+        };
+        holds.push({
+            ids: [...minorSetDancers].sort((d1, d2) => angle(d1) - angle(d2)).map(d => d.id),
+            shape: 'ring',
+            from: TAKE_HANDS_BEATS,
+            to: beats - TAKE_HANDS_BEATS
+        });
     }
     paths.holds = holds;
-
-    // Handle any inactive dancers at the beginning
-    if (startIndex === 2) {
-        // First couple is inactive
-        paths.set(dancerSet.dancers[0].id, createStationaryPath(startPosById.get(dancerSet.dancers[0].id), beats));
-        paths.set(dancerSet.dancers[1].id, createStationaryPath(startPosById.get(dancerSet.dancers[1].id), beats));
-    }
-
-    // Handle any inactive dancers at the end
-    const remainder = (dancerSet.dancers.length - startIndex) % 4;
-    if (remainder > 0) {
-        for (let i = dancerSet.dancers.length - remainder; i < dancerSet.dancers.length; i++) {
-            const dancer = dancerSet.dancers[i];
-            paths.set(dancer.id, createStationaryPath(startPosById.get(dancer.id), beats));
-        }
-    }
 }
 
 /**
@@ -231,9 +177,7 @@ export function createCircularPaths(dancerSet, startPosById, paths, beats, place
  * @param {boolean} isRight - Star right rather than star left
  */
 export function createStarPaths(dancerSet, startPosById, endPosById, paths, beats, places, isRight) {
-    dancerSet.dancers.forEach(dancer => {
-        paths.set(dancer.id, createStationaryPath(startPosById.get(dancer.id), beats));
-    });
+    standStill(dancerSet, startPosById, paths, beats);
 
     const totalRotation = (isRight ? 1 : -1) * places * Math.PI / 2;
     const rotationSteps = Math.max(1, places * STAR_STEPS_PER_PLACE);
@@ -468,6 +412,45 @@ export function addSwingPairPaths(dancer1, dancer2, startPosById, endPosById, pa
 }
 
 /**
+ * Create allemande paths for pairs of dancers: each pair step in towards each
+ * other, join hands (added to paths.holds), turn around the point midway between
+ * them, and step back out to where they end. An allemande right turns clockwise
+ * (seen from above, with the music at the top), a left counter-clockwise.
+ * Everyone else stands still.
+ * @param {import('./dancers.js').Set} dancerSet
+ * @param {import('./dancers.js').Dancer[][]} pairs
+ * @param {Map<string, Position>} startPosById
+ * @param {Map<string, Position>} endPosById
+ * @param {Map<string, import('./paths.js').Path>} paths
+ * @param {number} beats
+ * @param {number} turns - Times around
+ * @param {boolean} isRight - Allemande right rather than left
+ */
+export function createAllemandePaths(dancerSet, pairs, startPosById, endPosById, paths, beats, turns, isRight) {
+    standStill(dancerSet, startPosById, paths, beats);
+    const totalRotation = (isRight ? 1 : -1) * turns * 2 * Math.PI;
+    const rotationSteps = Math.max(1, Math.round(turns * ALLEMANDE_STEPS_PER_TURN));
+    const times = turnTimes(beats, rotationSteps);
+    const leg = stepInBeats(beats);
+    const holds = [];
+
+    for (const [dancer1, dancer2] of pairs) {
+        const s1px = toPixels(startPosById.get(dancer1.id), SVG_WIDTH, SVG_HEIGHT);
+        const s2px = toPixels(startPosById.get(dancer2.id), SVG_WIDTH, SVG_HEIGHT);
+        const centerPx = { x: (s1px.x + s2px.x) / 2, y: (s1px.y + s2px.y) / 2 };
+        const entryAngle1 = Math.atan2(s1px.y - centerPx.y, s1px.x - centerPx.x);
+        for (const [dancer, entryAngle] of [[dancer1, entryAngle1], [dancer2, entryAngle1 + Math.PI]]) {
+            const waypoints = generateTurnWaypoints(startPosById.get(dancer.id), endPosById.get(dancer.id),
+                centerPx, ALLEMANDE_RADIUS_PX, entryAngle, totalRotation, rotationSteps);
+            paths.set(dancer.id, new Path(waypoints, beats, times));
+        }
+        holds.push({ ids: [dancer1.id, dancer2.id], shape: 'line', from: leg, to: beats - leg });
+    }
+
+    paths.holds = holds;
+}
+
+/**
  * Create swing paths for dancers.
  * Two dancers come together and rotate around the point midway between them.
  * - Neighbor swing: L1 with R2, L2 with R1
@@ -481,11 +464,9 @@ export function addSwingPairPaths(dancer1, dancer2, startPosById, endPosById, pa
  * @param {string} swingWho - 'neighbor' or 'partner'
  */
 export function createSwingPaths(dancerSet, startPosById, endPosById, paths, beats, swingWho) {
-    const startIndex = dancerSet.dancers[0].active ? 0 : 2;
+    standStill(dancerSet, startPosById, paths, beats);
 
-    for (let i = startIndex; i < dancerSet.dancers.length; i += 4) {
-        if (dancerSet.dancers.length - i < 4) break;
-
+    for (const i of dancerSet.minorSetStarts()) {
         const minorSetDancers = [
             dancerSet.dancers[i],
             dancerSet.dancers[i + 1],
@@ -515,34 +496,7 @@ export function createSwingPaths(dancerSet, startPosById, endPosById, paths, bea
         }
 
         swingPairs.forEach(pair => {
-            const [dancer1, dancer2] = pair.dancers;
-
-            if (!dancer1.active || !dancer2.active) {
-                if (!dancer1.active) {
-                    paths.set(dancer1.id, createStationaryPath(startPosById.get(dancer1.id), beats));
-                }
-                if (!dancer2.active) {
-                    paths.set(dancer2.id, createStationaryPath(startPosById.get(dancer2.id), beats));
-                }
-                return;
-            }
-
-            addSwingPairPaths(dancer1, dancer2, startPosById, endPosById, paths, beats);
+            addSwingPairPaths(...pair.dancers, startPosById, endPosById, paths, beats);
         });
-    }
-
-    // Handle inactive dancers at the beginning
-    if (startIndex === 2) {
-        paths.set(dancerSet.dancers[0].id, createStationaryPath(startPosById.get(dancerSet.dancers[0].id), beats));
-        paths.set(dancerSet.dancers[1].id, createStationaryPath(startPosById.get(dancerSet.dancers[1].id), beats));
-    }
-
-    // Handle inactive dancers at the end
-    const remainder = (dancerSet.dancers.length - startIndex) % 4;
-    if (remainder > 0) {
-        for (let j = dancerSet.dancers.length - remainder; j < dancerSet.dancers.length; j++) {
-            const dancer = dancerSet.dancers[j];
-            paths.set(dancer.id, createStationaryPath(startPosById.get(dancer.id), beats));
-        }
     }
 }
