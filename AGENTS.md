@@ -157,6 +157,7 @@ Dances are stored as JSON with the following structure:
    - Label dancers clearly: R1 (robin 1), L1 (lark 1), L2 (lark 2), R2 (robin 2))
    - Show correct starting positions (e.g. in improper formation)
    - Each couple has a unique color
+   - `canvas.js` does the drawing
 
 3. **Basic Animation:**
    - Play / pause
