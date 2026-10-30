@@ -42,6 +42,18 @@ const snapshot = danced => JSON.stringify({
     dancers: danced.dancers().map(d => [d.id, d.label, d.active, d.position])
 });
 
+test('those waiting out are only shown as out while they stand in their places', () => {
+    const danced = perform(DANCE);
+    // The do-si-do of the second time through, bringing in those who waited out
+    for (let i = 0; i < 2 * MOVE_COUNT - 1; i++) danced.next();
+    const { current } = danced.paths();
+    const at = beat => new Map([...current].map(([id, path]) => [id, path.getPositionAtBeat(beat)]));
+
+    assert.equal(danced.dancers().filter(d => !d.active).length, 4, 'in place, before the move');
+    assert.equal(danced.dancers(at(0)).filter(d => !d.active).length, 4, 'as the move starts');
+    assert.ok(danced.dancers(at(4)).every(d => d.active), 'dancing the do-si-do');
+});
+
 test('previous undoes next, back through the times before to the start', () => {
     const danced = perform(DANCE);
     const before = [];
