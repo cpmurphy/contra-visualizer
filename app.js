@@ -600,6 +600,7 @@ function endSession() {
     state.session = null;
     state.isPlaying = false;
     stopAnimation();
+    updateVisualization();
     updateControls();
     callPanel.showIdle();
 }
