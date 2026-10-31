@@ -32,6 +32,23 @@ export function findTune(title) {
 }
 
 /**
+ * The tunes a built-in tune plays, one for each time through the dance in turn:
+ * a medley's tunes (each for its `rounds`, 1 if not given), or just the tune
+ * @param {Object} tune - A built-in tune
+ * @returns {Object[]} Built-in tunes with their ABC
+ */
+export function medleyTunes(tune) {
+    if (!tune.medley) return [tune];
+    return tune.medley.flatMap(title => {
+        const played = findTune(title);
+        if (!played?.abc) {
+            throw new Error(`The medley ${tune.title} needs a tune called ${title}`);
+        }
+        return new Array(tune.rounds ?? 1).fill(played);
+    });
+}
+
+/**
  * Frequency of a MIDI note
  * @param {number} midi
  * @returns {number} Hz
@@ -90,30 +107,31 @@ function accompaniment(chord, beat, offbeat) {
 }
 
 /**
- * The lead fiddle's "potatoes" before the dance: the tonic and its fifth,
- * chopped on and between the beats, over the tonic chord
+ * The lead fiddle's "potatoes" before the dance: the root and fifth of the
+ * tune's first chord (the tonic, if it has none), chopped on and between the
+ * beats, over that chord
  * @param {Object} tune - From parseAbc
  * @returns {Object[]} Events for beats -INTRO_BEATS up to 0
  */
 export function potatoEvents(tune) {
     const offbeat = tune.compound ? 2 / 3 : 1 / 2;
-    const tonicChord = { root: tune.tonic, minor: false, seventh: false };
-    const [root, , fifth] = chordNotes(tonicChord);
+    const firstChord = tune.chords[0] ?? { root: tune.tonic, minor: false, seventh: false };
+    const [root, , fifth] = chordNotes(firstChord);
     const doubleStop = [root + 12, fifth + 12];
     const events = [];
     for (let beat = -INTRO_BEATS; beat < 0; beat++) {
         events.push(
             { beat, voice: 'fiddle', midi: doubleStop, beats: offbeat * 0.8 },
             { beat: beat + offbeat, voice: 'fiddle', midi: doubleStop, beats: (1 - offbeat) * 0.7 },
-            ...accompaniment(tonicChord, beat, offbeat)
+            ...accompaniment(firstChord, beat, offbeat)
         );
     }
     return events;
 }
 
 /**
- * Plays a tune in time with the dance, over and over; before the dance starts
- * (negative beats) it plays the potatoes
+ * Plays a tune (or a medley's tunes in turn) in time with the dance, over and
+ * over; before the dance starts (negative beats) it plays the first tune's potatoes
  */
 export class MusicPlayer extends BeatScheduler {
     /**
@@ -121,50 +139,45 @@ export class MusicPlayer extends BeatScheduler {
      */
     constructor(options = {}) {
         super(options);
-        this.tune = null;
-        this.events = [];
+        // Each time through the dance in turn: the tune's length and what's played
+        this.rounds = [];
         this.potatoes = [];
         this.output = null;
     }
 
     /**
-     * Choose the tune to play, or none
-     * @param {Object|null} tune - A built-in tune (with its ABC), or null for silence
+     * Choose the tune or medley to play, or none
+     * @param {Object|null} tune - A built-in tune, or null for silence
      */
     setTune(tune) {
-        if (tune) {
-            const parsed = parseAbc(tune.abc);
-            this.tune = parsed;
-            this.events = tuneEvents(parsed);
-            this.potatoes = potatoEvents(parsed);
-        } else {
-            this.tune = null;
-            this.events = [];
-            this.potatoes = [];
-        }
+        const parsed = tune ? medleyTunes(tune).map(played => parseAbc(played.abc)) : [];
+        this.rounds = parsed.map(played => ({ beats: played.beats, events: tuneEvents(played) }));
+        this.potatoes = parsed.length > 0 ? potatoEvents(parsed[0]) : [];
         this.resync();
     }
 
     /**
-     * The notes from one beat (inclusive) to another (exclusive), repeating the
-     * tune as the dance repeats
+     * The notes from one beat (inclusive) to another (exclusive), playing the
+     * tunes in turn as the dance repeats, and starting over after the last
      * @param {number} fromBeat
      * @param {number} toBeat
      * @returns {Object[]}
      */
     eventsBetween(fromBeat, toBeat) {
-        if (!this.tune) return [];
+        if (this.rounds.length === 0) return [];
         const found = this.potatoes.filter(e => e.beat >= fromBeat && e.beat < toBeat);
-        const length = this.tune.beats;
-        const firstRound = Math.max(0, Math.floor(fromBeat / length));
-        for (let round = firstRound; round * length < toBeat; round++) {
-            const offset = round * length;
-            for (const event of this.events) {
-                const beat = event.beat + offset;
-                if (beat >= fromBeat && beat < toBeat) {
-                    found.push({ ...event, beat });
+        let offset = 0;
+        for (let round = 0; offset < toBeat; round++) {
+            const { beats, events } = this.rounds[round % this.rounds.length];
+            if (offset + beats > fromBeat) {
+                for (const event of events) {
+                    const beat = event.beat + offset;
+                    if (beat >= fromBeat && beat < toBeat) {
+                        found.push({ ...event, beat });
+                    }
                 }
             }
+            offset += beats;
         }
         return found;
     }

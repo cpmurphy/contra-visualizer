@@ -88,6 +88,9 @@ and before a practice session the fiddle plays the potatoes. Tunes are in
 the common subset used for dance tunes (repeats, endings, chord symbols
 like `"D"`, broken rhythms, triplets) but not pickup notes or inline
 fields. A tune for the built-in dances should be 64 beats long (AABB).
+A medley is an entry listing tunes by title (`"medley": [...]`) instead of
+giving ABC: they are played in turn, each for one time through the dance (or
+its `"rounds"`), and the potatoes are the first tune's, over its first chord.
 The metronome and music share `BeatScheduler` (`scheduler.js`), which
 schedules sounds ahead on the audio clock. iOS may stop the audio when
 the user leaves the page, so `app.js` wakes it and restarts the sound in

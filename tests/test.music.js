@@ -3,7 +3,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { beatLength, keySignature, parseAbc, parseChord } from '../abc.js';
-import { MusicPlayer, chordNotes, midiFrequency, potatoEvents, tuneEvents, tunes } from '../music.js';
+import {
+    MusicPlayer, chordNotes, findTune, medleyTunes, midiFrequency, potatoEvents, tuneEvents, tunes
+} from '../music.js';
 import { INTRO_BEATS } from '../timeline.js';
 
 const tune = body => parseAbc(`X:1\nT:Test\nM:4/4\nL:1/8\nK:D\n${body}`);
@@ -82,7 +84,7 @@ test('parseAbc needs a key', () => {
 
 // ===== MUSIC =====
 
-for (const builtIn of tunes) {
+for (const builtIn of tunes.filter(tune => !tune.medley)) {
     test(`${builtIn.title} reads as 64 beats, AABB, with chords`, () => {
         const parsed = parseAbc(builtIn.abc);
         assert.strictEqual(parsed.beats, 64);
@@ -93,6 +95,25 @@ for (const builtIn of tunes) {
         assert.deepStrictEqual(secondA, firstA);
     });
 }
+
+for (const medley of tunes.filter(tune => tune.medley)) {
+    test(`${medley.title} is a medley of built-in tunes of its kind`, () => {
+        const played = medleyTunes(medley);
+        assert.ok(played.length > 1);
+        for (const tune of played) {
+            assert.strictEqual(tune.type, medley.type, tune.title);
+        }
+    });
+}
+
+test('medleyTunes plays each tune of a medley for its rounds, or a tune on its own', () => {
+    const soldiersJoy = findTune("Soldier's Joy");
+    assert.deepStrictEqual(medleyTunes(soldiersJoy), [soldiersJoy]);
+    const twice = { title: 'Twice', medley: ["Soldier's Joy", 'Drowsy Maggie'], rounds: 2 };
+    assert.deepStrictEqual(medleyTunes(twice).map(tune => tune.title),
+        ["Soldier's Joy", "Soldier's Joy", 'Drowsy Maggie', 'Drowsy Maggie']);
+    assert.throws(() => medleyTunes({ title: 'Lost', medley: ['No Such Tune'] }), /No Such Tune/);
+});
 
 test('midiFrequency tunes A to 440', () => {
     assert.strictEqual(midiFrequency(69), 440);
@@ -127,6 +148,12 @@ test('potatoEvents chops the tonic through the potatoes', () => {
     assert.ok(events.every(e => e.beat >= -INTRO_BEATS && e.beat < 0));
 });
 
+test('potatoEvents plays over the first chord, for a tune that starts in a minor', () => {
+    const events = potatoEvents(parseAbc('X:1\nM:4/4\nL:1/8\nK:Edor\n"Em"E2BE dEBE|'));
+    assert.deepStrictEqual(events.find(e => e.voice === 'chuck').midi, [64, 67, 71]);
+    assert.deepStrictEqual(events.find(e => e.voice === 'fiddle').midi, [76, 83]);
+});
+
 test('MusicPlayer repeats the tune and plays the potatoes before it', () => {
     const player = new MusicPlayer();
     player.setTune(tunes[0]);
@@ -140,4 +167,29 @@ test('MusicPlayer repeats the tune and plays the potatoes before it', () => {
 
     player.setTune(null);
     assert.deepStrictEqual(player.eventsBetween(0, 64), []);
+});
+
+test('MusicPlayer plays a medley\'s tunes in turn, then starts over', () => {
+    const notesOf = (player, from) =>
+        player.eventsBetween(from, from + 2).map(e => `${e.voice}${e.midi}@${e.beat - from}`);
+    const tuneAlone = title => {
+        const player = new MusicPlayer();
+        player.setTune(findTune(title));
+        return player;
+    };
+    const maggie = notesOf(tuneAlone('Drowsy Maggie'), 0);
+    const ryegrass = notesOf(tuneAlone('Rolling in the Ryegrass'), 0);
+    assert.notDeepStrictEqual(maggie, ryegrass);
+
+    const player = new MusicPlayer();
+    player.setTune(findTune('Drowsy Maggie / Rolling in the Ryegrass'));
+    assert.deepStrictEqual(notesOf(player, 0), maggie);
+    assert.deepStrictEqual(notesOf(player, 64), ryegrass);
+    assert.deepStrictEqual(notesOf(player, 128), maggie);
+    // Across the change of tune, the end of one and the start of the next
+    const across = player.eventsBetween(63, 65);
+    assert.ok(across.some(e => e.beat < 64) && across.some(e => e.beat >= 64));
+    // The potatoes are the first tune's
+    assert.deepStrictEqual(player.eventsBetween(-INTRO_BEATS, 0),
+        tuneAlone('Drowsy Maggie').eventsBetween(-INTRO_BEATS, 0));
 });

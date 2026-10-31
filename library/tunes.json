@@ -12,9 +12,30 @@
         "abc": "X:1\nT:Haste to the Wedding\nM:6/8\nL:1/8\nK:D\n|:\"D\"AFA Agf|\"G\"ede fdB|\"D\"AFA dAF|\"A\"EFE EFG|\n\"D\"AFA Agf|\"G\"ede fdB|\"A\"A2g \"D\"faf|\"D\"ded d3:|\n|:\"D\"afa afa|\"G\"bgb bgb|\"D\"afa agf|\"A\"ede efg|\n\"D\"a3 f3|\"G\"ede fdB|\"A\"A2g \"D\"faf|\"D\"ded d3:|\n"
     },
     {
+        "title": "Drowsy Maggie",
+        "type": "reel",
+        "source": "Traditional. Melody from The Session, setting 27 (https://thesession.org/tunes/27#setting27), its 4-bar A part played four times and its B part twice to make 64 beats; chords added.",
+        "abc": "X:1\nT:Drowsy Maggie\nM:4/4\nL:1/8\nK:Edor\n|:\"Em\"E2BE dEBE|\"Em\"E2BE \"D\"AFDF|\"Em\"E2BE dEBE|\"G\"BABc \"D\"dAFD|\n\"Em\"E2BE dEBE|\"Em\"E2BE \"D\"AFDF|\"Em\"E2BE dEBE|\"G\"BABc \"D\"dAFD:|\n|:\"D\"d2fd \"A\"c2ec|\"D\"defg \"A\"afge|\"D\"d2fd \"A\"c2ec|\"G\"BABc \"D\"dAFA|\n\"D\"d2fd \"A\"c2ec|\"D\"defg \"A\"afge|\"D\"afge \"Bm\"fded|\"G\"BABc \"D\"dAFD:|\n"
+    },
+    {
+        "title": "Rolling in the Ryegrass",
+        "type": "reel",
+        "source": "Traditional. Melody from The Session, setting 87 (https://thesession.org/tunes/87#setting87), each 4-bar part played four times to make 64 beats; chords added.",
+        "abc": "X:1\nT:Rolling in the Ryegrass\nM:4/4\nL:1/8\nK:D\n|:\"D\"A2AB AFDF|\"G\"G2BG dGBG|\"D\"ABAF DFAF|\"G\"GBAG \"A\"E2D2|\n\"D\"A2AB AFDF|\"G\"G2BG dGBG|\"D\"ABAF DFAF|\"G\"GBAG \"A\"E2D2:|\n|:\"D\"ABde f2fd|\"G\"g2ge \"D\"fedB|\"D\"ABde fefa|\"Em\"gfdf \"A\"e2d2|\n\"D\"ABde f2fd|\"G\"g2ge \"D\"fedB|\"D\"ABde fefa|\"Em\"gfdf \"A\"e2d2:|\n"
+    },
+    {
         "title": "Out on the Ocean",
         "type": "jig",
         "source": "Traditional. Chords added.",
         "abc": "X:1\nT:Out on the Ocean\nM:6/8\nL:1/8\nK:G\n|:\"G\"D2B BAG|\"G\"BdB \"D\"A2B|\"Em\"GED \"C\"G2A|\"G\"B2B \"Em\"AGE|\n\"G\"D2B BAG|\"G\"BdB \"D\"A2B|\"Em\"GED \"C\"G2A|1 \"Em\"BGE \"G\"G2E:|2 \"Em\"BGE \"G\"GBd||\n|:\"Em\"e2e edB|\"Em\"ege edB|\"G\"d2B \"D\"def|\"C\"gfe \"D\"dBA|\n\"G\"G2A B2d|\"C\"ege \"D\"dBA|\"Em\"GED \"C\"G2A|1 \"Em\"BGE \"G\"GBd:|2 \"Em\"BGE \"G\"G3||\n"
+    },
+    {
+        "title": "Drowsy Maggie / Rolling in the Ryegrass",
+        "type": "reel",
+        "source": "A medley of the two tunes, changing tune each time through the dance.",
+        "medley": [
+            "Drowsy Maggie",
+            "Rolling in the Ryegrass"
+        ]
     }
 ]
