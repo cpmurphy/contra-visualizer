@@ -76,6 +76,31 @@ test('Metronome does nothing until unlocked', () => {
     assert.strictEqual(metronome.isRunning(), false);
 });
 
+test('Metronome wakes a context that has stopped, however it stopped', t => {
+    const { metronome, context } = makeMetronome(t);
+    let resumes = 0;
+    context.resume = () => { resumes++; };
+
+    metronome.unlock();
+    metronome.wake();
+    assert.strictEqual(resumes, 0);
+
+    for (const state of ['suspended', 'interrupted']) {
+        context.state = state;
+        resumes = 0;
+        metronome.unlock();
+        assert.strictEqual(resumes, 1);
+        metronome.wake();
+        assert.strictEqual(resumes, 2);
+    }
+});
+
+test('Metronome wake does not create a context', () => {
+    const metronome = new Metronome({ createContext: () => { throw new Error('too soon'); } });
+    metronome.wake();
+    assert.strictEqual(metronome.context, null);
+});
+
 test('Metronome schedules each beat ahead on the audio clock', t => {
     const { metronome, context } = makeMetronome(t);
     // Beat 0 is now; at 120 BPM a beat is half a second

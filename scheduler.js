@@ -38,7 +38,15 @@ export class BeatScheduler {
         if (!this.context) {
             this.context = this.createContext();
         }
-        if (this.context.state === 'suspended') {
+        this.wake();
+    }
+
+    /**
+     * Wake the audio context, if there is one. It may be 'suspended', or on iOS
+     * 'interrupted' after the user has left the page.
+     */
+    wake() {
+        if (this.context && this.context.state !== 'running') {
             this.context.resume();
         }
     }

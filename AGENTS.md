@@ -89,7 +89,9 @@ the common subset used for dance tunes (repeats, endings, chord symbols
 like `"D"`, broken rhythms, triplets) but not pickup notes or inline
 fields. A tune for the built-in dances should be 64 beats long (AABB).
 The metronome and music share `BeatScheduler` (`scheduler.js`), which
-schedules sounds ahead on the audio clock. Where beats fall in the dance
+schedules sounds ahead on the audio clock. iOS may stop the audio when
+the user leaves the page, so `app.js` wakes it and restarts the sound in
+time with the dancers on coming back. Where beats fall in the dance
 (its parts, phrases and moves, and the potatoes before it) is worked out
 in `timeline.js`, which the metronome, music and calls all use.
 

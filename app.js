@@ -452,6 +452,17 @@ function unlockAudio() {
     music.unlock();
 }
 
+// Coming back to the page, wake the audio if the browser stopped it; the audio
+// clock may have stopped while the animation clock ran on, so the metronome
+// and music restart in time with the dancers on the next frame
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+        metronome.wake();
+        music.wake();
+        stopAudio();
+    }
+});
+
 /**
  * Where the music has got to: beats from the start of the dance (the first time
  * through, in a practice session; the intro before it is negative)
