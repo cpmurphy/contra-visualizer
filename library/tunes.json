@@ -10,5 +10,11 @@
         "type": "jig",
         "source": "Traditional. Melody from The Session, setting 582 (https://thesession.org/tunes/582#setting582); chords added.",
         "abc": "X:1\nT:Haste to the Wedding\nM:6/8\nL:1/8\nK:D\n|:\"D\"AFA Agf|\"G\"ede fdB|\"D\"AFA dAF|\"A\"EFE EFG|\n\"D\"AFA Agf|\"G\"ede fdB|\"A\"A2g \"D\"faf|\"D\"ded d3:|\n|:\"D\"afa afa|\"G\"bgb bgb|\"D\"afa agf|\"A\"ede efg|\n\"D\"a3 f3|\"G\"ede fdB|\"A\"A2g \"D\"faf|\"D\"ded d3:|\n"
+    },
+    {
+        "title": "Out on the Ocean",
+        "type": "jig",
+        "source": "Traditional. Chords added.",
+        "abc": "X:1\nT:Out on the Ocean\nM:6/8\nL:1/8\nK:G\n|:\"G\"D2B BAG|\"G\"BdB \"D\"A2B|\"Em\"GED \"C\"G2A|\"G\"B2B \"Em\"AGE|\n\"G\"D2B BAG|\"G\"BdB \"D\"A2B|\"Em\"GED \"C\"G2A|1 \"Em\"BGE \"G\"G2E:|2 \"Em\"BGE \"G\"GBd||\n|:\"Em\"e2e edB|\"Em\"ege edB|\"G\"d2B \"D\"def|\"C\"gfe \"D\"dBA|\n\"G\"G2A B2d|\"C\"ege \"D\"dBA|\"Em\"GED \"C\"G2A|1 \"Em\"BGE \"G\"GBd:|2 \"Em\"BGE \"G\"G3||\n"
     }
 ]

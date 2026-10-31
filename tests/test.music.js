@@ -87,9 +87,9 @@ for (const builtIn of tunes) {
         const parsed = parseAbc(builtIn.abc);
         assert.strictEqual(parsed.beats, 64);
         assert.ok(parsed.chords.length > 0);
-        // The second A part repeats the first
-        const firstA = parsed.notes.filter(n => n.beat < 16).map(n => n.midi.join());
-        const secondA = parsed.notes.filter(n => n.beat >= 16 && n.beat < 32).map(n => n.midi.join());
+        // The second A part repeats the first, but for its ending in the last bar
+        const firstA = parsed.notes.filter(n => n.beat < 14).map(n => n.midi.join());
+        const secondA = parsed.notes.filter(n => n.beat >= 16 && n.beat < 30).map(n => n.midi.join());
         assert.deepStrictEqual(secondA, firstA);
     });
 }
