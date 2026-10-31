@@ -8,12 +8,15 @@
 import { createDoSiDoPaths, createCircularPaths, createStarPaths, addSwingPairPaths, createSwingPaths, createAllemandePaths } from './turns.js';
 import { createHalfHeyPaths, createRightAndLeftThroughPaths, createRobinsChainPaths, createChainPaths } from './crossings.js';
 import { createContraCornersPaths, createReturnUpOutsidePaths, createCenterTravelPaths, createTurnAlonePaths, createCastOffPaths } from './couples.js';
-import { createBalancePaths, addBalancePairPaths, createLongLinesPaths } from './forwardAndBack.js';
+import { createBalancePaths, addBalancePairPaths, createLongLinesPaths, createHallLinePaths, createCoupleTurnPaths, createBendTheLinePaths } from './forwardAndBack.js';
 import { createPartnerPairPaths, createCouplePairPaths } from './shared.js';
 
 // How far down the hall a couple goes down the center, and down the outside
 const DOWN_THE_CENTER_PX = 120;
 const DOWN_THE_OUTSIDE_PX = 180;
+// How far a line of four goes down the hall: not as far as a couple alone, so the
+// lowest line stays clear of a couple waiting out at the bottom
+const DOWN_THE_HALL_PX = 100;
 
 // The ways dances say who dances a move, and what we take each to mean
 const WHO_ALIASES = {
@@ -110,6 +113,13 @@ const FIGURES = [
         execute: set => set.longLines(),
         // Two lines approach each other and retreat
         paths: ({ set, start, paths, beats }) => createLongLinesPaths(set, start, paths, beats)
+    },
+    {
+        type: 'turn alone',
+        who: EVERYONE,
+        // Everyone ends where they started
+        execute: () => {},
+        paths: ({ set, start, paths, beats }) => createTurnAlonePaths(set, set.minorSetPlaces(), start, paths, beats, true)
     },
 
     // Figures for one couple ('ones' or 'twos') to dance, in any formation
@@ -211,7 +221,11 @@ const FIGURES = [
         who: ['neighbors'],
         formations: ['improper'],
         endsInPlaces: true,
-        execute: set => set.swing('neighbor'),
+        execute: (set, { move }) => {
+            set.swing('neighbor');
+            // Facing up or down the hall, they end in a line of four
+            if (move.facing) set.lineOfFour(move.facing);
+        },
         paths: ({ set, start, end, paths, beats }) => createSwingPaths(set, start, end, paths, beats, 'neighbor')
     },
     {
@@ -256,6 +270,36 @@ const FIGURES = [
         endsInPlaces: true,
         execute: set => set.halfHey(),
         paths: ({ set, start, end, paths, beats }) => createHalfHeyPaths(set, start, end, paths, beats)
+    },
+    {
+        type: 'down the hall',
+        who: EVERYONE,
+        formations: ['improper'],
+        execute: set => set.downTheHall(DOWN_THE_HALL_PX),
+        paths: ({ set, start, end, paths, beats }) => createHallLinePaths(set, start, end, paths, beats)
+    },
+    {
+        type: 'turn as couples',
+        who: ['neighbors'],
+        formations: ['improper'],
+        execute: set => set.lineOfFour('up'),
+        paths: ({ set, start, end, paths, beats }) => createCoupleTurnPaths(set, start, end, paths, beats)
+    },
+    {
+        type: 'up the hall',
+        who: EVERYONE,
+        formations: ['improper'],
+        execute: set => set.upTheHall(DOWN_THE_HALL_PX),
+        paths: ({ set, start, end, paths, beats }) => createHallLinePaths(set, start, end, paths, beats)
+    },
+    {
+        type: 'bend the line',
+        who: EVERYONE,
+        formations: ['improper'],
+        endsInPlaces: true,
+        // Each couple ends on their side of the set, in their places
+        execute: () => {},
+        paths: ({ set, start, end, paths, beats }) => createBendTheLinePaths(set, start, end, paths, beats)
     },
     {
         // Once around

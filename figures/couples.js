@@ -222,11 +222,14 @@ export function createCenterTravelPaths(dancerSet, startPosById, endPosById, pat
  * @param {Map<string, Position>} startPosById
  * @param {Map<string, import('./paths.js').Path>} paths
  * @param {number} beats
+ * @param {boolean} [intoMinorSet] - Whether the loops are towards the middle of the
+ *   dancer's minor set, clear of a couple crossing over at the end of the set
  */
-export function createTurnAlonePaths(dancerSet, turning, startPosById, paths, beats) {
+export function createTurnAlonePaths(dancerSet, turning, startPosById, paths, beats, intoMinorSet = false) {
     const rx = TURN_ALONE_ACROSS_PX / SVG_WIDTH * 100;
     const ry = TURN_ALONE_ALONG_PX / SVG_HEIGHT * 100;
     const middleX = COLUMN_MIDPOINT_PX / SVG_WIDTH * 100;
+    const firstPlace = dancerSet.minorSetStarts()[0];
 
     dancerSet.dancers.forEach((dancer, index) => {
         const start = startPosById.get(dancer.id);
@@ -237,11 +240,12 @@ export function createTurnAlonePaths(dancerSet, turning, startPosById, paths, be
         // The loop is down the hall from the dancer (there's no room either side), and
         // they turn in towards their partner first
         const inward = start.x < middleX ? 1 : -1;
-        const loopCenter = new Position(start.x, start.y + ry);
+        const along = intoMinorSet && (index - firstPlace) % 4 >= 2 ? -1 : 1;
+        const loopCenter = new Position(start.x, start.y + along * ry);
         const waypoints = [];
         const count = 16;
         for (let i = 0; i <= count; i++) {
-            const angle = -Math.PI / 2 + inward * 2 * Math.PI * i / count;
+            const angle = along * (-Math.PI / 2 + inward * 2 * Math.PI * i / count);
             waypoints.push(new Position(loopCenter.x + rx * Math.cos(angle), loopCenter.y + ry * Math.sin(angle)));
         }
         waypoints[count] = start.clone();

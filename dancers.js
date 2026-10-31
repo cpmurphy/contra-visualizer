@@ -224,6 +224,14 @@ export class Set {
     }
 
     /**
+     * The places of everyone in a complete minor set
+     * @returns {number[]} Indexes into this.dancers
+     */
+    minorSetPlaces() {
+        return this.minorSetStarts().flatMap(i => [i, i + 1, i + 2, i + 3]);
+    }
+
+    /**
      * The places of the active dancers in complete minor sets who are in the given
      * couple ('ones' or 'twos')
      * @param {string} who
@@ -234,8 +242,7 @@ export class Set {
         if (!coupleNumber) {
             throw new Error('Invalid couple: ' + who);
         }
-        return this.minorSetStarts()
-            .flatMap(i => [i, i + 1, i + 2, i + 3])
+        return this.minorSetPlaces()
             .filter(index => {
                 const dancer = this.dancers[index];
                 return dancer.active && dancer.couple.coupleNumber === coupleNumber;
@@ -351,6 +358,54 @@ export class Set {
         const left = side(0);
         const right = side(1);
         return left && right ? [left.lark, left.robin, right.robin, right.lark] : null;
+    }
+
+    /**
+     * The couple on each side of each minor set form a line of four across the set,
+     * halfway between the rows they were in, facing up or down the hall with the
+     * robins on the larks' right. Everyone stays in their place in the set: the line
+     * is where they stand for now, until they bend the line.
+     * @param {string} facing - 'up' or 'down'
+     */
+    lineOfFour(facing) {
+        this.snapshot();
+        const places = this.getPlacePositions();
+        const positions = this.getPositions();
+        for (const i of this.minorSetStarts()) {
+            const line = this.heyLine(i);
+            if (!line) {
+                throw new Error('A line of four needs a lark and a robin on each side of the minor set');
+            }
+            const y = (positions[i].y + positions[i + 3].y) / 2;
+            // Facing down the hall, the lark's right is on the left side of the set
+            const [leftLark, leftRobin, rightRobin, rightLark] = line;
+            const inside = facing === 'down' ? [leftLark, rightRobin] : [leftRobin, rightLark];
+            for (const index of line) {
+                const x = inside.includes(index) ? this.laneX(index % 2 === 0) : places[index].x;
+                this.offsets.set(this.dancers[index].id, { x: x - places[index].x, y: y - places[index].y });
+            }
+        }
+    }
+
+    /**
+     * The lines of four go down (or, for a negative distance, up) the hall
+     * @param {number} distancePx - How far down the hall to go, in pixels
+     */
+    downTheHall(distancePx) {
+        this.snapshot();
+        for (const index of this.minorSetPlaces()) {
+            const dancer = this.dancers[index];
+            const offset = this.getOffset(dancer);
+            this.offsets.set(dancer.id, { x: offset.x, y: offset.y + distancePx / SVG_HEIGHT * 100 });
+        }
+    }
+
+    /**
+     * The lines of four come back up the hall
+     * @param {number} distancePx - How far up the hall to come, in pixels
+     */
+    upTheHall(distancePx) {
+        this.downTheHall(-distancePx);
     }
 
     /**

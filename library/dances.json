@@ -560,5 +560,112 @@
                 ]
             }
         ]
+    },
+    {
+        "title": "After the Flu.com",
+        "author": "Dean Snipes",
+        "formation": "improper",
+        "references": [
+            "https://www.ibiblio.org/contradance/thecallersbox/dance.php?id=12001"
+        ],
+        "parts": [
+            {
+                "name": "A1",
+                "beats": 16,
+                "moves": [
+                    {
+                        "type": "circle left 4 places",
+                        "beats": 8,
+                        "who": "all",
+                        "call": "CIR.cle LEFT, ONCE a.ROUND",
+                        "shortCall": "CIR.cle LEFT"
+                    },
+                    {
+                        "type": "swing",
+                        "beats": 8,
+                        "who": "neighbor",
+                        "facing": "down",
+                        "call": "NEIGH.bors SWING"
+                    }
+                ]
+            },
+            {
+                "name": "A2",
+                "beats": 16,
+                "moves": [
+                    {
+                        "type": "down the hall",
+                        "beats": 6,
+                        "who": "all",
+                        "detail": "in a line of four, neighbors side by side",
+                        "call": "DOWN the HALL, FOUR in LINE",
+                        "shortCall": "DOWN the HALL"
+                    },
+                    {
+                        "type": "turn as couples",
+                        "beats": 2,
+                        "who": "neighbor",
+                        "call": "TURN and come BACK"
+                    },
+                    {
+                        "type": "up the hall",
+                        "beats": 6,
+                        "who": "all"
+                    },
+                    {
+                        "type": "bend the line",
+                        "beats": 2,
+                        "who": "all",
+                        "call": "BEND the LINE"
+                    }
+                ]
+            },
+            {
+                "name": "B1",
+                "beats": 16,
+                "moves": [
+                    {
+                        "type": "circle left 3/4",
+                        "beats": 6,
+                        "who": "all",
+                        "call": "LEFT three QUAR.ters",
+                        "shortCall": "CIR.cle LEFT"
+                    },
+                    {
+                        "type": "swing",
+                        "beats": 10,
+                        "who": "partner",
+                        "call": "PART.ners SWING"
+                    }
+                ]
+            },
+            {
+                "name": "B2",
+                "beats": 16,
+                "moves": [
+                    {
+                        "type": "chain to neighbor",
+                        "beats": 8,
+                        "who": "robins",
+                        "call": "RO.bins CHAIN a.CROSS",
+                        "shortCall": "RO.bins CHAIN"
+                    },
+                    {
+                        "type": "circle right 4 places",
+                        "beats": 6,
+                        "who": "all",
+                        "call": "CIR.cle RIGHT, ONCE a.ROUND",
+                        "shortCall": "CIR.cle RIGHT"
+                    },
+                    {
+                        "type": "turn alone",
+                        "beats": 2,
+                        "who": "all",
+                        "progression": true,
+                        "call": "TURN a.LONE"
+                    }
+                ]
+            }
+        ]
     }
 ]

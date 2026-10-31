@@ -1,8 +1,8 @@
-// Paths for the figures in which dancers go forward and back: balances and long
-// lines
+// Paths for the figures in which dancers go forward and back: balances, long lines,
+// and lines of four going down the hall and back
 
 import { Position, toPixels, center } from '../positions.js';
-import { createOutAndBackPath, createStationaryPath } from '../paths.js';
+import { createOutAndBackPath, createStationaryPath, createStraightPath, createBezierPath, createArcPath } from '../paths.js';
 import { SVG_WIDTH, SVG_HEIGHT, DANCER_RADIUS_PX } from '../layout.js';
 import { TAKE_HANDS_BEATS, standStill } from './shared.js';
 
@@ -116,4 +116,92 @@ export function createLongLinesPaths(dancerSet, startPosById, paths, beats) {
             from: TAKE_HANDS_BEATS,
             to: beats - TAKE_HANDS_BEATS
         }));
+}
+
+/**
+ * The couple on each side of a minor set: the lark and robin in each column
+ * @param {import('../dancers.js').Set} dancerSet
+ * @param {number} i - Index of the first place of the minor set
+ * @returns {import('../dancers.js').Dancer[][]}
+ */
+function sideCouples(dancerSet, i) {
+    return [[i, i + 2], [i + 1, i + 3]].map(places => places.map(index => dancerSet.dancers[index]));
+}
+
+/**
+ * Create paths for lines of four going up or down the hall: each dancer walks
+ * straight there, and each line holds hands all the way, added to paths.holds.
+ * @param {import('../dancers.js').Set} dancerSet
+ * @param {Map<string, Position>} startPosById
+ * @param {Map<string, Position>} endPosById
+ * @param {Map<string, import('../paths.js').Path>} paths
+ * @param {number} beats
+ */
+export function createHallLinePaths(dancerSet, startPosById, endPosById, paths, beats) {
+    standStill(dancerSet, startPosById, paths, beats);
+    for (const index of dancerSet.minorSetPlaces()) {
+        const { id } = dancerSet.dancers[index];
+        paths.set(id, createStraightPath(startPosById.get(id), endPosById.get(id), beats));
+    }
+    paths.holds = dancerSet.minorSetStarts().map(i => ({
+        ids: dancerSet.dancers.slice(i, i + 4)
+            .sort((a, b) => startPosById.get(a.id).x - startPosById.get(b.id).x)
+            .map(d => d.id),
+        shape: 'line',
+        from: TAKE_HANDS_BEATS,
+        to: beats - TAKE_HANDS_BEATS
+    }));
+}
+
+/**
+ * Create paths for a line of four turning as couples: each couple wheels around
+ * the point midway between them, counter-clockwise (seen from above), the robin
+ * walking forward and the lark backing up, holding on as they go (added to
+ * paths.holds).
+ * @param {import('../dancers.js').Set} dancerSet
+ * @param {Map<string, Position>} startPosById
+ * @param {Map<string, Position>} endPosById
+ * @param {Map<string, import('../paths.js').Path>} paths
+ * @param {number} beats
+ */
+export function createCoupleTurnPaths(dancerSet, startPosById, endPosById, paths, beats) {
+    standStill(dancerSet, startPosById, paths, beats);
+    const holds = [];
+    for (const i of dancerSet.minorSetStarts()) {
+        for (const couple of sideCouples(dancerSet, i)) {
+            const middle = center(couple.map(dancer => startPosById.get(dancer.id)));
+            for (const { id } of couple) {
+                // In createArcPath's y-up sense; it's counter-clockwise on the y-down floor
+                paths.set(id, createArcPath(startPosById.get(id), endPosById.get(id), middle, beats, 9, true));
+            }
+            holds.push({ ids: couple.map(dancer => dancer.id), shape: 'line', from: 0, to: beats });
+        }
+    }
+    paths.holds = holds;
+}
+
+/**
+ * Create paths for bending the line: the ends of the line of four go forward to the
+ * ends of the lines they end in, and those in the middle back up and out, each
+ * couple holding on (added to paths.holds).
+ * @param {import('../dancers.js').Set} dancerSet
+ * @param {Map<string, Position>} startPosById
+ * @param {Map<string, Position>} endPosById
+ * @param {Map<string, import('../paths.js').Path>} paths
+ * @param {number} beats
+ */
+export function createBendTheLinePaths(dancerSet, startPosById, endPosById, paths, beats) {
+    standStill(dancerSet, startPosById, paths, beats);
+    for (const index of dancerSet.minorSetPlaces()) {
+        const { id } = dancerSet.dancers[index];
+        const start = startPosById.get(id);
+        const end = endPosById.get(id);
+        paths.set(id, createBezierPath([start, new Position(start.x, end.y), end], beats));
+    }
+    paths.holds = dancerSet.minorSetStarts().flatMap(i => sideCouples(dancerSet, i)).map(couple => ({
+        ids: couple.map(dancer => dancer.id),
+        shape: 'line',
+        from: 0,
+        to: beats - TAKE_HANDS_BEATS
+    }));
 }
