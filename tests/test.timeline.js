@@ -2,7 +2,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { danceBeats, locateBeat, moveStartBeat } from '../timeline.js';
+import { INTRO_BEATS, beatLabel, danceBeats, locateBeat, moveStartBeat } from '../timeline.js';
 import { findDance } from '../library.js';
 
 const dance = {
@@ -29,4 +29,14 @@ test('locateBeat finds the part and wraps around the dance', () => {
     assert.deepStrictEqual(locateBeat(dance, 15), { partIndex: 0, beatInPart: 15 });
     assert.deepStrictEqual(locateBeat(dance, 16), { partIndex: 1, beatInPart: 0 });
     assert.deepStrictEqual(locateBeat(dance, 33), { partIndex: 0, beatInPart: 1 });
+});
+
+test('beatLabel should name a beat by its part, counting from 1', () => {
+    assert.equal(beatLabel(dance, 0), 'A1 · 1');
+    assert.equal(beatLabel(dance, 18.5), 'A2 · 3');
+});
+
+test('beatLabel should count the potatoes before the dance', () => {
+    assert.equal(beatLabel(dance, -INTRO_BEATS), 'Potatoes · 1');
+    assert.equal(beatLabel(dance, -0.5), 'Potatoes · 4');
 });

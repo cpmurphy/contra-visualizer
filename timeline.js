@@ -55,3 +55,18 @@ export function locateBeat(dance, beat) {
     }
     throw new Error(`Beat ${beat} is outside the dance`);
 }
+
+/**
+ * Name of a beat, e.g. "A1 · 3" (beats counted from 1, as the music is)
+ * @param {Object} dance
+ * @param {number} beat - Beats from the start of the dance
+ * @returns {string}
+ */
+export function beatLabel(dance, beat) {
+    const whole = Math.floor(beat + 1e-6);
+    if (whole < 0) {
+        return `Potatoes · ${whole + INTRO_BEATS + 1}`;
+    }
+    const { partIndex, beatInPart } = locateBeat(dance, whole);
+    return `${dance.parts[partIndex].name} · ${beatInPart + 1}`;
+}

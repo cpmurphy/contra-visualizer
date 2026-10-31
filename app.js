@@ -3,8 +3,10 @@ import { Animator, AnimationState } from './animator.js';
 import { perform } from './performance.js';
 import { dances, danceSlug, findDance } from './library.js';
 import { Metronome, beatAccent } from './metronome.js';
-import { INTRO_BEATS, danceBeats, locateBeat, moveStartBeat } from './timeline.js';
-import { PRACTICE_ROUNDS, callSchedule, displayCall, judgeCall } from './calls.js';
+import { INTRO_BEATS, beatLabel, danceBeats, locateBeat, moveStartBeat } from './timeline.js';
+import { PRACTICE_ROUNDS } from './calls.js';
+import { PracticeSession } from './practice.js';
+import { CallPanel } from './callPanel.js';
 import { MusicPlayer, findTune, tunes } from './music.js';
 
 const APP_TITLE = document.title;
@@ -25,9 +27,6 @@ const state = {
     currentPaths: null,
     session: null // Practice session in progress (see startSession)
 };
-
-/** Beats a finished call stays lit before the next one replaces it */
-const CALL_HOLD_BEATS = 1;
 
 // The metronome and the music share one audio context, made on first use
 let audioContext = null;
@@ -72,6 +71,8 @@ const elements = {
     danceView: document.getElementById('dance-view'),
     menuLink: document.getElementById('menu-link')
 };
+
+const callPanel = new CallPanel(elements);
 
 /**
  * Show the dance named in the URL (e.g. "#lady-of-the-lake"), or the menu when
@@ -171,7 +172,7 @@ function loadDance(dance) {
     updateMoveList();
     updateVisualization();
     updateControls();
-    showIdleCallPanel();
+    callPanel.showIdle();
 }
 
 // Update dance information display
@@ -544,9 +545,7 @@ function updateControls() {
 }
 
 // ===== PRACTICE SESSIONS =====
-// A session plays an intro (the potatoes) and then the dance PRACTICE_ROUNDS times from the top,
-// with the calls: shown as they're said ('karaoke'), or made by the trainee, who
-// presses Call when they would start each one ('test').
+// Playing the dance for a session (see practice.js)
 
 /**
  * Start a practice session from the top of the dance
@@ -557,20 +556,10 @@ function startSession(mode) {
 
     stopAnimation();
     state.performance.restart();
-    state.session = {
-        mode,
-        calls: callSchedule(state.dance),
-        intro: true,
-        round: 0,
-        attempts: [], // Test mode: for each call, how the trainee did
-        nextCall: 0, // Test mode: the next call the trainee is to make
-        shown: null // The call (or attempt) on the call line
-    };
+    state.session = new PracticeSession(state.dance, mode, callPanel);
     state.isPlaying = true;
     unlockAudio();
 
-    elements.callFeedback.replaceChildren();
-    elements.callNext.textContent = '';
     updateControls();
     updateCallPanel(-INTRO_BEATS);
     startIntro();
@@ -598,16 +587,7 @@ function finishSession() {
     stopAnimation();
     updateVisualization();
 
-    if (session.mode === 'test') {
-        // Calls still to come when the music stopped count as missed
-        for (let i = session.nextCall; i < session.calls.length; i++) {
-            session.attempts[i] = { missed: true };
-        }
-        showTestSummary(session);
-    } else {
-        elements.callNext.textContent = '';
-        elements.callFeedback.textContent = `That's ${PRACTICE_ROUNDS} times through.`;
-    }
+    session.finish();
     state.session = null;
     updateControls();
 }
@@ -621,30 +601,7 @@ function endSession() {
     state.isPlaying = false;
     stopAnimation();
     updateControls();
-    showIdleCallPanel();
-}
-
-function showIdleCallPanel() {
-    elements.beatCounter.textContent = '';
-    elements.callLine.replaceChildren();
-    elements.callLine.className = 'idle';
-    elements.callLine.textContent = 'Practice Calls shows the calls in time; Test Me lets you make them.';
-    elements.callNext.textContent = '';
-    elements.callFeedback.replaceChildren();
-}
-
-/**
- * Name of a beat, e.g. "A1 · 3" (beats counted from 1, as the music is)
- * @param {number} beat - Beats from the start of the dance
- * @returns {string}
- */
-function beatLabel(beat) {
-    const whole = Math.floor(beat + 1e-6);
-    if (whole < 0) {
-        return `Potatoes · ${whole + INTRO_BEATS + 1}`;
-    }
-    const { partIndex, beatInPart } = locateBeat(state.dance, whole);
-    return `${state.dance.parts[partIndex].name} · ${beatInPart + 1}`;
+    callPanel.showIdle();
 }
 
 /**
@@ -652,100 +609,8 @@ function beatLabel(beat) {
  * @param {number} beat - Beats from the start of the dance
  */
 function updateCallPanel(beat) {
-    elements.beatCounter.textContent = beatLabel(beat);
-    const session = state.session;
-    if (!session) return;
-
-    if (session.mode === 'karaoke') {
-        // The call being said, or the next one coming
-        const index = session.calls.findIndex(call => call.end + CALL_HOLD_BEATS > beat);
-        const call = index < 0 ? null : session.calls[index];
-        showOnCallLine(call, 0, beat);
-        const next = index < 0 ? null : session.calls[index + 1];
-        elements.callNext.textContent = next ? `Then: ${displayCall(next.syllables)}` : '';
-        return;
-    }
-
-    // Test mode: a call whose figure has started without being made is missed
-    while (session.nextCall < session.calls.length && beat >= session.calls[session.nextCall].figureBeat) {
-        const call = session.calls[session.nextCall];
-        session.attempts[session.nextCall] = { missed: true };
-        showFeedback(`Missed: ${displayCall(call.syllables)}`, 'off');
-        session.nextCall++;
-    }
-
-    // The call the trainee made, while they are saying it; otherwise a reminder
-    // of what comes next, like the card a caller keeps in hand
-    const lastIndex = session.attempts.findLastIndex(attempt => attempt && !attempt.missed);
-    const last = session.attempts[lastIndex];
-    const lastCall = session.calls[lastIndex];
-    if (last && beat < lastCall.end + last.offset + CALL_HOLD_BEATS) {
-        showOnCallLine(lastCall, last.offset, beat);
-    } else {
-        showOnCallLine(null, 0, beat);
-    }
-    const upcoming = session.calls[session.nextCall];
-    elements.callNext.textContent = upcoming ? `Next: ${displayCall(upcoming.syllables)}` : '';
-}
-
-/**
- * Show a call on the call line, lighting up the syllables said so far
- * @param {Object|null} call - From callSchedule
- * @param {number} offset - Beats later than scheduled that the call is said
- * @param {number} beat - Beats from the start of the dance
- */
-function showOnCallLine(call, offset, beat) {
-    const session = state.session;
-    const key = call ? `${session.calls.indexOf(call)}@${offset}` : null;
-    if (session.shown !== key) {
-        session.shown = key;
-        elements.callLine.className = '';
-        elements.callLine.replaceChildren();
-        call?.syllables.forEach((syllable, i) => {
-            if (i > 0 && syllable.word !== call.syllables[i - 1].word) {
-                elements.callLine.append(' ');
-            }
-            const span = document.createElement('span');
-            span.className = syllable.stressed ? 'syllable stressed' : 'syllable';
-            // The call's first letter is a capital, as in displayCall
-            span.textContent = i === 0
-                ? syllable.text.charAt(0).toUpperCase() + syllable.text.slice(1)
-                : syllable.text;
-            elements.callLine.append(span);
-        });
-    }
-    if (!call) return;
-
-    elements.callLine.classList.toggle('upcoming', beat < call.start + offset);
-    const spans = elements.callLine.querySelectorAll('.syllable');
-    call.syllables.forEach((syllable, i) => {
-        const said = beat >= syllable.beat + offset;
-        const saying = said && !(beat >= (call.syllables[i + 1]?.beat ?? call.end) + offset);
-        spans[i].classList.toggle('said', said);
-        spans[i].classList.toggle('saying', saying);
-    });
-}
-
-/**
- * Add a line to the feedback list, newest first
- * @param {string} text
- * @param {string} grade - For styling: 'on-time', 'nearly', 'off' or 'summary'
- */
-function showFeedback(text, grade) {
-    const item = document.createElement('div');
-    item.className = `feedback ${grade}`;
-    item.textContent = text;
-    elements.callFeedback.prepend(item);
-}
-
-/**
- * Format a number of beats, e.g. "1.5 beats"
- * @param {number} beats
- * @returns {string}
- */
-function formatBeats(beats) {
-    const rounded = Math.round(Math.abs(beats) * 4) / 4;
-    return `${rounded} beat${rounded === 1 ? '' : 's'}`;
+    callPanel.showBeat(beatLabel(state.dance, beat));
+    state.session?.update(beat);
 }
 
 /**
@@ -753,47 +618,8 @@ function formatBeats(beats) {
  * @param {number} timestamp - performance.now() time of the press
  */
 function makeCall(timestamp) {
-    const session = state.session;
-    if (session?.mode !== 'test' || !state.isPlaying || !state.animationState) return;
-    if (session.nextCall >= session.calls.length) return;
-
-    const beat = currentBeat(timestamp);
-    const index = session.nextCall++;
-    const call = session.calls[index];
-    const judged = judgeCall(beat, call);
-    session.attempts[index] = { clickBeat: beat, ...judged };
-
-    let text = `${displayCall(call.syllables)}: ${judged.grade}`;
-    if (judged.grade !== 'on time') {
-        text += ` (${formatBeats(judged.offset)})`;
-    }
-    if (judged.endsBefore < 0) {
-        text += `, running ${formatBeats(judged.endsBefore)} into the figure`;
-    }
-    const style = judged.grade === 'on time' ? 'on-time' : judged.grade.startsWith('a little') ? 'nearly' : 'off';
-    showFeedback(text, style);
-}
-
-/**
- * Test mode: how the trainee did over the whole session
- * @param {Object} session
- */
-function showTestSummary(session) {
-    const counts = { onTime: 0, nearly: 0, missed: 0 };
-    for (const attempt of session.attempts) {
-        if (attempt.missed) counts.missed++;
-        else if (attempt.grade === 'on time') counts.onTime++;
-        else if (attempt.grade.startsWith('a little')) counts.nearly++;
-    }
-    const total = session.calls.length;
-    let text = `On time for ${counts.onTime} of ${total} calls`;
-    if (counts.nearly) text += `, close on ${counts.nearly}`;
-    if (counts.missed) text += `, missed ${counts.missed}`;
-    showOnCallLine(null, 0, 0);
-    elements.callLine.className = 'summary';
-    elements.callLine.textContent = `${text}.`;
-    elements.callNext.textContent = 'Each call is listed on the right.';
-    showFeedback(`${text}.`, 'summary');
+    if (state.session?.mode !== 'test' || !state.isPlaying || !state.animationState) return;
+    state.session.makeCall(currentBeat(timestamp));
 }
 
 elements.practiceBtn.addEventListener('click', () => {

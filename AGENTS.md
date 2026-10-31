@@ -116,6 +116,9 @@ potatoes, so it is usually the short call.
 press Call (or the space bar, or the dancers) when they'd start each
 call, and says how early or late they were.
 
+`practice.js` keeps track of a session's calls and tells the panel in
+`callPanel.js` what to show, while `app.js` plays the dance for it.
+
 ## Dance Data Structure
 
 Dances are stored as JSON with the following structure:
