@@ -1,26 +1,39 @@
-// Dance music, synthesized in the browser from a tune in ABC notation: a fiddle
-// plays the melody over a "boom-chuck" accompaniment (a bass note on each beat
-// and a chord between beats). Being synthesized, it follows the tempo exactly.
+// Dance music, synthesized in the browser from a tune in ABC notation: the lead
+// instruments play the melody over a piano's "boom-chuck" (a bass note on each
+// beat and a chord between beats). Being synthesized, it follows the tempo exactly.
 
 import { BeatScheduler } from './scheduler.js';
+import { Band, together } from './instruments.js';
 import { parseAbc } from './abc.js';
 import { INTRO_BEATS } from './timeline.js';
 import tunes from './library/tunes.json' with { type: 'json' };
 
 export { tunes };
 
-/** Loudness of the music as a whole, and of each instrument */
-const MUSIC_GAIN = 0.9;
-const FIDDLE_GAIN = 0.16;
-const BASS_GAIN = 0.35;
-const CHUCK_GAIN = 0.07;
+/** How loud the bass and chords are, for a note on the beat */
+const BASS_LOUDNESS = 1;
+const CHUCK_LOUDNESS = 0.42;
 
 /** How long the bass and chords ring, in seconds at most */
 const BASS_SECONDS = 0.35;
-const CHUCK_SECONDS = 0.12;
+const CHUCK_SECONDS = 0.14;
 
-/** Seconds to fade out a note that is cut short (on pause, say) */
-const FADE_SECONDS = 0.03;
+/** How much players vary: a fraction of a note's loudness, and seconds late */
+const LOUDNESS_VARIATION = 0.12;
+const LATE_SECONDS = { melody: 0.008, bass: 0.004, chuck: 0.006 };
+
+/**
+ * Who can play the melody: each instrument, and how loud it is. The fiddle is
+ * kept quiet beside the accordion, adding its bite without standing out.
+ */
+export const LEADS = {
+    accordion: { name: 'Accordion', instruments: [['playAccordion', 1]] },
+    fiddle: { name: 'Fiddle', instruments: [['playFiddle', 1]] },
+    both: { name: 'Both', instruments: [['playAccordion', 0.85], ['playFiddle', 0.45]] }
+};
+
+/** The lead until another is chosen */
+export const DEFAULT_LEAD = 'accordion';
 
 /**
  * Find a built-in tune by title
@@ -49,15 +62,6 @@ export function medleyTunes(tune) {
 }
 
 /**
- * Frequency of a MIDI note
- * @param {number} midi
- * @returns {number} Hz
- */
-export function midiFrequency(midi) {
-    return 440 * 2 ** ((midi - 69) / 12);
-}
-
-/**
  * The notes of a chord, as MIDI numbers in the octave around middle C
  * @param {{root: number, minor: boolean, seventh: boolean}} chord
  * @returns {number[]}
@@ -70,15 +74,26 @@ export function chordNotes({ root, minor, seventh }) {
 }
 
 /**
+ * How strongly a note is played, by where it falls: the first beat of each
+ * pair is strongest, then the other beats, then whatever comes between them
+ * @param {number} beat
+ * @returns {number} Up to 1
+ */
+export function beatStrength(beat) {
+    if (Math.abs(beat - Math.round(beat)) > 1e-6) return 0.78;
+    return Math.round(beat) % 2 === 0 ? 1 : 0.9;
+}
+
+/**
  * Everything played in one time through a tune: the melody, and the
  * accompaniment under it. The bass alternates root and fifth on the beats; the
  * chord comes halfway between beats in a reel, and on the third eighth note of
  * each beat in a jig.
  * @param {Object} tune - From parseAbc
- * @returns {{beat: number, voice: 'fiddle'|'bass'|'chuck', midi: number[], beats: number}[]}
+ * @returns {{beat: number, voice: 'melody'|'bass'|'chuck', midi: number[], beats: number}[]}
  */
 export function tuneEvents(tune) {
-    const events = tune.notes.map(note => ({ beat: note.beat, voice: 'fiddle', midi: note.midi, beats: note.beats }));
+    const events = tune.notes.map(note => ({ beat: note.beat, voice: 'melody', midi: note.midi, beats: note.beats }));
     const offbeat = tune.compound ? 2 / 3 : 1 / 2;
     const tonicChord = { root: tune.tonic, minor: false, seventh: false };
 
@@ -107,7 +122,7 @@ function accompaniment(chord, beat, offbeat) {
 }
 
 /**
- * The lead fiddle's "potatoes" before the dance: the root and fifth of the
+ * The "potatoes" before the dance: the root and fifth of the
  * tune's first chord (the tonic, if it has none), chopped on and between the
  * beats, over that chord
  * @param {Object} tune - From parseAbc
@@ -121,8 +136,8 @@ export function potatoEvents(tune) {
     const events = [];
     for (let beat = -INTRO_BEATS; beat < 0; beat++) {
         events.push(
-            { beat, voice: 'fiddle', midi: doubleStop, beats: offbeat * 0.8 },
-            { beat: beat + offbeat, voice: 'fiddle', midi: doubleStop, beats: (1 - offbeat) * 0.7 },
+            { beat, voice: 'melody', midi: doubleStop, beats: offbeat * 0.8 },
+            { beat: beat + offbeat, voice: 'melody', midi: doubleStop, beats: (1 - offbeat) * 0.7 },
             ...accompaniment(firstChord, beat, offbeat)
         );
     }
@@ -136,13 +151,16 @@ export function potatoEvents(tune) {
 export class MusicPlayer extends BeatScheduler {
     /**
      * @param {Object} [options] - See BeatScheduler
+     * @param {() => number} [options.random] - Numbers from 0 up to 1
      */
-    constructor(options = {}) {
+    constructor({ random = Math.random, ...options } = {}) {
         super(options);
+        this.random = random;
         // Each time through the dance in turn: the tune's length and what's played
         this.rounds = [];
         this.potatoes = [];
-        this.output = null;
+        this.lead = DEFAULT_LEAD;
+        this.band = null;
     }
 
     /**
@@ -153,6 +171,15 @@ export class MusicPlayer extends BeatScheduler {
         const parsed = tune ? medleyTunes(tune).map(played => parseAbc(played.abc)) : [];
         this.rounds = parsed.map(played => ({ beats: played.beats, events: tuneEvents(played) }));
         this.potatoes = parsed.length > 0 ? potatoEvents(parsed[0]) : [];
+        this.resync();
+    }
+
+    /**
+     * Choose who plays the melody
+     * @param {string} lead - A key of LEADS
+     */
+    setLead(lead) {
+        this.lead = lead;
         this.resync();
     }
 
@@ -183,122 +210,27 @@ export class MusicPlayer extends BeatScheduler {
     }
 
     /**
-     * Schedule one note (or chord)
-     * @param {{voice: string, midi: number[], beats: number}} event
+     * Schedule one note (or chord), played with a little of the unevenness of
+     * real players. Notes only ever come late, so they're never in the past.
+     * @param {{beat: number, voice: string, midi: number[], beats: number}} event
      * @param {number} time - Audio-clock time in seconds
+     * @returns {{end: number, cancel: () => void}}
      */
     play(event, time) {
-        if (!this.output) {
-            this.output = this.context.createGain();
-            this.output.gain.value = MUSIC_GAIN;
-            this.output.connect(this.context.destination);
-        }
+        this.band ??= new Band(this.context, { random: this.random });
         const seconds = this.secondsOf(event.beats);
-        const voice = { fiddle: playFiddle, bass: playBass, chuck: playChuck }[event.voice];
-        return voice(this.context, this.output, event.midi, time, seconds);
-    }
-}
+        const loudness = beatStrength(event.beat) *
+            (1 + (this.random() * 2 - 1) * LOUDNESS_VARIATION);
+        const at = time + this.random() * LATE_SECONDS[event.voice];
 
-/**
- * Something sounding: its oscillators and the gain shaping it
- * @returns {{end: number, cancel: () => void}}
- */
-function sounding(context, oscillators, envelope, end) {
-    return {
-        end,
-        cancel() {
-            const now = context.currentTime;
-            envelope.gain.cancelScheduledValues(now);
-            envelope.gain.setTargetAtTime(0, now, FADE_SECONDS / 3);
-            for (const oscillator of oscillators) {
-                oscillator.stop(now + FADE_SECONDS);
-            }
-        }
-    };
-}
-
-/**
- * A fiddle note: a pair of slightly detuned sawtooth waves, softened by a
- * low-pass filter, with a little vibrato and a bowed attack
- */
-function playFiddle(context, output, midis, time, seconds) {
-    const end = time + seconds;
-    const envelope = context.createGain();
-    const filter = context.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.value = 2800;
-    filter.Q.value = 1.5;
-    filter.connect(envelope);
-    envelope.connect(output);
-
-    const peak = FIDDLE_GAIN / midis.length ** 0.5;
-    envelope.gain.setValueAtTime(0, time);
-    envelope.gain.linearRampToValueAtTime(peak, time + 0.02);
-    envelope.gain.setTargetAtTime(peak * 0.75, time + 0.02, 0.08);
-    envelope.gain.setTargetAtTime(0, Math.max(time + 0.03, end - 0.03), 0.015);
-
-    const vibrato = context.createOscillator();
-    const vibratoDepth = context.createGain();
-    vibrato.frequency.value = 5.5;
-    vibratoDepth.gain.value = 9; // Cents
-    vibrato.connect(vibratoDepth);
-
-    const oscillators = [vibrato];
-    for (const midi of midis) {
-        for (const detune of [-4, 4]) {
-            const oscillator = context.createOscillator();
-            oscillator.type = 'sawtooth';
-            oscillator.frequency.value = midiFrequency(midi);
-            oscillator.detune.value = detune;
-            vibratoDepth.connect(oscillator.detune);
-            oscillator.connect(filter);
-            oscillators.push(oscillator);
+        switch (event.voice) {
+        case 'bass':
+            return this.band.playPiano(event.midi, at, Math.min(seconds, BASS_SECONDS), loudness * BASS_LOUDNESS);
+        case 'chuck':
+            return this.band.playPiano(event.midi, at, Math.min(seconds, CHUCK_SECONDS), loudness * CHUCK_LOUDNESS);
+        default:
+            return together(LEADS[this.lead].instruments.map(([playInstrument, level]) =>
+                this.band[playInstrument](event.midi, at, seconds, loudness * level)));
         }
     }
-    for (const oscillator of oscillators) {
-        oscillator.start(time);
-        oscillator.stop(end + 0.1);
-    }
-    return sounding(context, oscillators, envelope, end + 0.1);
-}
-
-/**
- * A plucked bass note
- */
-function playBass(context, output, [midi], time, seconds) {
-    const end = time + Math.min(seconds, BASS_SECONDS);
-    const envelope = context.createGain();
-    envelope.connect(output);
-    envelope.gain.setValueAtTime(BASS_GAIN, time);
-    envelope.gain.exponentialRampToValueAtTime(0.001, end);
-
-    const oscillator = context.createOscillator();
-    oscillator.type = 'triangle';
-    oscillator.frequency.value = midiFrequency(midi);
-    oscillator.connect(envelope);
-    oscillator.start(time);
-    oscillator.stop(end);
-    return sounding(context, [oscillator], envelope, end);
-}
-
-/**
- * A short, damped chord between the beats
- */
-function playChuck(context, output, midis, time, seconds) {
-    const end = time + Math.min(seconds, CHUCK_SECONDS);
-    const envelope = context.createGain();
-    envelope.connect(output);
-    envelope.gain.setValueAtTime(CHUCK_GAIN, time);
-    envelope.gain.exponentialRampToValueAtTime(0.001, end);
-
-    const oscillators = midis.map(midi => {
-        const oscillator = context.createOscillator();
-        oscillator.type = 'triangle';
-        oscillator.frequency.value = midiFrequency(midi);
-        oscillator.connect(envelope);
-        oscillator.start(time);
-        oscillator.stop(end);
-        return oscillator;
-    });
-    return sounding(context, oscillators, envelope, end);
 }

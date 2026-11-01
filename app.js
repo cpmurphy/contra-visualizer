@@ -7,7 +7,7 @@ import { INTRO_BEATS, beatLabel, danceBeats, locateBeat, moveStartBeat } from '.
 import { PRACTICE_ROUNDS } from './calls.js';
 import { PracticeSession } from './practice.js';
 import { CallPanel } from './callPanel.js';
-import { MusicPlayer, findTune, tunes } from './music.js';
+import { DEFAULT_LEAD, LEADS, MusicPlayer, findTune, tunes } from './music.js';
 
 const APP_TITLE = document.title;
 
@@ -43,6 +43,7 @@ const music = new MusicPlayer({ createContext });
 
 const METRONOME_SETTING = 'metronome';
 const MUSIC_SETTING = 'music';
+const LEAD_SETTING = 'lead';
 
 // DOM elements
 const elements = {
@@ -57,6 +58,7 @@ const elements = {
     nextMoveBtn: document.getElementById('next-move-btn'),
     metronomeToggle: document.getElementById('metronome-toggle'),
     musicSelect: document.getElementById('music-select'),
+    leadSelect: document.getElementById('lead-select'),
     tempoSlider: document.getElementById('tempo-slider'),
     tempoValue: document.getElementById('tempo-value'),
     practiceBtn: document.getElementById('practice-btn'),
@@ -721,6 +723,33 @@ elements.musicSelect.addEventListener('change', () => {
     music.setTune(findTune(title) ?? null);
     try {
         localStorage.setItem(MUSIC_SETTING, title);
+    } catch {
+        // No storage: the choice lasts until the page is reloaded
+    }
+});
+
+// So is who plays the melody
+for (const [lead, { name }] of Object.entries(LEADS)) {
+    const option = document.createElement('option');
+    option.value = lead;
+    option.textContent = name;
+    elements.leadSelect.append(option);
+}
+elements.leadSelect.value = DEFAULT_LEAD;
+try {
+    const saved = localStorage.getItem(LEAD_SETTING);
+    if (Object.hasOwn(LEADS, saved)) elements.leadSelect.value = saved;
+} catch {
+    // No storage: the usual lead to start with
+}
+music.setLead(elements.leadSelect.value);
+
+elements.leadSelect.addEventListener('change', () => {
+    const lead = elements.leadSelect.value;
+    unlockAudio();
+    music.setLead(lead);
+    try {
+        localStorage.setItem(LEAD_SETTING, lead);
     } catch {
         // No storage: the choice lasts until the page is reloaded
     }

@@ -3,8 +3,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { beatLength, keySignature, parseAbc, parseChord } from '../abc.js';
+import { midiFrequency, roomEchoes } from '../instruments.js';
 import {
-    MusicPlayer, chordNotes, findTune, medleyTunes, midiFrequency, potatoEvents, tuneEvents, tunes
+    DEFAULT_LEAD, LEADS, MusicPlayer, beatStrength, chordNotes, findTune, medleyTunes, potatoEvents, tuneEvents, tunes
 } from '../music.js';
 import { INTRO_BEATS } from '../timeline.js';
 
@@ -128,7 +129,7 @@ test('chordNotes builds triads and sevenths', () => {
 
 test('tuneEvents puts bass on the beat and a chord between beats', () => {
     const reel = tuneEvents(tune('"D"AFDF "A"AFDF|'));
-    const accompaniment = reel.filter(e => e.voice !== 'fiddle').map(e => [e.beat, e.voice, e.midi.join('+')]);
+    const accompaniment = reel.filter(e => e.voice !== 'melody').map(e => [e.beat, e.voice, e.midi.join('+')]);
     assert.deepStrictEqual(accompaniment, [
         [0, 'bass', '38'], [0.5, 'chuck', '62+66+69'],
         [1, 'bass', '40'], [1.5, 'chuck', '57+61+64']
@@ -141,17 +142,17 @@ test('tuneEvents puts bass on the beat and a chord between beats', () => {
 
 test('potatoEvents chops the tonic through the potatoes', () => {
     const events = potatoEvents(tune('"D"AFDF AFDF|'));
-    const fiddle = events.filter(e => e.voice === 'fiddle');
-    assert.strictEqual(fiddle.length, INTRO_BEATS * 2);
-    assert.strictEqual(fiddle[0].beat, -INTRO_BEATS);
-    assert.deepStrictEqual(fiddle[0].midi, [74, 81]);
+    const melody = events.filter(e => e.voice === 'melody');
+    assert.strictEqual(melody.length, INTRO_BEATS * 2);
+    assert.strictEqual(melody[0].beat, -INTRO_BEATS);
+    assert.deepStrictEqual(melody[0].midi, [74, 81]);
     assert.ok(events.every(e => e.beat >= -INTRO_BEATS && e.beat < 0));
 });
 
 test('potatoEvents plays over the first chord, for a tune that starts in a minor', () => {
     const events = potatoEvents(parseAbc('X:1\nM:4/4\nL:1/8\nK:Edor\n"Em"E2BE dEBE|'));
     assert.deepStrictEqual(events.find(e => e.voice === 'chuck').midi, [64, 67, 71]);
-    assert.deepStrictEqual(events.find(e => e.voice === 'fiddle').midi, [76, 83]);
+    assert.deepStrictEqual(events.find(e => e.voice === 'melody').midi, [76, 83]);
 });
 
 test('MusicPlayer repeats the tune and plays the potatoes before it', () => {
@@ -192,4 +193,121 @@ test('MusicPlayer plays a medley\'s tunes in turn, then starts over', () => {
     // The potatoes are the first tune's
     assert.deepStrictEqual(player.eventsBetween(-INTRO_BEATS, 0),
         tuneAlone('Drowsy Maggie').eventsBetween(-INTRO_BEATS, 0));
+});
+
+test('beatStrength leans on the first of each pair of beats', () => {
+    assert.ok(beatStrength(0) > beatStrength(1));
+    assert.ok(beatStrength(1) > beatStrength(0.5));
+    assert.strictEqual(beatStrength(2), beatStrength(0));
+    assert.strictEqual(beatStrength(1 / 3), beatStrength(2 / 3));
+    // Including the potatoes, before the dance starts
+    assert.strictEqual(beatStrength(-2), beatStrength(0));
+    assert.strictEqual(beatStrength(-1), beatStrength(1));
+});
+
+test('roomEchoes starts after a moment of silence and dies away', () => {
+    const echoes = roomEchoes(1, 1000, 0.02, () => 0.9);
+    assert.strictEqual(echoes.length, 1000);
+    assert.ok(echoes.slice(0, 20).every(sample => sample === 0));
+    const loudest = samples => Math.max(...samples.map(Math.abs));
+    assert.ok(loudest(echoes.slice(20, 120)) > 20 * loudest(echoes.slice(600, 700)));
+    assert.ok(loudest(echoes.slice(900)) < 0.01);
+});
+
+/**
+ * Stand-in for an AudioContext: nodes accept whatever they're told, and it
+ * records the sources started
+ */
+class FakeAudioContext {
+    constructor() {
+        this.currentTime = 0;
+        this.sampleRate = 100;
+        this.destination = {};
+        this.sources = [];
+    }
+
+    node(fields = {}) {
+        const param = () => ({
+            value: 0,
+            setValueAtTime() {},
+            setTargetAtTime() {},
+            linearRampToValueAtTime() {},
+            exponentialRampToValueAtTime() {},
+            cancelScheduledValues() {}
+        });
+        return {
+            gain: param(), frequency: param(), detune: param(), Q: param(), pan: param(),
+            threshold: param(), knee: param(), ratio: param(), attack: param(), release: param(),
+            connect() {},
+            ...fields
+        };
+    }
+
+    source() {
+        const source = this.node({
+            setPeriodicWave() {},
+            start(time) { this.startTime = time; },
+            stop(time) { this.stopTime = time; }
+        });
+        this.sources.push(source);
+        return source;
+    }
+
+    createGain() { return this.node(); }
+    createBiquadFilter() { return this.node(); }
+    createStereoPanner() { return this.node(); }
+    createDynamicsCompressor() { return this.node(); }
+    createConvolver() { return this.node(); }
+    createOscillator() { return this.source(); }
+    createBufferSource() { return this.source(); }
+    createPeriodicWave() { return {}; }
+    createBuffer() { return { copyToChannel() {} }; }
+}
+
+/**
+ * A player partway through a dance on a fake audio clock
+ */
+function playerAt(random = () => 0.5) {
+    const context = new FakeAudioContext();
+    const player = new MusicPlayer({ createContext: () => context, random });
+    player.context = context;
+    player.anchor = { beat: 0, audioTime: 0, secondsPerBeat: 0.6 };
+    return { player, context };
+}
+
+test('every lead plays the melody, and the default is one of them', () => {
+    assert.ok(DEFAULT_LEAD in LEADS);
+    for (const lead of Object.keys(LEADS)) {
+        const { player, context } = playerAt();
+        player.setLead(lead);
+        const note = player.play({ beat: 0, voice: 'melody', midi: [74, 81], beats: 0.5 }, 1);
+        assert.ok(context.sources.length > 0);
+        assert.ok(note.end > 1.3);
+        note.cancel();
+        assert.ok(context.sources.every(source => source.stopTime <= context.currentTime + 0.03));
+    }
+});
+
+test('the piano plays the bass and chords, each for no longer than it should ring', () => {
+    const { player } = playerAt();
+    const bass = player.play({ beat: 0, voice: 'bass', midi: [38], beats: 0.5 }, 1);
+    const chuck = player.play({ beat: 0.5, voice: 'chuck', midi: [62, 66, 69], beats: 0.5 }, 1);
+    assert.ok(bass.end < 1.7);
+    assert.ok(chuck.end < 1.5);
+});
+
+test('notes only come late, and by very little', () => {
+    const times = random => {
+        const { player, context } = playerAt(random);
+        player.play({ beat: 0, voice: 'bass', midi: [38], beats: 0.5 }, 1);
+        return context.sources.at(-1).startTime;
+    };
+    assert.strictEqual(times(() => 0), 1);
+    assert.ok(times(() => 0.99) > 1 && times(() => 0.99) < 1.01);
+});
+
+test('notes at the very start of the audio clock are not scheduled before it', () => {
+    const { player, context } = playerAt(() => 0.9);
+    player.play({ beat: 0, voice: 'melody', midi: [74], beats: 0.5 }, 0);
+    assert.ok(context.sources.every(source => source.startTime >= 0));
 });

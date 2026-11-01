@@ -239,14 +239,16 @@
         }
 
         #controls {
-            height: 80px;
+            min-height: 80px;
+            flex-shrink: 0;
             background-color: white;
             border-top: 1px solid #ddd;
             display: flex;
+            flex-wrap: wrap;
             align-items: center;
             justify-content: center;
-            gap: 16px;
-            padding: 0 20px;
+            gap: 8px 16px;
+            padding: 8px 20px;
         }
 
         button {
@@ -392,14 +394,14 @@
             font-variant-numeric: tabular-nums;
         }
 
-        #music-label {
+        #music-label, #lead-label {
             display: flex;
             align-items: center;
             gap: 8px;
             font-size: 14px;
         }
 
-        #music-select {
+        #music-select, #lead-select {
             font-size: 14px;
             padding: 6px;
         }
@@ -523,6 +525,10 @@
                 <select id="music-select">
                     <option value="">None</option>
                 </select>
+            </label>
+            <label id="lead-label">
+                Lead
+                <select id="lead-select"></select>
             </label>
             <label id="metronome-label">
                 <input type="checkbox" id="metronome-toggle" checked>

@@ -81,9 +81,13 @@ the dancers' place in the figure (`AnimationState.changeTempo`).
 ## Music
 
 The "Music" menu plays a tune under the dance, synthesized in the browser
-(`music.js`), so it follows the tempo exactly: a fiddle plays the melody
-over a boom-chuck accompaniment (bass on the beat, a chord between beats),
-and before a practice session the fiddle plays the potatoes. Tunes are in
+(`music.js`), so it follows the tempo exactly: the lead plays the melody
+over a piano's boom-chuck (bass on the beat, a chord between beats), and
+before a practice session the lead plays the potatoes. The "Lead" menu
+chooses an accordion, a fiddle or both (`LEADS`), and is remembered. The
+instruments and the room they play in are in `instruments.js`; `music.js`
+adds a little unevenness in time and loudness, and leans on the strong
+beats, so they sound played. Tunes are in
 `library/tunes.json` as ABC notation, read by `abc.js`, which understands
 the common subset used for dance tunes (repeats, endings, chord symbols
 like `"D"`, broken rhythms, triplets) but not pickup notes or inline
