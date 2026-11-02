@@ -12,6 +12,11 @@ A way to see contra dances and practice calling them
 
 ## Quick Setup
 
+### Zero Setup -- Just View It Online
+
+You can load the [contra visualizer](https://cpmurphy.github.io/contra-visualizer/)
+directly, served from Github Pages.
+
 ### Local on Windows
 
 Nothing to install. Double-click `serve.cmd`, or from the project folder run:
@@ -43,6 +48,21 @@ Run the `./serve.sh` script. Then load http://localhost:8000 in your
 browser (or `http://<your-host-name>:8000` from another device on the
 same network). Press Ctrl+C to stop.
 
-### Remote Hosting (e.g. Github Pages)
+### Hosting on GitHub Pages
 
-TODO
+There is nothing to build. The published site is the `main` branch.
+`.nojekyll` tells GitHub to publish those files as they are.
+
+On GitHub, open the repository's Settings, then Pages. Under "Build and
+deployment", choose "Deploy from a branch". Choose the `main` branch and
+the `/ (root)` folder, then Save.
+
+That address shows on the Pages screen after the first build finishes,
+which takes about a minute. Later pushes to `main` update it. GitHub
+Pages serves a public repository for free.
+
+### Self Hosting
+
+It's just a matter of copying the repo contents to a server you control.
+For more detailed instructions, use a good search engine or your favourite
+AI.
