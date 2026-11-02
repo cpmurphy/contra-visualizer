@@ -14,6 +14,11 @@ const TURN_ALONE_ALONG_PX = 10;
 // they cast around steps to let them by
 const CAST_OFF_OUTSIDE_PX = 35;
 const CAST_OFF_PIVOT_INSIDE_PX = 25;
+// A dancer casting off from below the dancer they go around (as the ones do in Lady
+// of the Lake, having progressed already) starts level with them, on their inside,
+// and orbits about three quarters of the way around them, closely while they go over
+// the top and outside, then widening to come down into their place below
+const CAST_ORBIT_RADIUS_PX = 55;
 
 // Allemandes: how far apart the two turning are (twice the radius they turn at)
 const ALLEMANDE_RADIUS_PX = 25;
@@ -254,10 +259,13 @@ export function createTurnAlonePaths(dancerSet, turning, startPosById, paths, be
 }
 
 /**
- * Create cast off paths: each dancer casting off turns out and goes around the
- * outside of the line, ending in the line below the dancer on their side, who steps
- * up on the inside if they need to move up. The two hold near hands as they go
- * around each other, added to paths.holds.
+ * Create cast off paths: each dancer casting off turns out, away from the middle of
+ * the set, and goes around the outside of the dancer on their side, ending in the
+ * line below them. If the caster starts above, they go out and down around the
+ * outside of the line while the other dancer steps up on the inside. If the caster's
+ * place is below (they've progressed), they've come up level with the other dancer,
+ * and orbit around them to their place below them. The two hold near hands as they go around
+ * each other, added to paths.holds.
  * @param {import('./dancers.js').Set} dancerSet
  * @param {number[]} casting - Places of the dancers casting off
  * @param {Map<string, Position>} startPosById
@@ -288,7 +296,8 @@ export function createCastOffPaths(dancerSet, casting, startPosById, endPosById,
         paths.set(dancer.id, createBezierPath([start, control, end], beats));
     });
 
-    // Each caster with the dancer on their side in their minor set, if they trade places
+    // Each caster with the dancer on their side in their minor set, if they trade
+    // places or the caster comes back to their place from below the other
     const holds = [];
     for (const i of dancerSet.minorSetStarts()) {
         for (const column of [0, 1]) {
@@ -298,8 +307,63 @@ export function createCastOffPaths(dancerSet, casting, startPosById, endPosById,
             const caster = dancerSet.dancers[castingIndex];
             const pivot = dancerSet.dancers[castingIndex === upper ? lower : upper];
             if (startPosById.get(caster.id).equals(endPosById.get(caster.id), 0.01)) continue;
+            if (castingIndex === lower) {
+                castUpAround(caster, pivot, startPosById, endPosById, paths, beats);
+            }
             holds.push({ ids: [caster.id, pivot.id], shape: 'line', from: TAKE_HANDS_BEATS, to: beats - TAKE_HANDS_BEATS });
         }
     }
     paths.holds = holds;
+}
+
+/**
+ * Paths for a dancer casting off from below the dancer they go around: having come
+ * up the center level with them, on their inside, the caster orbits around them,
+ * over the top, down the outside and in below them to the caster's place, about
+ * three quarters of a turn. The dancer they go around turns on the spot.
+ * @param {import('./dancers.js').Dancer} caster
+ * @param {import('./dancers.js').Dancer} pivot
+ * @param {Map<string, Position>} startPosById
+ * @param {Map<string, Position>} endPosById
+ * @param {Map<string, import('./paths.js').Path>} paths
+ * @param {number} beats
+ */
+function castUpAround(caster, pivot, startPosById, endPosById, paths, beats) {
+    const start = toPixels(startPosById.get(caster.id), SVG_WIDTH, SVG_HEIGHT);
+    const end = toPixels(endPosById.get(caster.id), SVG_WIDTH, SVG_HEIGHT);
+    const hub = toPixels(startPosById.get(pivot.id), SVG_WIDTH, SVG_HEIGHT);
+    const outward = end.x < COLUMN_MIDPOINT_PX ? -1 : 1;
+
+    // Angles measured from straight out from the middle, round towards the top: the
+    // caster goes from the inner side, over the top, out and down to below
+    const angleOf = p => Math.atan2(hub.y - p.y, outward * (p.x - hub.x));
+    let startAngle = angleOf(start);
+    let endAngle = angleOf(end);
+    while (startAngle <= endAngle) startAngle += 2 * Math.PI;
+    const startRadius = Math.hypot(start.x - hub.x, start.y - hub.y);
+    const endRadius = Math.hypot(end.x - hub.x, end.y - hub.y);
+    const smoothstep = (a, b, t) => {
+        const u = Math.min(1, Math.max(0, (t - a) / (b - a)));
+        return u * u * (3 - 2 * u);
+    };
+
+    const waypoints = [];
+    const count = 32;
+    for (let i = 0; i <= count; i++) {
+        const t = i / count;
+        const angle = startAngle + (endAngle - startAngle) * t;
+        // Close in to the orbit, hold it over the top and outside, and widen out to
+        // the caster's place at the end
+        const radius = startRadius + (CAST_ORBIT_RADIUS_PX - startRadius) * smoothstep(0, 0.25, t)
+            + (endRadius - CAST_ORBIT_RADIUS_PX) * smoothstep(0.55, 1, t);
+        waypoints.push(fromPixels(
+            hub.x + outward * radius * Math.cos(angle),
+            hub.y - radius * Math.sin(angle),
+            SVG_WIDTH, SVG_HEIGHT
+        ));
+    }
+    waypoints[0] = startPosById.get(caster.id).clone();
+    waypoints[count] = endPosById.get(caster.id).clone();
+    paths.set(caster.id, new Path(waypoints, beats));
+    paths.set(pivot.id, createStationaryPath(startPosById.get(pivot.id), beats));
 }

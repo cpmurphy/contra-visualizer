@@ -87,6 +87,61 @@ test('each one casting off should hold hands with the two they go around', () =>
     assert.deepStrictEqual(calculateMovePaths(ONES_CAST, below).holds, []);
 });
 
+test('coming up the center from below the twos should bring the ones level with them', () => {
+    // As in Lady of the Lake: the ones have progressed below the twos already
+    const set = new Set(6);
+    executeMove(set, { type: 'swing', who: 'neighbor', beats: 12 });
+    for (const move of [ONES_DOWN, ONES_TURN, ONES_UP]) {
+        executeMove(set, move);
+    }
+    // A line of four across the set: L2 R1 L1 R2
+    const positions = set.getPositions();
+    const row = [0, 1, 2, 3].map(index => ({ label: set.dancers[index].getLabel(), pos: positions[index] }))
+        .sort((a, b) => a.pos.x - b.pos.x);
+    assert.deepEqual(row.map(d => d.label), ['L2', 'R1', 'L1', 'R2']);
+    for (const d of row) {
+        assert(Math.abs(d.pos.y - row[0].pos.y) < 0.01, `${d.label} should be in the line`);
+    }
+});
+
+test('casting off from below the twos should orbit three quarters around the two, to below them', () => {
+    const set = new Set(6);
+    executeMove(set, { type: 'swing', who: 'neighbor', beats: 12 });
+    for (const move of [ONES_DOWN, ONES_TURN, ONES_UP]) {
+        executeMove(set, move);
+    }
+    const paths = calculateMovePaths(ONES_CAST, set);
+    const px = (id, beat) => toPixels(paths.get(id).getPositionAtBeat(beat), SVG_WIDTH, SVG_HEIGHT);
+    assert.equal(paths.holds.length, 6);
+    for (const hold of paths.holds) {
+        const [one, two] = hold.ids;
+        const hub = px(two, 0);
+        const outward = Math.sign(hub.x - px(one, 0).x);
+        const angle = beat => {
+            const p = px(one, beat);
+            return Math.atan2(hub.y - p.y, outward * (p.x - hub.x));
+        };
+        // Starting level with the two, inside them, and turning away from the middle
+        // of the set: over the top, outside and down, ending below them
+        assert(Math.abs(angle(0) - Math.PI) < 0.01, `${one} should start inside ${two}`);
+        assert(px(one, 1).y < hub.y - 30, `${one} should go over the top`);
+        assert((px(one, 2.5).x - hub.x) * outward > 30, `${one} should come down outside`);
+        assert(Math.abs(px(one, ONES_CAST.beats).x - hub.x) < 0.5, `${one} should end below ${two}`);
+        assert(px(one, ONES_CAST.beats).y > hub.y, `${one} should end below ${two}`);
+        // ...always going the same way round, about three quarters of a turn
+        let turned = 0;
+        for (let beat = 0.1; beat <= ONES_CAST.beats + 1e-9; beat += 0.1) {
+            let step = angle(beat - 0.1) - angle(beat);
+            step = Math.atan2(Math.sin(step), Math.cos(step));
+            assert(step > 0, `${one} should keep orbiting the same way`);
+            turned += step;
+        }
+        assert(Math.abs(turned - 3 * Math.PI / 2) < 0.05, `${one} should orbit three quarters of a turn`);
+        // ...close around the two while going over the top
+        assert(distance(paths.get(one).getPositionAtBeat(1), paths.get(two).start) < distance(paths.get(one).end, paths.get(two).end));
+    }
+});
+
 test('down the center, turn alone, up the center and cast off paths should not collide', () => {
     for (const set of [properSet(), new Set(6)]) {
         for (const move of [ONES_DOWN, ONES_TURN, ONES_UP, ONES_CAST]) {

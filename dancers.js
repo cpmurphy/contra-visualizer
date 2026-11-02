@@ -503,12 +503,24 @@ export class Set {
     }
 
     /**
-     * The couple comes back up the center of the set
+     * The couple comes back up the center of the set. If their places are below the
+     * other couple of their minor set, they come on up past them until they're level
+     * with them, in a line of four across the set, ready to cast off around them.
      * @param {string} who - 'ones' or 'twos'
      * @param {number} distancePx - How far up the hall to come, in pixels
      */
     upTheCenter(who, distancePx) {
         this.downTheCenter(who, -distancePx);
+        const coming = this.placesOf(who);
+        const places = this.getPlacePositions();
+        for (const i of this.minorSetStarts()) {
+            for (const index of [i + 2, i + 3]) {
+                if (!coming.includes(index) || coming.includes(index - 2)) continue;
+                const dancer = this.dancers[index];
+                const offset = this.getOffset(dancer);
+                this.offsets.set(dancer.id, { x: offset.x, y: places[index - 2].y - places[index].y });
+            }
+        }
     }
 
     /**
