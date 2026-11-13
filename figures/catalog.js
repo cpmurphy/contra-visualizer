@@ -68,7 +68,8 @@ export function whoDances(move) {
  * @property {(set: import('../dancers.js').Set, step: FigureStep) => void} execute -
  *   Make the changes it makes to the set
  * @property {(step: FigureStep & FigurePaths) => void} paths - Add every dancer's
- *   path to step.paths (and any holds, as paths.holds)
+ *   path to step.paths (and any holds, as paths.holds, and any facing, as
+ *   paths.facing)
  */
 
 /**
@@ -260,7 +261,7 @@ const FIGURES = [
         formations: ['improper'],
         endsInPlaces: true,
         execute: set => set.doSiDo(1.0),
-        // Neighbor pairs trace a wide counter-clockwise circle around their shared center
+        // Neighbor pairs go around each other, facing the same way throughout
         paths: ({ set, start, paths, beats }) => createDoSiDoPaths(set, start, paths, beats)
     },
     {

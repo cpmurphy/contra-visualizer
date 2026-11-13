@@ -309,13 +309,23 @@ export class AnimationState {
     }
 
     /**
+     * Which way the dancers who face one way throughout this move face,
+     * whichever way they're going, as in a do-si-do
+     * @returns {Map<string, number>} Angles by dancer id (see facing.js)
+     */
+    getCurrentFacings() {
+        return this.paths.facing || new Map();
+    }
+
+    /**
      * Groups of dancers holding hands now, each with how firmly (0 to 1), fading
      * in as they join hands and out as they let go. A group with shape 'line'
      * holds hands with those beside them, in order, and with shape 'ring' the
      * last with the first too; a pair with shape 'swing' hold each other in a
-     * swing; otherwise all join hands in the middle, as in a star.
+     * swing, the first of them leading; otherwise all join hands in the middle,
+     * as in a star. A group with a hand all give that hand.
      * @param {number} timestamp - Current timestamp in milliseconds
-     * @returns {{ids: string[], shape?: string, strength: number}[]}
+     * @returns {{ids: string[], shape?: string, hand?: 'left'|'right', strength: number}[]}
      */
     getCurrentHolds(timestamp) {
         const beat = this.animator.msToBeats(this.getElapsedTime(timestamp));
@@ -323,6 +333,7 @@ export class AnimationState {
             .map(hold => ({
                 ids: hold.ids,
                 ...(hold.shape && { shape: hold.shape }),
+                ...(hold.hand && { hand: hold.hand }),
                 strength: Math.max(0, Math.min(1,
                     (beat - hold.from) / HOLD_FADE_BEATS + 1,
                     (hold.to - beat) / HOLD_FADE_BEATS + 1))

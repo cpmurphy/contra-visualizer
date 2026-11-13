@@ -11,7 +11,8 @@ import { findFigure } from './figures/catalog.js';
  * Calculate paths for all dancers during a move. The map may also have a `holds`
  * property listing groups of dancers who join hands in the middle of them, as
  * {ids, from, to} with the beats of the move during which they hold on (see
- * createStarPaths).
+ * createStarPaths), and a `facing` property, a map from dancer ID to the way
+ * they face throughout the move, whichever way they go (see createDoSiDoPaths).
  * @param {Object} move - The move object with type, beats, etc.
  * @param {import('./dancers.js').Set} dancerSet - The current set state
  * @returns {Map<string, import('./paths.js').Path>} Map from dancer ID to Path

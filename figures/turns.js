@@ -3,7 +3,7 @@
 
 import { Position, toPixels, fromPixels, center } from '../positions.js';
 import { Path, createStationaryPath } from '../paths.js';
-import { SVG_WIDTH, SVG_HEIGHT, STAGE_HEIGHT, DANCER_RADIUS_PX, VERTICAL_SPACING_PX, COLUMN_MIDPOINT_PX, firstRowY } from '../layout.js';
+import { SVG_WIDTH, SVG_HEIGHT, DANCER_RADIUS_PX } from '../layout.js';
 import { TAKE_HANDS_BEATS, standStill } from './shared.js';
 
 // Swings and stars: the dancers step in over a beat (less in a short figure), turn
@@ -31,11 +31,20 @@ const STAR_RADIUS_PX = 40;
 // Waypoints per place travelled in a star
 const STAR_STEPS_PER_PLACE = 8;
 
+// Do-si-dos: how far to the side of the line between them each of the two goes
+// (a little over half a dancer's width, so that their shoulders pass), and how
+// far past the middle, where they're back to back
+const DO_SI_DO_PASS_PX = DANCER_RADIUS_PX + 6;
+const DO_SI_DO_BACK_PX = 24;
+// Waypoints around a do-si-do
+const DO_SI_DO_STEPS = 32;
+
 /**
- * Create do-si-do paths - neighbor pairs trace a wide counter-clockwise circle.
- * Unlike swing (tight orbit with approach/depart, clockwise, multi-revolution),
- * the do-si-do is a clean single-revolution loop, as wide as there's room for,
- * counter-clockwise.
+ * Create do-si-do paths: neighbors face each other, and keep facing that way
+ * (added to paths.facing) as each goes around the other: forward, passing right
+ * shoulders, to their right behind the other, back to back, and backward,
+ * passing left shoulders, to where they started. Seen from above they go
+ * clockwise around the point midway between them.
  * @param {import('./dancers.js').Set} dancerSet
  * @param {Map<string, Position>} startPosById
  * @param {Map<string, import('./paths.js').Path>} paths
@@ -43,6 +52,7 @@ const STAR_STEPS_PER_PLACE = 8;
  */
 export function createDoSiDoPaths(dancerSet, startPosById, paths, beats) {
     standStill(dancerSet, startPosById, paths, beats);
+    const facing = new Map();
 
     for (const i of dancerSet.minorSetStarts()) {
         const minorSetDancers = [
@@ -63,54 +73,50 @@ export function createDoSiDoPaths(dancerSet, startPosById, paths, beats) {
 
         for (const [dancer1, dancer2] of neighborPairs) {
             if (!dancer1 || !dancer2) continue;
-
-            const start1 = startPosById.get(dancer1.id);
-            const start2 = startPosById.get(dancer2.id);
-
-            // Work in pixel space for proper circular geometry
-            const s1px = toPixels(start1, SVG_WIDTH, SVG_HEIGHT);
-            const s2px = toPixels(start2, SVG_WIDTH, SVG_HEIGHT);
+            const s1px = toPixels(startPosById.get(dancer1.id), SVG_WIDTH, SVG_HEIGHT);
+            const s2px = toPixels(startPosById.get(dancer2.id), SVG_WIDTH, SVG_HEIGHT);
             const centerPx = { x: (s1px.x + s2px.x) / 2, y: (s1px.y + s2px.y) / 2 };
-
-            // As wide as fits in this pair's half of the minor set
-            const side = centerPx.x < COLUMN_MIDPOINT_PX ? 'left' : 'right';
-            const rectangle = computeDoSiDoRectangle(i, dancerSet.dancers.length, side);
-            const radius = computeDoSiDoRadius(centerPx, rectangle);
-
-            // Each dancer traces a full 360° counter-clockwise circle from their start
-            // back to their start (CCW = negative angle in SVG y-down coords)
-            const entryAngle1 = Math.atan2(s1px.y - centerPx.y, s1px.x - centerPx.x);
-            const entryAngle2 = entryAngle1 + Math.PI;
-
-            const steps = 8;
-            const fullCircle = -2 * Math.PI; // counter-clockwise
-
-            // Step in from the start position onto the circle, and back out at the end
-            const waypoints1 = [start1.clone()];
-            const waypoints2 = [start2.clone()];
-            for (let j = 0; j <= steps; j++) {
-                const progress = j / steps;
-                const angle1 = entryAngle1 + fullCircle * progress;
-                const angle2 = entryAngle2 + fullCircle * progress;
-                waypoints1.push(fromPixels(
-                    centerPx.x + radius * Math.cos(angle1),
-                    centerPx.y + radius * Math.sin(angle1),
-                    SVG_WIDTH, SVG_HEIGHT
-                ));
-                waypoints2.push(fromPixels(
-                    centerPx.x + radius * Math.cos(angle2),
-                    centerPx.y + radius * Math.sin(angle2),
-                    SVG_WIDTH, SVG_HEIGHT
-                ));
+            for (const [dancer, startPx] of [[dancer1, s1px], [dancer2, s2px]]) {
+                const start = startPosById.get(dancer.id);
+                const waypoints = doSiDoWaypoints(startPx, centerPx);
+                waypoints[0] = start.clone();
+                waypoints[waypoints.length - 1] = start.clone();
+                paths.set(dancer.id, new Path(waypoints, beats));
+                facing.set(dancer.id, Math.atan2(centerPx.y - startPx.y, centerPx.x - startPx.x));
             }
-
-            waypoints1.push(start1.clone());
-            waypoints2.push(start2.clone());
-
-            paths.set(dancer1.id, new Path(waypoints1, beats));
-            paths.set(dancer2.id, new Path(waypoints2, beats));
         }
     }
+    paths.facing = facing;
+}
+
+/**
+ * One dancer's way around a do-si-do: an oval from their start, out to their
+ * left as they go forward, around behind where they pass the other, and back
+ * on their right. The other, starting opposite, is always opposite them.
+ * @param {{x: number, y: number}} startPx
+ * @param {{x: number, y: number}} centerPx - Midway between the two
+ * @returns {Position[]}
+ */
+function doSiDoWaypoints(startPx, centerPx) {
+    const apart = Math.hypot(centerPx.x - startPx.x, centerPx.y - startPx.y);
+    const forward = { x: (centerPx.x - startPx.x) / apart, y: (centerPx.y - startPx.y) / apart };
+    const right = { x: -forward.y, y: forward.x }; // The canvas's y goes down
+
+    // Forward of the middle, the oval runs from the start to back to back
+    const middle = (DO_SI_DO_BACK_PX - apart) / 2;
+    const reach = (DO_SI_DO_BACK_PX + apart) / 2;
+    const waypoints = [];
+    for (let j = 0; j <= DO_SI_DO_STEPS; j++) {
+        const angle = 2 * Math.PI * j / DO_SI_DO_STEPS;
+        const ahead = middle - reach * Math.cos(angle);
+        const toRight = -DO_SI_DO_PASS_PX * Math.sin(angle);
+        waypoints.push(fromPixels(
+            centerPx.x + ahead * forward.x + toRight * right.x,
+            centerPx.y + ahead * forward.y + toRight * right.y,
+            SVG_WIDTH, SVG_HEIGHT
+        ));
+    }
+    return waypoints;
 }
 
 /**
@@ -202,7 +208,7 @@ export function createStarPaths(dancerSet, startPosById, endPosById, paths, beat
         });
 
         const leg = stepInBeats(beats);
-        holds.push({ ids: minorSet.map(dancer => dancer.id), from: leg, to: beats - leg });
+        holds.push({ ids: minorSet.map(dancer => dancer.id), hand: isRight ? 'right' : 'left', from: leg, to: beats - leg });
     }
 
     paths.holds = holds;
@@ -241,54 +247,6 @@ function createEllipticalPath(start, centerPos, places, beats, isClockwise) {
         waypoints.push(new Position(centerPos.x + a * Math.cos(angle), centerPos.y + b * Math.sin(angle)));
     }
     return new Path(waypoints, beats);
-}
-
-/**
- * Compute the bounding rectangle (in pixels) for one do-si-do pair: their half of
- * the minor set, split at the column midpoint.
- * @param {number} minorSetStart - Dancer array index where the minor set begins
- * @param {number} totalDancers - Total number of dancers in the set
- * @param {string} side - 'left' or 'right'
- * @returns {{left: number, right: number, top: number, bottom: number}}
- */
-function computeDoSiDoRectangle(minorSetStart, totalDancers, side) {
-    const numRows = Math.ceil(totalDancers / 2);
-    const startY = firstRowY(numRows);
-
-    const topRow = minorSetStart / 2;
-    const bottomRow = topRow + 1;
-
-    // Vertical boundaries: midpoints between adjacent minor sets (or stage/floor edges)
-    const top = topRow === 0 ? STAGE_HEIGHT : startY + (topRow - 0.5) * VERTICAL_SPACING_PX;
-    const bottom = bottomRow >= numRows - 1 ? SVG_HEIGHT : startY + (bottomRow + 0.5) * VERTICAL_SPACING_PX;
-
-    const left = side === 'left' ? 0 : COLUMN_MIDPOINT_PX;
-    const right = side === 'left' ? COLUMN_MIDPOINT_PX : SVG_WIDTH;
-
-    return { left, right, top, bottom };
-}
-
-/**
- * Compute a do-si-do radius that fits within the bounding rectangle.
- * @param {{x: number, y: number}} centerPx - Swing center in pixels
- * @param {{left: number, right: number, top: number, bottom: number}} rectangle
- * @returns {number} Radius in pixels
- */
-function computeDoSiDoRadius(centerPx, rectangle) {
-    const distToLeft = centerPx.x - rectangle.left;
-    const distToRight = rectangle.right - centerPx.x;
-    const distToTop = centerPx.y - rectangle.top;
-    const distToBottom = rectangle.bottom - centerPx.y;
-
-    const minDist = Math.min(distToLeft, distToRight, distToTop, distToBottom);
-    let radius = minDist - DANCER_RADIUS_PX - 1;
-
-    // Ensure minimum radius so dancers don't overlap each other
-    if (radius < DANCER_RADIUS_PX + 1) {
-        radius = DANCER_RADIUS_PX + 1;
-    }
-
-    return radius;
 }
 
 /**
@@ -372,7 +330,7 @@ function turnTimes(beats, rotationSteps) {
  * Create swing paths for one pair of dancers in a minor set: they come together
  * and rotate clockwise, close, around the point midway between them, holding on
  * while they turn (added to paths.holds).
- * @param {import('./dancers.js').Dancer} dancer1
+ * @param {import('./dancers.js').Dancer} dancer1 - Who leads: the lark, of a lark and a robin
  * @param {import('./dancers.js').Dancer} dancer2
  * @param {Map<string, Position>} startPosById
  * @param {Map<string, Position>} endPosById
@@ -444,7 +402,7 @@ export function createAllemandePaths(dancerSet, pairs, startPosById, endPosById,
                 centerPx, ALLEMANDE_RADIUS_PX, entryAngle, totalRotation, rotationSteps);
             paths.set(dancer.id, new Path(waypoints, beats, times));
         }
-        holds.push({ ids: [dancer1.id, dancer2.id], shape: 'line', from: leg, to: beats - leg });
+        holds.push({ ids: [dancer1.id, dancer2.id], shape: 'line', hand: isRight ? 'right' : 'left', from: leg, to: beats - leg });
     }
 
     paths.holds = holds;

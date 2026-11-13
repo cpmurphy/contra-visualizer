@@ -6,13 +6,13 @@ import { Set } from '../dancers.js';
 import { calculateMovePaths } from '../pathCalculator.js';
 import { executeMove } from '../moves.js';
 import { toPixels, distance, center } from '../positions.js';
-import { SVG_WIDTH, SVG_HEIGHT } from '../layout.js';
+import { SVG_WIDTH, SVG_HEIGHT, DANCER_RADIUS_PX } from '../layout.js';
 import { allWaypointsInBounds, hasNoOverlaps } from './helpers/paths.js';
 
 // Do-si-do
 
 // Test do-si-do move
-test('do-si-do should trace a full circle and return to start', () => {
+test('do-si-do should go around and return to start', () => {
     const set = new Set(4);
     const move = { type: 'do-si-do', beats: 8 };
 
@@ -48,6 +48,57 @@ test('do-si-do paths should have no overlaps', () => {
     const paths = calculateMovePaths(move, set);
     assert(hasNoOverlaps(paths, 40),
         'Do-si-do paths should have no overlaps');
+});
+
+test('do-si-do: forward passing right shoulders, back to back, and backward passing left', () => {
+    const set = new Set(4);
+    const paths = calculateMovePaths({ type: 'do-si-do', beats: 8 }, set);
+    const px = (id, t) => toPixels(paths.get(id).getPositionAt(t), SVG_WIDTH, SVG_HEIGHT);
+    // The neighbors in each line: one above the other
+    const pairs = [[set.dancers[0], set.dancers[2]], [set.dancers[1], set.dancers[3]]];
+    for (const pair of pairs) {
+        for (const [dancer, other] of [pair, [...pair].reverse()]) {
+            const start = px(dancer.id, 0);
+            const otherStart = px(other.id, 0);
+            const facing = paths.facing.get(dancer.id);
+            assert.ok(Math.abs(facing - Math.atan2(otherStart.y - start.y, otherStart.x - start.x)) < 1e-9,
+                `${dancer.id} should face ${other.id} throughout`);
+            const forward = { x: Math.cos(facing), y: Math.sin(facing) };
+            const right = { x: -forward.y, y: forward.x };
+            // Where the other is from this dancer: how far ahead, and to their right
+            const otherFrom = t => {
+                const a = px(dancer.id, t);
+                const b = px(other.id, t);
+                return {
+                    ahead: (b.x - a.x) * forward.x + (b.y - a.y) * forward.y,
+                    toRight: (b.x - a.x) * right.x + (b.y - a.y) * right.y
+                };
+            };
+            const aheadAt = t => (px(dancer.id, t).x - start.x) * forward.x + (px(dancer.id, t).y - start.y) * forward.y;
+
+            let passing = 0; // Times the other goes from ahead to behind, or back
+            for (let step = 1; step <= 200; step++) {
+                const before = otherFrom((step - 1) / 200);
+                const now = otherFrom(step / 200);
+                if (before.ahead > 0 && now.ahead <= 0) {
+                    passing++;
+                    assert.ok(now.toRight > DANCER_RADIUS_PX, `${dancer.id} passes right shoulders going forward`);
+                    assert.ok(aheadAt(step / 200) > aheadAt((step - 1) / 200), 'going forward');
+                    assert.ok(step < 100, 'in the first half');
+                } else if (before.ahead <= 0 && now.ahead > 0) {
+                    passing++;
+                    assert.ok(now.toRight < -DANCER_RADIUS_PX, `${dancer.id} passes left shoulders going backward`);
+                    assert.ok(aheadAt(step / 200) < aheadAt((step - 1) / 200), 'going backward');
+                    assert.ok(step > 100, 'in the second half');
+                }
+            }
+            assert.equal(passing, 2, 'they pass once each way');
+
+            // Half way, they're back to back: the other straight behind
+            const halfWay = otherFrom(0.5);
+            assert.ok(halfWay.ahead < -DANCER_RADIUS_PX && Math.abs(halfWay.toRight) < 1, 'back to back half way');
+        }
+    }
 });
 
 // Circles
@@ -642,7 +693,17 @@ test('stars should hold hands in the middle of each minor set while they turn', 
     const paths = calculateMovePaths({ type: 'star left 4 places', beats: 8 }, set);
     assert.deepStrictEqual(paths.holds, set.minorSetStarts().map(i => ({
         ids: set.dancers.slice(i, i + 4).map(d => d.id),
+        hand: 'left',
         from: 1,
         to: 7
     })));
+});
+
+test('a star or an allemande gives the hand it is named for', () => {
+    const hands = (move, set) => calculateMovePaths(move, set).holds.map(hold => hold.hand);
+    assert.ok(hands({ type: 'star right 4 places', beats: 8 }, new Set(6)).every(hand => hand === 'right'));
+    for (const hand of ['left', 'right']) {
+        const given = hands({ type: `allemande ${hand}`, who: 'shadow', beats: 6 }, new Set(6, 'becket'));
+        assert.ok(given.length > 0 && given.every(h => h === hand), `allemande ${hand}: ${given}`);
+    }
 });

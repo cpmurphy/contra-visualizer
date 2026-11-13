@@ -25,6 +25,8 @@ export function perform(dance) {
  * @property {string} color - Their couple's color
  * @property {boolean} active - False while they're out at the end of the set, and
  *   standing in their place there rather than dancing
+ * @property {boolean} out - Whether they're out at the end of the set, waiting
+ *   to come back in, even while they're on the way to their place there
  * @property {import('./positions.js').Position} position
  */
 
@@ -147,6 +149,7 @@ export class DancePerformance {
             id: dancer.id,
             label: dancer.getLabel(),
             color: dancer.couple.color,
+            out: !dancer.active,
             active: dancer.active || (positions !== null && !positions.get(dancer.id).equals(setPositions[index])),
             position: positions ? positions.get(dancer.id) : setPositions[index]
         }));

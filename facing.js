@@ -1,0 +1,155 @@
+// Which way each dancer faces, worked out from what they're doing as the dance is
+// drawn, frame by frame: the paths say only where dancers are. Two swinging face
+// each other, a ring faces its middle, and anyone else faces the way they're
+// going, unless that's nearly behind them, when they're backing up (as in the
+// back of a forward and back). Someone standing still keeps facing as they were.
+// A figure can say which way its dancers face instead, as a do-si-do does.
+// A couple out at the end of the set turn to face up or down the hall, towards
+// the dancers they're waiting to join.
+// Angles are in radians on the canvas: 0 faces right, and a quarter turn
+// (Math.PI / 2) faces down the hall, away from the stage.
+
+import { toPixels } from './positions.js';
+import { SVG_WIDTH, SVG_HEIGHT, COLUMN_MIDPOINT_PX } from './layout.js';
+
+// How far a dancer goes, in pixels, before we take the way they went as their
+// direction: enough to tell from a wobble
+const TRAVEL_STEP_PX = 4;
+// Going further than this off the way they face, they're backing up, not turning
+const BACKING_UP_ANGLE = Math.PI * 0.6;
+// Further than this in a frame is a jump to somewhere else, not dancing there
+const JUMP_PX = 50;
+// How quickly a dancer turns to face a new way: the time, in milliseconds, to
+// make about two thirds of the turn
+const TURN_MS = 120;
+// The longest a frame counts for, so that a pause isn't a chance to turn
+const MAX_FRAME_MS = 100;
+
+export const FACING_UP = -Math.PI / 2;
+const FACING_DOWN = Math.PI / 2;
+
+/**
+ * The turn from one angle to another, the short way round
+ * @param {number} from
+ * @param {number} to
+ * @returns {number} Between -PI and PI
+ */
+export function turnBetween(from, to) {
+    const turn = (to - from) % (2 * Math.PI);
+    if (turn > Math.PI) return turn - 2 * Math.PI;
+    if (turn < -Math.PI) return turn + 2 * Math.PI;
+    return turn;
+}
+
+/**
+ * Which way a dancer faces with nothing else to go on: across the set, as in
+ * the lines at the start of a dance, or up the hall from the middle of the set
+ * @param {{x: number, y: number}} point - Where they are, in pixels
+ * @returns {number}
+ */
+export function facingAcross(point) {
+    if (Math.abs(point.x - COLUMN_MIDPOINT_PX) < 1) return FACING_UP;
+    return point.x < COLUMN_MIDPOINT_PX ? 0 : Math.PI;
+}
+
+const distance = (a, b) => Math.hypot(b.x - a.x, b.y - a.y);
+const angleTo = (from, to) => Math.atan2(to.y - from.y, to.x - from.x);
+
+/**
+ * Follows the dancers from frame to frame, to say which way each is facing
+ */
+export class FacingTracker {
+    constructor() {
+        this.reset();
+    }
+
+    /** Forget the dancers, as for a new dance */
+    reset() {
+        this.dancers = new Map(); // By id: {angle, target, last, anchor}
+        this.lastTime = null;
+    }
+
+    /**
+     * Take in a frame, and say which way everyone is facing in it
+     * @param {{id: string, position: import('./positions.js').Position, out?: boolean}[]} dancers -
+     *   Those who are `out` at the ends of the set face the others
+     * @param {{ids: string[], shape?: string}[]} [holds] - Dancers holding hands
+     *   (see AnimationState.getCurrentHolds)
+     * @param {number|null} [timestamp] - The frame's time in milliseconds while the
+     *   dance plays. Without one the dancers are standing in their places: any
+     *   who are somewhere new face across the set
+     * @param {Map<string, number>} [told] - Which way the figure says dancers
+     *   face, by id (see AnimationState.getCurrentFacings)
+     * @returns {Map<string, number>} Angles by dancer id
+     */
+    update(dancers, holds = [], timestamp = null, told = new Map()) {
+        const playing = timestamp !== null;
+        const points = new Map(dancers.map(dancer =>
+            [dancer.id, toPixels(dancer.position, SVG_WIDTH, SVG_HEIGHT)]));
+        const held = facingInHolds(holds, points);
+        // How far down the hall the middle of those dancing is, for those out to face
+        const dancing = dancers.filter(dancer => !dancer.out).map(dancer => points.get(dancer.id).y);
+        const middleY = dancing.reduce((sum, y) => sum + y, 0) / dancing.length;
+        const out = new Set(dancers.filter(dancer => dancer.out).map(dancer => dancer.id));
+
+        // How much of a turn towards their target the dancers make this frame
+        let turned = 1;
+        if (playing && this.lastTime !== null) {
+            const elapsed = Math.min(Math.max(timestamp - this.lastTime, 0), MAX_FRAME_MS);
+            turned = 1 - Math.exp(-elapsed / TURN_MS);
+        }
+        this.lastTime = timestamp;
+
+        const facings = new Map();
+        for (const [id, point] of points) {
+            let dancer = this.dancers.get(id);
+            const moved = dancer ? distance(dancer.last, point) : 0;
+            if (!dancer || moved > (playing ? JUMP_PX : 1)) {
+                const angle = facingAcross(point);
+                dancer = { angle, target: angle, anchor: point };
+                this.dancers.set(id, dancer);
+            }
+            dancer.last = point;
+
+            if (held.has(id) || told.has(id)) {
+                dancer.target = held.get(id) ?? told.get(id);
+                dancer.anchor = point;
+            } else if (out.has(id) && dancing.length > 0) {
+                dancer.target = point.y < middleY ? FACING_DOWN : FACING_UP;
+                dancer.anchor = point;
+            } else if (distance(dancer.anchor, point) >= TRAVEL_STEP_PX) {
+                const going = angleTo(dancer.anchor, point);
+                if (Math.abs(turnBetween(dancer.target, going)) <= BACKING_UP_ANGLE) {
+                    dancer.target = going;
+                }
+                dancer.anchor = point;
+            }
+
+            dancer.angle += turnBetween(dancer.angle, dancer.target) * turned;
+            facings.set(id, dancer.angle);
+        }
+        return facings;
+    }
+}
+
+/**
+ * Which way the dancers in swings and rings face: at each other, or the middle
+ * @param {{ids: string[], shape?: string}[]} holds
+ * @param {Map<string, {x: number, y: number}>} points - Dancers' places in pixels
+ * @returns {Map<string, number>} Angles by dancer id, for those dancers only
+ */
+function facingInHolds(holds, points) {
+    const facings = new Map();
+    for (const hold of holds) {
+        if (hold.shape !== 'swing' && hold.shape !== 'ring') continue;
+        const group = hold.ids.map(id => points.get(id));
+        const middle = {
+            x: group.reduce((sum, point) => sum + point.x, 0) / group.length,
+            y: group.reduce((sum, point) => sum + point.y, 0) / group.length
+        };
+        hold.ids.forEach((id, i) => {
+            if (distance(group[i], middle) > 0) facings.set(id, angleTo(group[i], middle));
+        });
+    }
+    return facings;
+}

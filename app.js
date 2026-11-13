@@ -1,6 +1,8 @@
 import { drawScene, drawMessage } from './canvas.js';
 import { Animator, AnimationState } from './animator.js';
 import { perform } from './performance.js';
+import { FacingTracker } from './facing.js';
+import { StepTracker } from './motion.js';
 import { dances, danceSlug, findDance } from './library.js';
 import { Metronome, beatAccent } from './metronome.js';
 import { INTRO_BEATS, beatLabel, danceBeats, locateBeat, moveStartBeat } from './timeline.js';
@@ -40,6 +42,10 @@ const metronome = new Metronome({
 
 // A tune played under the dance, if one is chosen
 const music = new MusicPlayer({ createContext });
+
+// Which way the dancers face, and who is stepping, followed from frame to frame
+const facing = new FacingTracker();
+const steps = new StepTracker();
 
 const METRONOME_SETTING = 'metronome';
 const MUSIC_SETTING = 'music';
@@ -169,6 +175,8 @@ function loadDance(dance) {
     state.dance = dance;
     state.isPlaying = false;
     state.performance = perform(dance);
+    facing.reset();
+    steps.reset();
 
     updateDanceInfo();
     updateMoveList();
@@ -277,12 +285,22 @@ function formatMove(move) {
     return description;
 }
 
-// Update visualization
-// customPositions: Map from dancer ID to Position, while animating
-// holds: groups of dancers holding hands (see AnimationState.getCurrentHolds)
-function updateVisualization(customPositions = null, holds = []) {
+/**
+ * Draw the dancers: standing in their places, or as they are in a frame of the
+ * animation
+ * @param {Object} [frame] - While animating
+ * @param {Map<string, import('./positions.js').Position>} frame.positions - Where each dancer is
+ * @param {Object[]} frame.holds - Groups of dancers holding hands (see AnimationState.getCurrentHolds)
+ * @param {Map<string, number>} frame.facings - Which way the figure says dancers
+ *   face (see AnimationState.getCurrentFacings)
+ * @param {number} frame.timestamp - The frame's time
+ * @param {number} frame.beat - Beats into the music (see currentBeat)
+ */
+function updateVisualization({ positions = null, holds = [], facings, timestamp = null, beat = 0 } = {}) {
     if (state.performance) {
-        drawScene(elements.canvas, state.performance.dancers(customPositions), holds);
+        const dancers = state.performance.dancers(positions);
+        drawScene(elements.canvas, dancers, holds,
+            facing.update(dancers, holds, timestamp, facings), steps.update(dancers, timestamp, beat));
     } else {
         drawMessage(elements.canvas, state.dance
             ? `${state.dance.formation} formation isn't animated yet`
@@ -399,12 +417,16 @@ function animate(timestamp) {
             startAudio(timestamp);
         }
 
-        // Get current positions
-        const currentPositions = state.animationState.getCurrentPositions(timestamp);
-
-        // Update visualization with interpolated positions
-        updateVisualization(currentPositions, state.animationState.getCurrentHolds(timestamp));
-        updateCallPanel(currentBeat(timestamp));
+        // Draw the dancers where they've got to
+        const beat = currentBeat(timestamp);
+        updateVisualization({
+            positions: state.animationState.getCurrentPositions(timestamp),
+            holds: state.animationState.getCurrentHolds(timestamp),
+            facings: state.animationState.getCurrentFacings(),
+            timestamp,
+            beat
+        });
+        updateCallPanel(beat);
         state.lastFrameTime = timestamp;
 
         // Check if animation is complete

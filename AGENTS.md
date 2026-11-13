@@ -170,6 +170,25 @@ Dances are stored as JSON with the following structure:
    - Show correct starting positions (e.g. in improper formation)
    - Each couple has a unique color
    - `canvas.js` does the drawing
+   - Dancers are drawn as seen from above: shoulders, and a head with a
+     nose to show which way they face. The paths say only where dancers
+     are, so `facing.js` works out their facing as the dance is drawn:
+     two swinging face each other, a ring faces its middle, and anyone
+     else faces the way they're going (or keeps facing forward while
+     backing up), while a couple out at the end of the set face the
+     dancers. A figure whose dancers don't face the way they go says
+     which way they do face in `paths.facing`, as a do-si-do does
+   - Arms (`arms.js`) go from the shoulders to the hands, bending at the
+     elbow, and reach only so far (`ARM_REACH_PX`): dancers too far apart
+     to hold hands reach for each other. Free arms hang at the sides.
+     Who holds hands comes from the figures' `paths.holds`; each dancer
+     gives the hand on that side of them unless the hold names a `hand`
+     (as an allemande or a star does), and in a `swing` hold the first
+     dancer leads
+   - `motion.js` adds a little life without moving anyone: dancers on
+     the move step on every beat (a slight rise between beats, and the
+     shoulders turning one way then the other), and those in a swing or
+     turning by a hand lean their heads away from the middle of it
 
 3. **Basic Animation:**
    - Play / pause

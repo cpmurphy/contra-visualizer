@@ -320,7 +320,7 @@ export function createRobinsChainPaths(dancerSet, startPosById, endPosById, path
         }
         // The robins hold hands while both are on the pull-by circle
         if (robins.length === 2) {
-            holds.push({ ids: robins.map(robin => robin.id), shape: 'line',
+            holds.push({ ids: robins.map(robin => robin.id), shape: 'line', hand: 'right',
                 from: Math.max(...pullBys.map(p => p.from)), to: Math.min(...pullBys.map(p => p.to)) });
         }
     }
