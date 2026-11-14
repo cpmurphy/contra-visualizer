@@ -76,8 +76,8 @@ export function createContraCornersPaths(dancerSet, turning, startPosById, endPo
     const cornerTurns = new Map();
     // Two hold hands from one time to another
     const holds = [];
-    const hold = (dancer1, dancer2, t0, t1) =>
-        holds.push({ ids: [dancer1.id, dancer2.id], shape: 'line', from: t0 * beats, to: t1 * beats });
+    const hold = (dancer1, dancer2, hand, t0, t1) => holds.push({ ids: [dancer1.id, dancer2.id], shape: 'line',
+        hand, turning: true, from: t0 * beats, to: t1 * beats });
 
     for (const index of turning) {
         const dancer = dancerSet.dancers[index];
@@ -117,7 +117,7 @@ export function createContraCornersPaths(dancerSet, turning, startPosById, endPo
                 const list = cornerTurns.get(cornerDancer) || [];
                 list.push({ t0, t1, center: turnCenter, angle: angle + Math.PI });
                 cornerTurns.set(cornerDancer, list);
-                hold(dancer, cornerDancer, t0, t1);
+                hold(dancer, cornerDancer, 'left', t0, t1);
             }
         };
 
@@ -130,8 +130,8 @@ export function createContraCornersPaths(dancerSet, turning, startPosById, endPo
         turn(middle, ALLEMANDE_RADIUS_PX, facingFirst, CLOCKWISE * 3 / 4 * 2 * Math.PI, T.backFromFirst, T.partnerAgain);
         turnCorner(corners.second, T.secondCorner, T.backFromSecond);
         if (index < partnerIndex) {
-            hold(dancer, dancer.partner, T.middle, T.partner);
-            hold(dancer, dancer.partner, T.backFromFirst, T.partnerAgain);
+            hold(dancer, dancer.partner, 'right', T.middle, T.partner);
+            hold(dancer, dancer.partner, 'right', T.backFromFirst, T.partnerAgain);
         }
         // Back to the middle, crossed over
         add(1, toPixels(endPosById.get(dancer.id), SVG_WIDTH, SVG_HEIGHT));
@@ -221,7 +221,8 @@ export function createCenterTravelPaths(dancerSet, startPosById, endPosById, pat
 
 /**
  * Create paths for dancers turning alone: each makes a little loop on the spot,
- * around towards the middle of the set, and back to where they were.
+ * around towards the middle of the set, and back to where they were, turning
+ * round to face the other way (added to paths.facing as a turn).
  * @param {import('./dancers.js').Set} dancerSet
  * @param {number[]} turning - Places of the dancers turning alone
  * @param {Map<string, Position>} startPosById
@@ -235,6 +236,7 @@ export function createTurnAlonePaths(dancerSet, turning, startPosById, paths, be
     const ry = TURN_ALONE_ALONG_PX / SVG_HEIGHT * 100;
     const middleX = COLUMN_MIDPOINT_PX / SVG_WIDTH * 100;
     const firstPlace = dancerSet.minorSetStarts()[0];
+    const facing = new Map();
 
     dancerSet.dancers.forEach((dancer, index) => {
         const start = startPosById.get(dancer.id);
@@ -255,7 +257,11 @@ export function createTurnAlonePaths(dancerSet, turning, startPosById, paths, be
         }
         waypoints[count] = start.clone();
         paths.set(dancer.id, new Path(waypoints, beats));
+        // Going round the loop doesn't turn them right round: they turn half way,
+        // in towards the middle of the set, to face the way they came
+        facing.set(dancer.id, { turn: Math.PI, toward: inward > 0 ? 0 : Math.PI, from: 0, to: beats });
     });
+    paths.facing = facing;
 }
 
 /**

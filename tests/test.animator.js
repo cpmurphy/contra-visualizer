@@ -617,6 +617,24 @@ test('getCurrentHolds keeps the hand given', () => {
     assert.deepStrictEqual(state.getCurrentHolds(4000), [{ ids: ['d1'], hand: 'left', strength: 1 }]);
 });
 
+test('getCurrentHolds says when the dancers are turning round the middle', () => {
+    const paths = new Map([['d1', createStationaryPath(new Position(0, 0), 8)]]);
+    paths.holds = [{ ids: ['d1'], hand: 'right', turning: true, from: 1, to: 7 }];
+    const state = new AnimationState(paths, new Animator(60));
+    state.start(0);
+    assert.deepStrictEqual(state.getCurrentHolds(4000), [{ ids: ['d1'], hand: 'right', turning: true, strength: 1 }]);
+});
+
+test('getCurrentFacings gives the angles told, and how far through a turn the dancers are', () => {
+    const paths = new Map([['d1', createStationaryPath(new Position(0, 0), 4)]]);
+    const turn = { turn: Math.PI, toward: 0, from: 0, to: 4 };
+    paths.facing = new Map([['d1', 1.5], ['d2', turn]]);
+    const state = new AnimationState(paths, new Animator(60));
+    state.start(0);
+    assert.deepStrictEqual(state.getCurrentFacings(1000), new Map([['d1', 1.5], ['d2', { turn, turned: 0.25 }]]));
+    assert.equal(state.getCurrentFacings(9000).get('d2').turned, 1);
+});
+
 test('getCurrentHolds is empty for a move without holds', () => {
     const paths = new Map([['d1', createStationaryPath(new Position(10, 10), 8)]]);
     const state = new AnimationState(paths, new Animator(60));

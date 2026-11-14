@@ -309,12 +309,24 @@ export class AnimationState {
     }
 
     /**
-     * Which way the dancers who face one way throughout this move face,
-     * whichever way they're going, as in a do-si-do
-     * @returns {Map<string, number>} Angles by dancer id (see facing.js)
+     * Which way the figure says dancers face, whichever way they're going: an
+     * angle for those who face one way throughout, as in a do-si-do, or for those
+     * turning round on the spot (as in a turn alone), the turn and how much of it
+     * they've made so far
+     * @param {number} timestamp - Current timestamp in milliseconds
+     * @returns {Map<string, number|{turn: Object, turned: number}>} By dancer id
+     *   (see facing.js)
      */
-    getCurrentFacings() {
-        return this.paths.facing || new Map();
+    getCurrentFacings(timestamp) {
+        const beat = this.animator.msToBeats(this.getElapsedTime(timestamp));
+        const facings = new Map();
+        for (const [id, facing] of this.paths.facing || []) {
+            facings.set(id, typeof facing === 'number' ? facing : {
+                turn: facing,
+                turned: Math.max(0, Math.min(1, (beat - facing.from) / (facing.to - facing.from)))
+            });
+        }
+        return facings;
     }
 
     /**
@@ -323,9 +335,10 @@ export class AnimationState {
      * holds hands with those beside them, in order, and with shape 'ring' the
      * last with the first too; a pair with shape 'swing' hold each other in a
      * swing, the first of them leading; otherwise all join hands in the middle,
-     * as in a star. A group with a hand all give that hand.
+     * as in a star. A group with a hand all give that hand, and a group `turning`
+     * go round the middle of it, as in an allemande or a star.
      * @param {number} timestamp - Current timestamp in milliseconds
-     * @returns {{ids: string[], shape?: string, hand?: 'left'|'right', strength: number}[]}
+     * @returns {{ids: string[], shape?: string, hand?: 'left'|'right', turning?: boolean, strength: number}[]}
      */
     getCurrentHolds(timestamp) {
         const beat = this.animator.msToBeats(this.getElapsedTime(timestamp));
@@ -334,6 +347,7 @@ export class AnimationState {
                 ids: hold.ids,
                 ...(hold.shape && { shape: hold.shape }),
                 ...(hold.hand && { hand: hold.hand }),
+                ...(hold.turning && { turning: true }),
                 strength: Math.max(0, Math.min(1,
                     (beat - hold.from) / HOLD_FADE_BEATS + 1,
                     (hold.to - beat) / HOLD_FADE_BEATS + 1))

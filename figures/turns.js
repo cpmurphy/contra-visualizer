@@ -173,7 +173,8 @@ export function createCircularPaths(dancerSet, startPosById, paths, beats, place
  * Create star paths: in each minor set the four step in towards the middle, join
  * hands there, and turn steadily, a quarter turn apart, then step out to their
  * new corners. A star right turns clockwise (seen from above), a star left
- * counter-clockwise. Each star is added to paths.holds while they turn.
+ * counter-clockwise. Each star is added to paths.holds while they turn (as
+ * `turning`, so they face the way round).
  * @param {import('./dancers.js').Set} dancerSet
  * @param {Map<string, Position>} startPosById
  * @param {Map<string, Position>} endPosById
@@ -208,7 +209,8 @@ export function createStarPaths(dancerSet, startPosById, endPosById, paths, beat
         });
 
         const leg = stepInBeats(beats);
-        holds.push({ ids: minorSet.map(dancer => dancer.id), hand: isRight ? 'right' : 'left', from: leg, to: beats - leg });
+        holds.push({ ids: minorSet.map(dancer => dancer.id), hand: isRight ? 'right' : 'left', turning: true,
+            from: leg, to: beats - leg });
     }
 
     paths.holds = holds;
@@ -402,7 +404,8 @@ export function createAllemandePaths(dancerSet, pairs, startPosById, endPosById,
                 centerPx, ALLEMANDE_RADIUS_PX, entryAngle, totalRotation, rotationSteps);
             paths.set(dancer.id, new Path(waypoints, beats, times));
         }
-        holds.push({ ids: [dancer1.id, dancer2.id], shape: 'line', hand: isRight ? 'right' : 'left', from: leg, to: beats - leg });
+        holds.push({ ids: [dancer1.id, dancer2.id], shape: 'line', hand: isRight ? 'right' : 'left', turning: true,
+            from: leg, to: beats - leg });
     }
 
     paths.holds = holds;

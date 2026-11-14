@@ -422,7 +422,7 @@ function animate(timestamp) {
         updateVisualization({
             positions: state.animationState.getCurrentPositions(timestamp),
             holds: state.animationState.getCurrentHolds(timestamp),
-            facings: state.animationState.getCurrentFacings(),
+            facings: state.animationState.getCurrentFacings(timestamp),
             timestamp,
             beat
         });

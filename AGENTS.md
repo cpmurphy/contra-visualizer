@@ -173,11 +173,15 @@ Dances are stored as JSON with the following structure:
    - Dancers are drawn as seen from above: shoulders, and a head with a
      nose to show which way they face. The paths say only where dancers
      are, so `facing.js` works out their facing as the dance is drawn:
-     two swinging face each other, a ring faces its middle, and anyone
-     else faces the way they're going (or keeps facing forward while
-     backing up), while a couple out at the end of the set face the
-     dancers. A figure whose dancers don't face the way they go says
-     which way they do face in `paths.facing`, as a do-si-do does
+     two swinging face each other, a ring faces its middle, those
+     turning by the hand around the middle of a hold marked `turning`
+     (an allemande or a star) face the way round, a little in towards
+     the hand, and anyone else faces the way they're going (or keeps
+     facing forward while backing up), while a couple out at the end of
+     the set face the dancers. A figure whose dancers don't face the way
+     they go says which way they do face in `paths.facing`: an angle, as
+     a do-si-do does, or a turn on the spot (`{turn, toward, from, to}`),
+     as a turn alone does
    - Arms (`arms.js`) go from the shoulders to the hands, bending at the
      elbow, and reach only so far (`ARM_REACH_PX`): dancers too far apart
      to hold hands reach for each other. Free arms hang at the sides.

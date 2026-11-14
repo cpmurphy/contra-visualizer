@@ -694,6 +694,7 @@ test('stars should hold hands in the middle of each minor set while they turn', 
     assert.deepStrictEqual(paths.holds, set.minorSetStarts().map(i => ({
         ids: set.dancers.slice(i, i + 4).map(d => d.id),
         hand: 'left',
+        turning: true,
         from: 1,
         to: 7
     })));

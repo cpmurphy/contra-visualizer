@@ -3,8 +3,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { FacingTracker, FACING_UP, facingAcross, turnBetween } from '../facing.js';
-import { fromPixels } from '../positions.js';
+import { fromPixels, toPixels } from '../positions.js';
 import { SVG_WIDTH, SVG_HEIGHT, COLUMN_MIDPOINT_PX } from '../layout.js';
+import { Set as DancerSet } from '../dancers.js';
+import { calculateMovePaths } from '../pathCalculator.js';
+import { executeMove } from '../moves.js';
+import { Animator, AnimationState } from '../animator.js';
+import { properSet, ONES_DOWN, ONES_TURN, ONES_UP } from './helpers/sets.js';
 
 const FACING_RIGHT = 0;
 const FACING_DOWN = Math.PI / 2;
@@ -134,3 +139,94 @@ test('a pause is not a chance to turn', () => {
     const facing = tracker.update([at('a', 300, 310)], [], 60000).get('a');
     assert.ok(facing < FACING_DOWN - 0.3, `still turning, not ${facing}`);
 });
+
+const MS_PER_BEAT = 600;
+const FRAME_MS = 16;
+
+/**
+ * Dance moves from the set's places, a frame at a time, as the animation does,
+ * and say which way everyone faces at the end of each move and each frame of it
+ */
+function danceMoves(tracker, set, moves) {
+    const results = [];
+    let time = 0;
+    for (const move of moves) {
+        const paths = calculateMovePaths(move, set);
+        const frames = [];
+        const state = new AnimationState(paths, new Animator(60000 / MS_PER_BEAT));
+        state.start(time);
+        for (let ms = 0; ms <= move.beats * MS_PER_BEAT; ms += FRAME_MS, time += FRAME_MS) {
+            const dancers = [...state.getCurrentPositions(time)].map(([id, position]) => ({ id, position }));
+            const facings = tracker.update(dancers, state.getCurrentHolds(time), time, state.getCurrentFacings(time));
+            frames.push({ beat: ms / MS_PER_BEAT, paths, facings });
+        }
+        results.push(frames);
+        executeMove(set, move);
+    }
+    return results;
+}
+
+test('the ones turn alone to face back up the hall, and walk up it forwards', () => {
+    const tracker = new FacingTracker();
+    const set = properSet();
+    const ones = set.dancers.filter(dancer => dancer.couple.coupleNumber === 1).map(dancer => dancer.id);
+    const [down, turning, up] = danceMoves(tracker, set, [ONES_DOWN, ONES_TURN, ONES_UP]);
+    for (const id of ones) {
+        assertFacing(down.at(-1).facings.get(id), FACING_DOWN, `${id} going down`);
+        assertFacing(turning.at(-1).facings.get(id), FACING_UP, `${id} after turning alone`);
+        for (const frame of up.slice(up.length / 4)) {
+            assertFacing(frame.facings.get(id), FACING_UP, `${id} coming up at beat ${frame.beat}`);
+        }
+    }
+    // Each turns in towards the other: half way round, the one on the left of the
+    // hall faces right, and the one on the right faces left
+    const half = turning[Math.floor(turning.length / 2)].facings;
+    for (const id of ones) {
+        const x = toPixels(turning[0].paths.get(id).start, SVG_WIDTH, SVG_HEIGHT).x;
+        const inward = x < COLUMN_MIDPOINT_PX ? FACING_RIGHT : FACING_LEFT;
+        assert.ok(Math.abs(turnBetween(half.get(id), inward)) < 0.5, `${id} turns in: ${half.get(id)}`);
+    }
+});
+
+test('those turning alone at the end of a circle turn to face out of it', () => {
+    const tracker = new FacingTracker();
+    const set = new DancerSet(6);
+    const [circle, turning] = danceMoves(tracker, set, [
+        { type: 'circle left 4 places', who: 'all', beats: 8 },
+        { type: 'turn alone', who: 'all', beats: 2 }]);
+    for (const id of set.dancers.map(dancer => dancer.id)) {
+        const before = circle.at(-1).facings.get(id);
+        assertFacing(turning.at(-1).facings.get(id), before + Math.PI, `${id} after turning alone`);
+    }
+});
+
+/**
+ * The angle between which way a dancer faces and the way they're going, positive
+ * when they face in towards a point on their right
+ */
+function facingOffTheWay(frame, id) {
+    const path = frame.paths.get(id);
+    const velocity = path.getVelocityAtBeat(frame.beat);
+    return turnBetween(Math.atan2(velocity.y, velocity.x), frame.facings.get(id));
+}
+
+for (const [hand, move] of [
+    ['right', { type: 'allemande right', who: 'shadows', beats: 8 }],
+    ['left', { type: 'allemande left', who: 'shadows', beats: 8 }],
+    ['right', { type: 'star right 4', who: 'all', beats: 8 }],
+    ['left', { type: 'star left 4', who: 'all', beats: 8 }]]) {
+    test(`those in a${move.type.startsWith('a') ? 'n' : ''} ${move.type} face the way round, a little in towards their ${hand} hand`, () => {
+        const tracker = new FacingTracker();
+        const set = new DancerSet(6, move.type.startsWith('allemande') ? 'becket' : 'improper');
+        const [frames] = danceMoves(tracker, set, [move]);
+        const middle = frames.slice(frames.length * 0.3, frames.length * 0.7);
+        const turning = new Set(frames[0].paths.holds.flatMap(hold => hold.ids));
+        assert.ok(turning.size >= 8);
+        for (const id of turning) {
+            for (const frame of middle) {
+                const off = facingOffTheWay(frame, id) * (hand === 'right' ? 1 : -1);
+                assert.ok(off > 0.2 && off < 0.8, `${id} at beat ${frame.beat.toFixed(2)}: ${off} off the way round`);
+            }
+        }
+    });
+}
