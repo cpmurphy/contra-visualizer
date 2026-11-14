@@ -1,6 +1,7 @@
 // Which way each dancer faces, worked out from what they're doing as the dance is
 // drawn, frame by frame: the paths say only where dancers are. Two swinging face
-// each other, a ring faces its middle, and anyone else faces the way they're
+// each other until they open out side by side, the follower on the leader's
+// right, a ring faces its middle, and anyone else faces the way they're
 // going, unless that's nearly behind them, when they're backing up (as in the
 // back of a forward and back). Someone standing still keeps facing as they were.
 // Those turning around each other by the hand, as in an allemande or a star, face
@@ -18,6 +19,9 @@ import { SVG_WIDTH, SVG_HEIGHT, COLUMN_MIDPOINT_PX } from './layout.js';
 // How far a dancer goes, in pixels, before we take the way they went as their
 // direction: enough to tell from a wobble
 const TRAVEL_STEP_PX = 4;
+// Having opened out of a swing, how far they go before they take the way they're
+// going as their direction: further, as they're still carried a little round
+const OPENED_OUT_STEP_PX = 12;
 // Going further than this off the way they face, they're backing up, not turning
 const BACKING_UP_ANGLE = Math.PI * 0.6;
 // Further than this in a frame is a jump to somewhere else, not dancing there
@@ -94,7 +98,7 @@ export class FacingTracker {
         const playing = timestamp !== null;
         const points = new Map(dancers.map(dancer =>
             [dancer.id, toPixels(dancer.position, SVG_WIDTH, SVG_HEIGHT)]));
-        const held = facingInHolds(holds, points);
+        const { facings: held, openings } = facingInHolds(holds, points);
         // How far down the hall the middle of those dancing is, for those out to face
         const dancing = dancers.filter(dancer => !dancer.out).map(dancer => points.get(dancer.id).y);
         const middleY = dancing.reduce((sum, y) => sum + y, 0) / dancing.length;
@@ -140,8 +144,15 @@ export class FacingTracker {
             dancer.turn = null;
             const wasHeld = dancer.held;
             dancer.held = held.has(id);
+            // Letting go of a swing, they open out to face the same way
+            const opening = dancer.opening;
+            dancer.opening = openings.get(id);
 
-            if (held.has(id) || told.has(id)) {
+            if (!dancer.held && opening !== undefined) {
+                dancer.target = opening;
+                dancer.anchor = point;
+                dancer.step = OPENED_OUT_STEP_PX;
+            } else if (held.has(id) || told.has(id)) {
                 const target = held.get(id) ?? told.get(id);
                 // Going round in a hold, they turn with it rather than lagging behind
                 if (dancer.held && wasHeld) dancer.angle += turnBetween(dancer.target, target);
@@ -150,12 +161,13 @@ export class FacingTracker {
             } else if (out.has(id) && dancing.length > 0) {
                 dancer.target = point.y < middleY ? FACING_DOWN : FACING_UP;
                 dancer.anchor = point;
-            } else if (distance(dancer.anchor, point) >= TRAVEL_STEP_PX) {
+            } else if (distance(dancer.anchor, point) >= (dancer.step ?? TRAVEL_STEP_PX)) {
                 const going = angleTo(dancer.anchor, point);
                 if (Math.abs(turnBetween(dancer.target, going)) <= BACKING_UP_ANGLE) {
                     dancer.target = going;
                 }
                 dancer.anchor = point;
+                dancer.step = TRAVEL_STEP_PX;
             }
 
             dancer.angle += turnBetween(dancer.angle, dancer.target) * turned;
@@ -167,13 +179,17 @@ export class FacingTracker {
 
 /**
  * Which way the dancers in swings and rings face: at each other, or the middle;
- * and those turning around the middle by the hand: the way round, a little in
- * @param {{ids: string[], shape?: string, hand?: 'left'|'right', turning?: boolean}[]} holds
+ * and those turning around the middle by the hand: the way round, a little in.
+ * Those in a swing open out when they let go, to face the way it says.
+ * @param {{ids: string[], shape?: string, hand?: 'left'|'right', turning?: boolean, opening?: number}[]} holds
  * @param {Map<string, {x: number, y: number}>} points - Dancers' places in pixels
- * @returns {Map<string, number>} Angles by dancer id, for those dancers only
+ * @returns {{facings: Map<string, number>, openings: Map<string, number>}} Angles
+ *   by dancer id, for those dancers only: which way they face, and for those
+ *   swinging, which way they'll face when they open out
  */
 function facingInHolds(holds, points) {
     const facings = new Map();
+    const openings = new Map();
     for (const hold of holds) {
         const around = hold.turning && hold.hand;
         if (hold.shape !== 'swing' && hold.shape !== 'ring' && !around) continue;
@@ -188,7 +204,8 @@ function facingInHolds(holds, points) {
             if (distance(group[i], middle) === 0) return;
             const inward = angleTo(group[i], middle);
             facings.set(id, around ? inward + way * (TURNING_INWARD_ANGLE - Math.PI / 2) : inward);
+            if (hold.shape === 'swing' && hold.opening !== undefined) openings.set(id, hold.opening);
         });
     }
-    return facings;
+    return { facings, openings };
 }

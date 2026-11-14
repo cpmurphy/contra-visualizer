@@ -336,9 +336,10 @@ export class AnimationState {
      * last with the first too; a pair with shape 'swing' hold each other in a
      * swing, the first of them leading; otherwise all join hands in the middle,
      * as in a star. A group with a hand all give that hand, and a group `turning`
-     * go round the middle of it, as in an allemande or a star.
+     * go round the middle of it, as in an allemande or a star. A swing says which
+     * way the two face when they open out at the end of it (`opening`).
      * @param {number} timestamp - Current timestamp in milliseconds
-     * @returns {{ids: string[], shape?: string, hand?: 'left'|'right', turning?: boolean, strength: number}[]}
+     * @returns {{ids: string[], shape?: string, hand?: 'left'|'right', turning?: boolean, opening?: number, strength: number}[]}
      */
     getCurrentHolds(timestamp) {
         const beat = this.animator.msToBeats(this.getElapsedTime(timestamp));
@@ -348,6 +349,7 @@ export class AnimationState {
                 ...(hold.shape && { shape: hold.shape }),
                 ...(hold.hand && { hand: hold.hand }),
                 ...(hold.turning && { turning: true }),
+                ...(hold.opening !== undefined && { opening: hold.opening }),
                 strength: Math.max(0, Math.min(1,
                     (beat - hold.from) / HOLD_FADE_BEATS + 1,
                     (hold.to - beat) / HOLD_FADE_BEATS + 1))

@@ -367,8 +367,13 @@ export function addSwingPairPaths(dancer1, dancer2, startPosById, endPosById, pa
     paths.set(dancer1.id, new Path(waypoints1, beats, times));
     paths.set(dancer2.id, new Path(waypoints2, beats, times));
     const leg = stepInBeats(beats);
+    // They open out side by side where they end, the follower on the leader's right,
+    // facing a quarter turn left of the way from the leader to the follower (with
+    // y down, turning left is decreasing angle)
+    const e2px = toPixels(end2, SVG_WIDTH, SVG_HEIGHT);
+    const opening = Math.atan2(e2px.y - e1px.y, e2px.x - e1px.x) - Math.PI / 2;
     paths.holds = [...(paths.holds || []),
-        { ids: [dancer1.id, dancer2.id], shape: 'swing', from: leg, to: beats - leg }];
+        { ids: [dancer1.id, dancer2.id], shape: 'swing', opening, from: leg, to: beats - leg }];
 }
 
 /**
