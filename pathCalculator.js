@@ -2,8 +2,9 @@
 // Computes paths for each dancer during a move, using the paths for each figure in
 // figures/catalog.js
 
-import { Position, center } from './positions.js';
-import { createStationaryPath, createArcPath } from './paths.js';
+import { center, toPixels, fromPixels } from './positions.js';
+import { Path, createStationaryPath } from './paths.js';
+import { SVG_WIDTH, SVG_HEIGHT, DANCER_RADIUS_PX } from './layout.js';
 import { getPositionsById, withSetState, progresses, executeMove } from './moves.js';
 import { findFigure } from './figures/catalog.js';
 
@@ -51,16 +52,27 @@ export function calculateMovePaths(move, dancerSet) {
     return paths;
 }
 
+// Couples crossing over at the ends slide past each other along their row,
+// bowing apart only enough to pass: the one nearer the rest of the set barely
+// at all, so as to keep out of the way of those dancing, and the other, out at
+// the end, enough to clear them (in pixels)
+const CROSS_OVER_INSIDE_PX = 6;
+const CROSS_OVER_OUTSIDE_PX = 2 * DANCER_RADIUS_PX + 4 - CROSS_OVER_INSIDE_PX;
+// Waypoints along each slide
+const CROSS_OVER_SAMPLES = 24;
+
 /**
  * Give dancers whom the figure leaves standing where they were, but whom the
  * progression moved (the couples crossing over at the ends of the set), a path from
- * their old position to their new one. Partners circle around their shared
- * midpoint, so they stay opposite each other, bulging away from the rest of the set.
+ * their old position to their new one. Partners slide past each other across the
+ * end of the set, easing in and out, the one who starts on the left passing
+ * nearer the rest of the set.
  * @param {Map<string, import('./paths.js').Path>} paths - The figure's paths
- * @param {Map<string, Position>} endPosById - Where each dancer ends the move
+ * @param {Map<string, import('./positions.js').Position>} endPosById - Where each dancer ends the move
  */
 function addCrossOverPaths(paths, endPosById) {
-    const setCenterY = center([...paths.values()].map(path => path.start)).y;
+    const setCenter = toPixels(center([...paths.values()].map(path => path.start)), SVG_WIDTH, SVG_HEIGHT);
+    const ease = u => (1 - Math.cos(Math.PI * u)) / 2;
 
     paths.forEach((path, dancerId) => {
         const to = endPosById.get(dancerId);
@@ -69,10 +81,27 @@ function addCrossOverPaths(paths, endPosById) {
         if (!path.start.equals(path.end, 0.01)) {
             throw new Error(`Dancer ${dancerId} both progresses and moves; cannot animate cross-over`);
         }
-        const from = path.start;
-        const midpoint = new Position((from.x + to.x) / 2, (from.y + to.y) / 2);
-        // Clockwise arcs pass over the top (y-down), counter-clockwise under the bottom
-        const overTheTop = midpoint.y < setCenterY;
-        paths.set(dancerId, createArcPath(from, to, midpoint, path.beats, 9, overTheTop));
+        const from = toPixels(path.start, SVG_WIDTH, SVG_HEIGHT);
+        const end = toPixels(to, SVG_WIDTH, SVG_HEIGHT);
+        // Towards the rest of the set, at right angles to the slide
+        const across = Math.hypot(end.x - from.x, end.y - from.y);
+        let inward = { x: -(end.y - from.y) / across, y: (end.x - from.x) / across };
+        const toCenter = (setCenter.x - from.x) * inward.x + (setCenter.y - from.y) * inward.y;
+        if (toCenter < 0) inward = { x: -inward.x, y: -inward.y };
+        // Partners going opposite ways: the one going right passes on the inside
+        const bow = end.x > from.x ? CROSS_OVER_INSIDE_PX : -CROSS_OVER_OUTSIDE_PX;
+
+        const waypoints = [];
+        for (let k = 0; k <= CROSS_OVER_SAMPLES; k++) {
+            const u = ease(k / CROSS_OVER_SAMPLES);
+            const aside = bow * Math.sin(Math.PI * u);
+            waypoints.push(fromPixels(
+                from.x + (end.x - from.x) * u + inward.x * aside,
+                from.y + (end.y - from.y) * u + inward.y * aside,
+                SVG_WIDTH, SVG_HEIGHT));
+        }
+        waypoints[waypoints.length - 1] = to.clone();
+        const times = waypoints.map((_, k) => k / CROSS_OVER_SAMPLES);
+        paths.set(dancerId, new Path(waypoints, path.beats, times));
     });
 }

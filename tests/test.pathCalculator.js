@@ -6,6 +6,8 @@ import { Set } from '../dancers.js';
 import { calculateMovePaths } from '../pathCalculator.js';
 import { executeMove } from '../moves.js';
 import { allWaypointsInBounds, hasNoOverlaps } from './helpers/paths.js';
+import { toPixels } from '../positions.js';
+import { SVG_WIDTH, SVG_HEIGHT, DANCER_RADIUS_PX } from '../layout.js';
 
 test('calculateMovePaths should return paths for all dancers', () => {
     const set = new Set(4);
@@ -176,6 +178,31 @@ test('couples crossing over at the ends stay apart', () => {
     const set = new Set(6);
     const paths = calculateMovePaths({ type: 'do-si-do', beats: 8, progression: true }, set);
     assert(hasNoOverlaps(paths, 40), 'Progression paths should have no overlaps');
+});
+
+test('couples crossing over at the ends slide past each other along their row, out of the way of the set', () => {
+    const set = new Set(6);
+    // Once the dance has started, the couples at the ends wait out, crossing over
+    executeMove(set, { type: 'do-si-do', beats: 8, progression: true });
+    const paths = calculateMovePaths({ type: 'do-si-do', beats: 8, progression: true }, set);
+    const rows = [...paths.values()].map(path => toPixels(path.start, SVG_WIDTH, SVG_HEIGHT).y);
+    const middle = rows.reduce((sum, y) => sum + y, 0) / rows.length;
+    let crossing = 0;
+    for (const [id, path] of paths) {
+        const start = toPixels(path.start, SVG_WIDTH, SVG_HEIGHT);
+        const end = toPixels(path.end, SVG_WIDTH, SVG_HEIGHT);
+        if (Math.abs(start.x - end.x) < 1) continue;
+        crossing++;
+        for (let k = 0; k <= 40; k++) {
+            const point = toPixels(path.getPositionAt(k / 40), SVG_WIDTH, SVG_HEIGHT);
+            // Positive towards the rest of the set
+            const inward = (point.y - start.y) * Math.sign(middle - start.y);
+            assert(inward < 10, `${id} keeps out of the set: ${inward.toFixed(0)}px in`);
+            assert(inward > -2 * DANCER_RADIUS_PX - 10, `${id} stays close to the end of the set: ${(-inward).toFixed(0)}px out`);
+        }
+    }
+    assert.equal(crossing, 4, 'a couple crosses over at each end');
+    assert(hasNoOverlaps(paths, 2 * DANCER_RADIUS_PX), 'they pass without bumping');
 });
 
 test('an unsupported move should leave every dancer where they are', () => {
