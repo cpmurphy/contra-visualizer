@@ -178,7 +178,9 @@ Dances are stored as JSON with the following structure:
      follower on the leader's right, a ring faces its middle, those
      turning by the hand around the middle of a hold marked `turning`
      (an allemande or a star) face the way round, a little in towards
-     the hand, and anyone else faces the way they're going (or keeps
+     the hand, two in a hold marked `sideBySide` (a courtesy turn) face the
+     same way, the second on the first's right, so the lark backs round as
+     the robin walks forward, and anyone else faces the way they're going (or keeps
      facing forward while backing up), while a couple out at the end of
      the set face the dancers. A figure whose dancers don't face the way
      they go says which way they do face in `paths.facing`: an angle, as

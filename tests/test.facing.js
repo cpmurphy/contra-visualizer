@@ -262,3 +262,60 @@ for (const [hand, move] of [
         }
     });
 }
+
+/**
+ * In each courtesy turn of a move's frames, the lark backs round as the robin
+ * walks forward, and they end side by side facing in, the robin on the lark's right
+ */
+function assertCourtesyTurns(frames) {
+    const holds = frames[0].paths.holds.filter(hold => hold.sideBySide);
+    assert.ok(holds.length > 0, 'the courtesy turns are side by side');
+    const place = (frame, id) => toPixels(frame.paths.get(id).getPositionAtBeat(frame.beat), SVG_WIDTH, SVG_HEIGHT);
+    for (const { ids: [lark, robin], from, to } of holds) {
+        // In the middle of the turn, the lark goes the way behind them, the robin ahead
+        const turning = frames.filter(frame => frame.beat > from + 1 && frame.beat < to - 1);
+        for (let k = 1; k < turning.length; k++) {
+            for (const [id, way] of [[lark, -1], [robin, 1]]) {
+                const a = place(turning[k - 1], id), b = place(turning[k], id);
+                if (Math.hypot(b.x - a.x, b.y - a.y) < 0.5) continue;
+                const going = Math.atan2(b.y - a.y, b.x - a.x);
+                const off = Math.abs(turnBetween(turning[k].facings.get(id), going));
+                assert.ok(way < 0 ? off > Math.PI / 2 : off < Math.PI / 2,
+                    `${id} ${way < 0 ? 'backing' : 'walking forward'} at beat ${turning[k].beat.toFixed(2)}`);
+            }
+        }
+        const end = frames.at(-1);
+        const larkAt = toPixels(end.paths.get(lark).end, SVG_WIDTH, SVG_HEIGHT);
+        const robinAt = toPixels(end.paths.get(robin).end, SVG_WIDTH, SVG_HEIGHT);
+        const inward = larkAt.x < COLUMN_MIDPOINT_PX ? FACING_RIGHT : FACING_LEFT;
+        assertFacing(end.facings.get(lark), inward, `${lark} at the end`, 0.2);
+        assertFacing(end.facings.get(robin), inward, `${robin} at the end`, 0.2);
+        const right = inward + Math.PI / 2;
+        const across = (robinAt.x - larkAt.x) * Math.cos(right) + (robinAt.y - larkAt.y) * Math.sin(right);
+        assert.ok(across > 0, `${robin} is on ${lark}'s right`);
+    }
+}
+
+test('in a robins chain, the lark backs round the courtesy turn, and both end facing in, the robin on the right', () => {
+    const set = new DancerSet(6);
+    // As in Simplicity Swing, ending in long lines
+    assertCourtesyTurns(danceMoves(new FacingTracker(), set, [
+        { type: 'balance', beats: 4, who: 'neighbor' },
+        { type: 'swing', beats: 12, who: 'neighbor' },
+        { type: 'circle left 3/4', beats: 6 },
+        { type: 'swing', beats: 10, who: 'partner' },
+        { type: 'Long lines, forward and back', beats: 8 },
+        { type: 'chain to neighbor', beats: 8, who: 'robins' }
+    ]).at(-1));
+});
+
+test('in a right and left through, the lark backs round the courtesy turn, and both end facing in, the robin on the right', () => {
+    // Becket Reel has one on the left diagonal, and one straight across
+    const dance = findDance('becket-reel');
+    const moves = dance.parts.flatMap(part => part.moves);
+    const set = new DancerSet(6, dance.formation);
+    const frames = danceMoves(new FacingTracker(), set, moves);
+    const throughs = moves.flatMap((move, i) => move.type === 'right and left through' ? [i] : []);
+    assert.equal(throughs.length, 2);
+    for (const i of throughs) assertCourtesyTurns(frames[i]);
+});

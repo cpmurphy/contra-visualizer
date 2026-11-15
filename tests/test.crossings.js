@@ -213,7 +213,7 @@ test('robins chain: each couple holds hands while they courtesy turn', () => {
     const { paths, couples } = chainFromSimplicitySwingB1();
     for (const { robin, lark } of couples) {
         assert.deepStrictEqual(paths.holds.find(hold => hold.ids.includes(robin)),
-            { ids: [lark, robin], shape: 'line', from: 3, to: 7 });
+            { ids: [lark, robin], shape: 'line', sideBySide: true, from: 3, to: 7 });
     }
 });
 

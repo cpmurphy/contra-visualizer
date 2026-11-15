@@ -132,7 +132,7 @@ export function createHalfHeyPaths(dancerSet, startPosById, endPosById, paths, b
  * turn: they come close together, turn half way around counter-clockwise (as seen
  * from above, with the music at the top) about the middle of the places they end in,
  * and spread back out into those places, holding hands as they turn (added to
- * paths.holds).
+ * paths.holds), side by side: the lark backing round, the robin walking forward.
  * @param {import('./dancers.js').Set} dancerSet
  * @param {Map<string, Position>} startPosById
  * @param {Map<string, Position>} endPosById
@@ -156,7 +156,12 @@ export function createRightAndLeftThroughPaths(dancerSet, startPosById, endPosBy
         for (const dancer of minorSet) {
             const other = turningWith(dancer);
             if (other && minorSet.indexOf(dancer) < minorSet.indexOf(other)) {
-                holds.push({ ids: [dancer.id, other.id], shape: 'line', from: beats / 2, to: beats - TAKE_HANDS_BEATS });
+                // A lark and a robin turn side by side, facing the same way, the robin on the right
+                const lark = [dancer, other].find(d => d.role === 'lark');
+                const robin = [dancer, other].find(d => d.role === 'robin');
+                holds.push(lark && robin
+                    ? { ids: [lark.id, robin.id], shape: 'line', sideBySide: true, from: beats / 2, to: beats - TAKE_HANDS_BEATS }
+                    : { ids: [dancer.id, other.id], shape: 'line', from: beats / 2, to: beats - TAKE_HANDS_BEATS });
             }
         }
         for (const dancer of minorSet) {
@@ -191,12 +196,14 @@ export function createRightAndLeftThroughPaths(dancerSet, startPosById, endPosBy
             }
 
             // Counter-clockwise from above is anticlockwise on screen: decreasing
-            // angle in y-down coordinates
+            // angle in y-down coordinates. They finish turning as they let go, facing
+            // in, and then only step apart into their places
             const startAngle = Math.atan2(arrival.y - pivot.y, arrival.x - pivot.x);
             const outerRadius = Math.hypot(arrival.x - pivot.x, arrival.y - pivot.y);
+            const turnFraction = 1 - TAKE_HANDS_BEATS / (beats / 2);
             for (let k = 1; k <= RIGHT_AND_LEFT_SAMPLES; k++) {
                 const u = ease(k / RIGHT_AND_LEFT_SAMPLES);
-                const angle = startAngle - Math.PI * u;
+                const angle = startAngle - Math.PI * ease(Math.min(1, k / RIGHT_AND_LEFT_SAMPLES / turnFraction));
                 const radius = outerRadius - (outerRadius - COURTESY_TURN_RADIUS_PX) * Math.sin(Math.PI * u);
                 waypoints.push({ x: pivot.x + radius * Math.cos(angle), y: pivot.y + radius * Math.sin(angle) });
                 times.push(0.5 + k / RIGHT_AND_LEFT_SAMPLES / 2);
@@ -314,7 +321,8 @@ export function createRobinsChainPaths(dancerSet, startPosById, endPosById, path
             );
             paths.set(robin.id, new Path(robinWaypoints, beats, times));
             paths.set(lark.id, new Path(larkWaypoints, beats, times));
-            holds.push({ ids: [lark.id, robin.id], shape: 'line',
+            // Side by side, facing the same way, the robin on the lark's right
+            holds.push({ ids: [lark.id, robin.id], shape: 'line', sideBySide: true,
                 from: CHAIN_ARRIVAL_END * beats, to: CHAIN_TURN_END * beats });
             pullBys.push(pullBy);
         }
